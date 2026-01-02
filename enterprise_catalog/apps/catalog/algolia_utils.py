@@ -36,7 +36,10 @@ from enterprise_catalog.apps.catalog.content_metadata_utils import (
     get_course_first_paid_enrollable_seat_price,
     is_course_run_active,
 )
-from enterprise_catalog.apps.catalog.models import ContentMetadata
+from enterprise_catalog.apps.catalog.models import (
+    ContentMetadata,
+    ContentTranslation,
+)
 from enterprise_catalog.apps.catalog.serializers import (
     NormalizedContentMetadataSerializer,
 )
@@ -52,7 +55,7 @@ from enterprise_catalog.apps.video_catalog.models import (
 )
 
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 ALGOLIA_UUID_BATCH_SIZE = 100
 
@@ -229,6 +232,7 @@ def _should_index_course(course_metadata):
     Returns:
         bool: Whether or not the course should be indexed by algolia.
     """
+
     course_json_metadata = course_metadata.json_metadata
     advertised_course_run = get_advertised_course_run(course_json_metadata)
 
@@ -258,7 +262,7 @@ def _should_index_course(course_metadata):
     ):
         should_not_index = should_not_index_function()
         if should_not_index:
-            logger.info(f'Not indexing course {course_metadata.content_key}, reason: {log_message}')
+            LOGGER.info(f'Not indexing course {course_metadata.content_key}, reason: {log_message}')
             return False
 
     all_runs = course_json_metadata.get('course_runs', [])
@@ -267,7 +271,7 @@ def _should_index_course(course_metadata):
         run for run in all_runs
         if run.get(COURSE_RUN_RESTRICTION_TYPE_KEY) == RESTRICTION_FOR_B2B
     ])
-    logger.info(
+    LOGGER.info(
         f'Indexing course {course_metadata.content_key} with {num_runs_total} '
         f'total runs, of which {num_runs_restricted} are restricted for enterprise.'
     )
@@ -310,7 +314,7 @@ def partition_course_keys_for_indexing(courses_content_metadata):
             else:
                 nonindexable_course_keys.add(course_metadata.content_key)
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(
+            LOGGER.warning(
                 f"Failed determining indexable status for course_metadata "
                 f"'{course_metadata.content_key}' due to: {e}"
             )
@@ -433,7 +437,7 @@ def set_global_course_review_avg():
 
             reviews_count = float(item.json_metadata.get('reviews_count'))
             avg_rating = float(item.json_metadata.get('avg_course_rating'))
-            logger.info(
+            LOGGER.info(
                 f"set_global_course_review_avg found {reviews_count} course reviews for course: {item.content_key} "
                 f"with avg score of {avg_rating}"
             )
@@ -441,11 +445,11 @@ def set_global_course_review_avg():
             total_number_reviews += reviews_count
 
     if rolling_rating_sum == 0 or total_number_reviews == 0:
-        logger.warning("set_global_course_review_avg came up with no ratings, somehow.")
+        LOGGER.warning("set_global_course_review_avg came up with no ratings, somehow.")
         return
 
     total_average_course_rating = rolling_rating_sum / total_number_reviews
-    logger.info(f"set_global_course_review_avg saving average course rating value: {total_average_course_rating}")
+    LOGGER.info(f"set_global_course_review_avg saving average course rating value: {total_average_course_rating}")
     cache.set(
         DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY,
         total_average_course_rating,
@@ -1266,7 +1270,7 @@ def _get_is_active_course_run(full_course_run):
     is_not_archived_availability = availability != 'Archived'
     is_active = course_run_is_active and is_not_archived_availability
     if not is_active:
-        logger.info(
+        LOGGER.info(
             f'[_get_is_active_course_run] course run is not active '
             f'key: {full_course_run.get("key")}, '
             f'is_marketable: {full_course_run.get("is_marketable")}, '
@@ -1581,7 +1585,7 @@ def _algolia_object_from_product(product, algolia_fields):
                 'duration': get_video_duration(video),
             })
         except Video.DoesNotExist:
-            logger.warning(f"video not found for aggregation_key: {edx_video_id}")
+            LOGGER.warning(f"video not found for aggregation_key: {edx_video_id}")
 
     algolia_object = {}
     keys = searchable_product.keys()
@@ -1614,3 +1618,69 @@ def create_algolia_objects(products, algolia_fields):
     ]
 
     return algolia_objects
+
+
+def create_spanish_algolia_object(algolia_object, content_metadata=None):
+    """
+    Creates a Spanish version of the Algolia object.
+
+    Args:
+        algolia_object (dict): The original English Algolia object.
+        content_metadata (ContentMetadata or Video, optional): The metadata instance
+            to fetch pre-computed translations from. If None, if it's a Video object,
+            or if no pre-computed translation exists, returns None.
+
+    Returns:
+        dict or None: A new Algolia object with translated fields and updated objectID,
+            or None if no pre-computed translation is available.
+    """
+    spanish_object = copy.deepcopy(algolia_object)
+    translation = None
+
+    # Only attempt to fetch pre-computed translation for ContentMetadata objects
+    # Videos don't have ContentTranslation support yet
+    if content_metadata and isinstance(content_metadata, ContentMetadata):
+        try:
+            translation = content_metadata.translations.get(language_code='es')
+        except ContentTranslation.DoesNotExist:
+            LOGGER.warning(
+                '[SPANISH_TRANSLATION] No pre-computed translation found for %s, '
+                'skipping Spanish object creation',
+                content_metadata.content_key
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            LOGGER.error(
+                '[SPANISH_TRANSLATION] Error fetching translation for %s: %s',
+                content_metadata.content_key,
+                exc,
+                exc_info=True
+            )
+
+    # Use pre-computed translation if available
+    if translation:
+        # Apply translated fields
+        if translation.title:
+            spanish_object['title'] = translation.title
+        if translation.short_description:
+            spanish_object['short_description'] = translation.short_description
+        if translation.full_description:
+            spanish_object['full_description'] = translation.full_description
+        if translation.subtitle:
+            spanish_object['subtitle'] = translation.subtitle
+
+        LOGGER.debug(
+            '[SPANISH_TRANSLATION] Using pre-computed translation for %s',
+            content_metadata.content_key
+        )
+    else:
+        LOGGER.debug(
+            '[SPANISH_TRANSLATION] No pre-computed translation available for %s, skipping Spanish object',
+            getattr(content_metadata, 'content_key', 'unknown') if content_metadata else 'unknown'
+        )
+        return None
+
+    # Update objectID to indicate Spanish version
+    spanish_object['objectID'] = f"{spanish_object['objectID']}-es"
+    spanish_object['language'] = 'es'
+
+    return spanish_object

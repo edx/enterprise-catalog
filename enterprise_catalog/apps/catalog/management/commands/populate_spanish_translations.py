@@ -6,12 +6,12 @@ import logging
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
-from enterprise_catalog.apps.ai_curation.utils.open_ai_utils import (
-    translate_object_fields,
-)
 from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     ContentTranslation,
+)
+from enterprise_catalog.apps.catalog.translation_utils import (
+    translate_object_fields,
 )
 from enterprise_catalog.apps.catalog.utils import (
     batch_by_pk,

@@ -39,5 +39,29 @@ def chat_completion(system_message, user_messages):
         data=json.dumps(body),
         timeout=(CONNECT_TIMOUET_SECONDS, READ_TIMEOUT_SECONDS)
     )
+    response.raise_for_status()
 
-    return response.json()[0].get('content')
+    # Validate response
+    try:
+        response_data = response.json()
+    except (json.JSONDecodeError, ValueError) as ex:
+        raise ValueError(f'Invalid JSON response from Xpert AI: {str(ex)}') from ex
+
+    # Check if response is empty or not a list
+    if response_data is None or not isinstance(response_data, list) or not response_data:
+        # Truncate large response data for logging
+        truncated_data = str(response_data)[:100]
+        raise ValueError(f'Invalid response format from Xpert AI: {truncated_data}')
+
+    # Check if the first element has an error message instead of content
+    first_element = response_data[0]
+    if 'message' in first_element and 'content' not in first_element:
+        error_message = first_element.get('message', 'Unknown error')
+        raise ValueError(f'Xpert AI returned error: {error_message}')
+
+    # Extract content from the response
+    response_content = first_element.get('content')
+    if response_content is None:
+        raise ValueError('Xpert AI response missing content field')
+
+    return response_content

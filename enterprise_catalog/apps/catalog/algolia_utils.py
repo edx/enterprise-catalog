@@ -1541,7 +1541,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'avg_course_rating': get_avg_course_rating(searchable_product),
             'course_bayesian_average': get_course_bayesian_average(searchable_product),
             'transcript_languages': get_course_transcript_languages(searchable_product),
-            'metadata_language': 'en',
+            'metadata_language': searchable_product.get('metadata_language', 'en'),
         })
     elif searchable_product.get('content_type') == PROGRAM:
         searchable_product.update({
@@ -1560,7 +1560,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'course_details': get_program_course_details(searchable_product),
             'learning_type': get_learning_type(searchable_product),
             'learning_type_v2': get_learning_type_v2(searchable_product),
-            'metadata_language': 'en',
+            'metadata_language': searchable_product.get('metadata_language', 'en'),
         })
     elif searchable_product.get('content_type') == LEARNER_PATHWAY:
         searchable_product.update({
@@ -1573,7 +1573,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'created': get_pathway_created_date(searchable_product),
             'learning_type': get_learning_type(searchable_product),
             'learning_type_v2': get_learning_type_v2(searchable_product),
-            'metadata_language': 'en',
+            'metadata_language': searchable_product.get('metadata_language', 'en'),
         })
     elif searchable_product.get('content_type') == VIDEO:
         try:

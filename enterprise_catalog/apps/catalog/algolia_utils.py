@@ -106,6 +106,7 @@ ALGOLIA_FIELDS = [
     'subjects',
     'skill_names',
     'skills',
+    'metadata_language',
     'subtitle',
     'title',
     'type',
@@ -164,6 +165,7 @@ ALGOLIA_INDEX_SETTINGS = {
         'academy_uuids',
         'searchable(academy_tags)',
         'language',
+        'metadata_language',
         'level_type',
         'program_type',
         'filterOnly(advertised_course_run.upgrade_deadline)',
@@ -1539,6 +1541,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'avg_course_rating': get_avg_course_rating(searchable_product),
             'course_bayesian_average': get_course_bayesian_average(searchable_product),
             'transcript_languages': get_course_transcript_languages(searchable_product),
+            'metadata_language': 'en',
         })
     elif searchable_product.get('content_type') == PROGRAM:
         searchable_product.update({
@@ -1557,6 +1560,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'course_details': get_program_course_details(searchable_product),
             'learning_type': get_learning_type(searchable_product),
             'learning_type_v2': get_learning_type_v2(searchable_product),
+            'metadata_language': 'en',
         })
     elif searchable_product.get('content_type') == LEARNER_PATHWAY:
         searchable_product.update({
@@ -1569,6 +1573,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'created': get_pathway_created_date(searchable_product),
             'learning_type': get_learning_type(searchable_product),
             'learning_type_v2': get_learning_type_v2(searchable_product),
+            'metadata_language': 'en',
         })
     elif searchable_product.get('content_type') == VIDEO:
         try:
@@ -1681,6 +1686,6 @@ def create_spanish_algolia_object(algolia_object, content_metadata=None):
 
     # Update objectID to indicate Spanish version
     spanish_object['objectID'] = f"{spanish_object['objectID']}-es"
-    spanish_object['language'] = 'es'
+    spanish_object['metadata_language'] = 'es'
 
     return spanish_object

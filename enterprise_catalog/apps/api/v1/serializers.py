@@ -494,8 +494,6 @@ class AcademyTagsListSerializer(serializers.ListSerializer):  # pylint: disable=
             tag_title = tag['title']
             tag_title_en = tag.get('title_en', tag_title)
             if tag_title in tag_titles_with_results or tag_title_en in tag_titles_with_results:
-                # Remove title_en before adding to results (only used for internal matching)
-                tag.pop('title_en', None)
                 tags_with_results.append(tag)
         return tags_with_results
 

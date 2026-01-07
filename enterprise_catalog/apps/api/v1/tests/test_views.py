@@ -2288,7 +2288,7 @@ class AcademiesViewSetTests(APITestMixin):
     @mock.patch('enterprise_catalog.apps.api.v1.serializers.get_initialized_algolia_client')
     def test_tags_include_english_title_for_algolia_matching(self, mock_algolia_client):
         """
-        Test that tags use title_en internally for Algolia matching but don't include it in response.
+        Test that tag title_en is included in the api response.
         """
         self.tag1.title_en = 'leadership'
         self.tag1.title_es = 'liderazgo'
@@ -2303,10 +2303,9 @@ class AcademiesViewSetTests(APITestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Verify tags do NOT include title_en in the response (only used internally for matching)
         tags = response.data['tags']
         self.assertGreater(len(tags), 0)
-        self.assertNotIn('title_en', tags[0])
+        self.assertIn('title_en', tags[0])
 
     # pylint: disable=unused-argument
     @mock.patch('enterprise_catalog.apps.api_client.enterprise_cache.EnterpriseApiClient')

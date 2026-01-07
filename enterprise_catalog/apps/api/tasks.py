@@ -817,6 +817,7 @@ def add_video_to_algolia_objects(
     json_metadata = copy.deepcopy(video.json_metadata)
     json_metadata.update({
         'objectID': f'video-{video.edx_video_id}',
+        'metadata_language': 'en',
     })
     json_metadata.update({
         'content_type': VIDEO,
@@ -928,6 +929,7 @@ def add_metadata_to_algolia_objects(
     json_metadata = copy.deepcopy(metadata.json_metadata)
     json_metadata.update({
         'objectID': get_algolia_object_id(json_metadata.get('content_type'), json_metadata.get('uuid')),
+        'metadata_language': 'en',
     })
     # academy uuids and tags are always less than 15 in number
     json_metadata.update({

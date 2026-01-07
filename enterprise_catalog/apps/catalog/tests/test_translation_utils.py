@@ -3,6 +3,7 @@ Tests for translation utilities.
 """
 from unittest.mock import patch
 
+import requests
 from django.test import TestCase
 
 from enterprise_catalog.apps.catalog.translation_utils import (
@@ -63,6 +64,20 @@ class TranslateToSpanishTests(TestCase):
         # Verify error logging includes the error message
         log_call_args = mock_logger.error.call_args[0]
         self.assertIn('Error translating text', log_call_args[0])
+
+    @patch('enterprise_catalog.apps.catalog.translation_utils.LOGGER')
+    @patch('enterprise_catalog.apps.catalog.translation_utils.chat_completion')
+    def test_translate_to_spanish_http_error(self, mock_chat_completion, mock_logger):
+        """Test translation handles HTTPError gracefully."""
+        mock_chat_completion.side_effect = requests.exceptions.HTTPError('502 Server Error')
+
+        result = translate_to_spanish('Hello World')
+
+        self.assertEqual(result, '')
+        mock_logger.error.assert_called_once()
+        # Verify error logging includes the error message
+        log_call_args = mock_logger.error.call_args[0]
+        self.assertIn('API error translating text', log_call_args[0])
 
     @patch('enterprise_catalog.apps.catalog.translation_utils.LOGGER')
     @patch('enterprise_catalog.apps.catalog.translation_utils.chat_completion')

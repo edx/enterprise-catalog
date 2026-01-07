@@ -30,7 +30,8 @@ class AlgoliaTranslationTests(TestCase):
             'title': 'Original Title',
             'short_description': 'Original Description',
             'full_description': 'Original Full',
-            'subtitle': 'Original Subtitle'
+            'subtitle': 'Original Subtitle',
+            'language': 'en'
         }
         content_metadata = ContentMetadataFactory(content_type='course', content_key='course-123')
         ContentTranslation.objects.create(
@@ -50,7 +51,8 @@ class AlgoliaTranslationTests(TestCase):
         self.assertEqual(result['short_description'], 'Descripción Español')
         self.assertEqual(result['full_description'], 'Descripción Completa Español')
         self.assertEqual(result['subtitle'], 'Subtítulo Español')
-        self.assertEqual(result['language'], 'es')
+        self.assertEqual(result['language'], 'en')
+        self.assertEqual(result['metadata_language'], 'es')
 
     def test_add_metadata_to_algolia_objects_creates_spanish_version(self):
         """

@@ -3,6 +3,7 @@ Translation utilities for enterprise catalog content.
 """
 from logging import getLogger
 
+import requests
 from django.conf import settings
 
 from enterprise_catalog.apps.api_client.xpert_ai import chat_completion
@@ -52,6 +53,13 @@ def translate_to_spanish(text):
             user_messages=messages
         )
         return translated_text if translated_text else ''
+    except requests.exceptions.HTTPError as ex:
+        LOGGER.error(
+            '[SPANISH_TRANSLATION] API error translating text: %s. Original text: %s',
+            str(ex),
+            text[:100]
+        )
+        return ''
     except ValueError as ex:
         LOGGER.error(
             '[SPANISH_TRANSLATION] Error translating text: %s. Original text: %s',

@@ -64,7 +64,11 @@ class TestSpanishTranslationInAlgoliaHelpers(TestCase):
         for spanish_oid in spanish_objects:
             assert '-es' in spanish_oid
             assert str(course.content_uuid) in spanish_oid
-            assert algolia_products_by_object_id[spanish_oid]['language'] == 'es'
+            assert algolia_products_by_object_id[spanish_oid]['metadata_language'] == 'es'
+
+        # Verify English objects have metadata_language: 'en'
+        for english_oid in english_objects:
+            assert algolia_products_by_object_id[english_oid]['metadata_language'] == 'en'
 
     def test_add_video_to_algolia_objects_skips_spanish_objects(self):
         """
@@ -95,6 +99,10 @@ class TestSpanishTranslationInAlgoliaHelpers(TestCase):
         assert len(english_objects) == 3
         # Should have 0 Spanish objects (Video not supported)
         assert len(spanish_objects) == 0
+
+        # Verify English objects have metadata_language: 'en'
+        for english_oid in english_objects:
+            assert algolia_products_by_object_id[english_oid]['metadata_language'] == 'en'
 
     def test_spanish_objects_include_same_uuids_as_english(self):
         """
@@ -141,3 +149,7 @@ class TestSpanishTranslationInAlgoliaHelpers(TestCase):
         english_uuids = english_catalog_obj.get('enterprise_catalog_uuids')
         spanish_uuids = spanish_catalog_obj.get('enterprise_catalog_uuids')
         assert english_uuids == spanish_uuids
+
+        # Verify metadata_language
+        assert english_catalog_obj['metadata_language'] == 'en'
+        assert spanish_catalog_obj['metadata_language'] == 'es'

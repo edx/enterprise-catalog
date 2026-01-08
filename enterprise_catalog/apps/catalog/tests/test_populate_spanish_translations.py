@@ -50,7 +50,7 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         }
 
         # Run command
-        call_command('populate_spanish_translations')
+        call_command('populate_spanish_translations', all=True)
 
         # Check translations were created
         self.assertEqual(ContentTranslation.objects.count(), 2)
@@ -78,7 +78,7 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         )
 
         # Run command
-        call_command('populate_spanish_translations')
+        call_command('populate_spanish_translations', all=True)
 
         # Should not update existing translation
         translation = ContentTranslation.objects.get(content_metadata=self.content1)
@@ -104,7 +104,7 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         )
 
         # Run command with force
-        call_command('populate_spanish_translations', force=True)
+        call_command('populate_spanish_translations', force=True, all=True)
 
         # Should update existing translation
         translation = ContentTranslation.objects.get(content_metadata=self.content1)
@@ -119,7 +119,7 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         mock_translate.return_value = {'title': 'Translated'}
 
         # Run command for only content1
-        call_command('populate_spanish_translations', content_keys=['course-1'])
+        call_command('populate_spanish_translations', content_keys=['course-1'], all=True)
 
         # Should only create translation for content1
         self.assertEqual(ContentTranslation.objects.count(), 1)
@@ -139,7 +139,7 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         mock_translate.return_value = {'title': 'Translated'}
 
         # Run command in dry-run mode
-        call_command('populate_spanish_translations', dry_run=True)
+        call_command('populate_spanish_translations', dry_run=True, all=True)
 
         # No translations should be saved
         self.assertEqual(ContentTranslation.objects.count(), 0)
@@ -164,7 +164,7 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         )
 
         # Run command (without force)
-        call_command('populate_spanish_translations')
+        call_command('populate_spanish_translations', all=True)
 
         # Should update the translation because hash doesn't match
         translation = ContentTranslation.objects.get(content_metadata=self.content1)
@@ -186,7 +186,7 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         mock_translate.return_value = {'title': 'Translated'}
 
         # Run with small batch size
-        call_command('populate_spanish_translations', batch_size=2)
+        call_command('populate_spanish_translations', batch_size=2, all=True)
 
         # All content should be translated
         self.assertEqual(ContentTranslation.objects.count(), 7)  # 2 original + 5 new
@@ -208,7 +208,7 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         ContentMetadataFactory(content_key='course-3', json_metadata={'title': 'Course 3'})
 
         # Run command - should not crash
-        call_command('populate_spanish_translations')
+        call_command('populate_spanish_translations', all=True)
 
         # Should have created 2 translations (skipped the one that errored)
         self.assertEqual(ContentTranslation.objects.count(), 2)
@@ -227,10 +227,84 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         }
 
         # Run command
-        call_command('populate_spanish_translations')
+        call_command('populate_spanish_translations', all=True)
 
         translation = ContentTranslation.objects.first()
         self.assertEqual(translation.title, 'Título')
         self.assertEqual(translation.short_description, 'Descripción corta')
         self.assertEqual(translation.full_description, 'Descripción completa')
         self.assertEqual(translation.subtitle, 'Subtítulo')
+
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations._should_index_course'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.translate_object_fields'
+    )
+    def test_command_skips_non_indexable_content(self, mock_translate, mock_should_index):
+        """Test that content not eligible for indexing is skipped."""
+        mock_should_index.return_value = False
+        mock_translate.return_value = {'title': 'Translated'}
+
+        # Run command (without all=True)
+        call_command('populate_spanish_translations')
+
+        # Should check if it should be indexed
+        mock_should_index.assert_called()
+        # Should NOT translate
+        mock_translate.assert_not_called()
+        # Should NOT create translation
+        self.assertEqual(ContentTranslation.objects.count(), 0)
+
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.get_advertised_course_run'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations._should_index_course'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.translate_object_fields'
+    )
+    def test_command_skips_archived_content(self, mock_translate, mock_should_index, mock_get_run):
+        """Test that content with an archived advertised run is skipped."""
+        mock_should_index.return_value = True
+        mock_get_run.return_value = {'availability': 'Archived'}
+        mock_translate.return_value = {'title': 'Translated'}
+
+        # Run command (without all=True)
+        call_command('populate_spanish_translations')
+
+        # Should check if it should be indexed
+        mock_should_index.assert_called()
+        # Should NOT translate
+        mock_translate.assert_not_called()
+        # Should NOT create translation
+        self.assertEqual(ContentTranslation.objects.count(), 0)
+
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations._should_index_course'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.translate_object_fields'
+    )
+    def test_command_all_flag_bypasses_optimization(self, mock_translate, mock_should_index):
+        """Test that the --all flag bypasses the indexing check."""
+        mock_should_index.return_value = False
+        mock_translate.return_value = {'title': 'Translated'}
+
+        # Run command with all=True
+        call_command('populate_spanish_translations', all=True)
+
+        # Should NOT even call the indexing check
+        mock_should_index.assert_not_called()
+        # Should translate anyway
+        mock_translate.assert_called()
+        # Should create translation
+        self.assertEqual(ContentTranslation.objects.count(), 2)

@@ -6,6 +6,14 @@ import logging
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
+from enterprise_catalog.apps.catalog.algolia_utils import (
+    _should_index_course,
+    _should_index_program,
+)
+from enterprise_catalog.apps.catalog.constants import COURSE, PROGRAM
+from enterprise_catalog.apps.catalog.content_metadata_utils import (
+    get_advertised_course_run,
+)
 from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     ContentTranslation,
@@ -68,6 +76,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Run without actually saving translations'
         )
+        parser.add_argument(
+            '--all',
+            action='store_true',
+            help='Translate all content, even if it would not be indexed in Algolia'
+        )
 
     def handle(self, *args, **options):
         """
@@ -78,6 +91,7 @@ class Command(BaseCommand):
         batch_size = options.get('batch_size')
         language_code = 'es'  # Only Spanish is supported at this time
         dry_run = options.get('dry_run')
+        all_content = options.get('all')
 
         # Build queryset
         queryset = ContentMetadata.objects.all()
@@ -114,7 +128,8 @@ class Command(BaseCommand):
                         content,
                         language_code,
                         force,
-                        dry_run
+                        dry_run,
+                        all_content
                     )
 
                     if result == 'created':
@@ -156,7 +171,7 @@ class Command(BaseCommand):
             error_count
         )
 
-    def _process_content(self, content, language_code, force, dry_run):
+    def _process_content(self, content, language_code, force, dry_run, all_content):
         """
         Process a single content metadata item.
 
@@ -169,6 +184,28 @@ class Command(BaseCommand):
         Returns:
             str: 'created', 'updated', or 'skipped'
         """
+        # Optimization: Skip if content would not be indexed in Algolia
+        if not all_content:
+            should_index = True
+            if content.content_type == COURSE:
+                should_index = _should_index_course(content)
+                # Additional check: skip if the advertised course run is "Archived"
+                if should_index:
+                    advertised_run = get_advertised_course_run(content.json_metadata)
+                    if advertised_run and advertised_run.get('availability') == 'Archived':
+                        logger.info(
+                            f'Skipping {content.content_key} - advertised course run is Archived'
+                        )
+                        return 'skipped'
+            elif content.content_type == PROGRAM:
+                should_index = _should_index_program(content)
+
+            if not should_index:
+                logger.info(
+                    f'Skipping {content.content_key} - not eligible for Algolia indexing'
+                )
+                return 'skipped'
+
         # Compute source hash
         source_hash = compute_source_hash(content)
 

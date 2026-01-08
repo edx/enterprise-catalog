@@ -192,6 +192,7 @@ ALGOLIA_INDEX_SETTINGS = {
         'academy_uuids',
     ],
     'customRanking': [
+        'asc(metadata_language)',
         'asc(visible_via_association)',
         'asc(created)',
         'desc(course_bayesian_average)',
@@ -205,6 +206,7 @@ ALGOLIA_INDEX_SETTINGS = {
 ALGOLIA_REPLICA_INDEX_SETTINGS = {
     'customRanking': [
         'desc(duration)',
+        'asc(metadata_language)',
         'asc(visible_via_association)',
         'asc(created)',
         'desc(course_bayesian_average)',

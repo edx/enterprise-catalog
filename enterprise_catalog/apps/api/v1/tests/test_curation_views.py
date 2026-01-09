@@ -23,6 +23,7 @@ from enterprise_catalog.apps.api.v1.views.curation.highlights import (
 from enterprise_catalog.apps.catalog.constants import COURSE, PROGRAM
 from enterprise_catalog.apps.catalog.tests.factories import (
     ContentMetadataFactory,
+    ContentTranslationFactory,
 )
 from enterprise_catalog.apps.curation.tests.factories import (
     EnterpriseCurationConfigFactory,
@@ -524,6 +525,171 @@ class HighlightSetReadOnlyViewSetTests(CurationAPITestBase):
         # Attempt the delete:
         response = self.client.delete(url)
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+
+
+@ddt.ddt
+class HighlightSetMultilingualTests(CurationAPITestBase):
+    """
+    Test multilingual support in HighlightSetReadOnlyViewSet.
+    """
+    def setUp(self):
+        super().setUp()
+
+        # Create Spanish translations for the first three content items
+        self.spanish_titles = [
+            'Título en Español 1',
+            'Título en Español 2',
+            'Título en Español 3',
+        ]
+        self.translations = []
+        for idx, content_metadata in enumerate(self.highlighted_content_metadata_one[:3]):
+            translation = ContentTranslationFactory(
+                content_metadata=content_metadata,
+                language_code='es',
+                title=self.spanish_titles[idx]
+            )
+            self.translations.append(translation)
+
+    def test_list_with_spanish_language_parameter(self):
+        """
+        Test that requesting highlight sets with lang=es returns Spanish translations.
+        """
+        url = reverse('api:v1:highlight-sets-list') + f'?enterprise_customer={self.enterprise_uuid}&lang=es'
+        self.set_up_catalog_learner()
+
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+
+        highlight_sets_results = response.json()['results']
+        assert len(highlight_sets_results) == 1
+
+        highlighted_content = highlight_sets_results[0]['highlighted_content']
+        # First three should have Spanish titles
+        for idx in range(3):
+            assert highlighted_content[idx]['title'] == self.spanish_titles[idx]
+
+        # Last two should have original English titles (no translation)
+        for idx in range(3, 5):
+            original_title = self.highlighted_content_metadata_one[idx].json_metadata['title']
+            assert highlighted_content[idx]['title'] == original_title
+
+    def test_list_with_english_language_parameter(self):
+        """
+        Test that requesting highlight sets with lang=en returns original English titles.
+        """
+        url = reverse('api:v1:highlight-sets-list') + f'?enterprise_customer={self.enterprise_uuid}&lang=en'
+        self.set_up_catalog_learner()
+
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+
+        highlight_sets_results = response.json()['results']
+        highlighted_content = highlight_sets_results[0]['highlighted_content']
+
+        # All should have original English titles
+        for idx in range(5):
+            original_title = self.highlighted_content_metadata_one[idx].json_metadata['title']
+            assert highlighted_content[idx]['title'] == original_title
+
+    def test_list_with_unsupported_language(self):
+        """
+        Test that requesting with an unsupported language defaults to English.
+        """
+        url = reverse('api:v1:highlight-sets-list') + f'?enterprise_customer={self.enterprise_uuid}&lang=fr'
+        self.set_up_catalog_learner()
+
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+
+        highlight_sets_results = response.json()['results']
+        highlighted_content = highlight_sets_results[0]['highlighted_content']
+
+        # All should have original English titles (default behavior)
+        for idx in range(5):
+            original_title = self.highlighted_content_metadata_one[idx].json_metadata['title']
+            assert highlighted_content[idx]['title'] == original_title
+
+    def test_list_without_language_parameter(self):
+        """
+        Test that requesting highlight sets without lang parameter defaults to English.
+        """
+        url = reverse('api:v1:highlight-sets-list') + f'?enterprise_customer={self.enterprise_uuid}'
+        self.set_up_catalog_learner()
+
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+
+        highlight_sets_results = response.json()['results']
+        highlighted_content = highlight_sets_results[0]['highlighted_content']
+
+        # All should have original English titles (default behavior)
+        for idx in range(5):
+            original_title = self.highlighted_content_metadata_one[idx].json_metadata['title']
+            assert highlighted_content[idx]['title'] == original_title
+
+    def test_detail_with_spanish_language_parameter(self):
+        """
+        Test that retrieving a specific highlight set with lang=es returns Spanish translations.
+        """
+        detail_url = reverse('api:v1:highlight-sets-detail', kwargs={'uuid': str(self.highlight_set_one.uuid)})
+        detail_url += '?lang=es'
+        self.set_up_catalog_learner()
+
+        response = self.client.get(detail_url)
+        assert response.status_code == status.HTTP_200_OK
+
+        highlighted_content = response.json()['highlighted_content']
+
+        # First three should have Spanish titles
+        for idx in range(3):
+            assert highlighted_content[idx]['title'] == self.spanish_titles[idx]
+
+        # Last two should have original English titles (no translation)
+        for idx in range(3, 5):
+            original_title = self.highlighted_content_metadata_one[idx].json_metadata['title']
+            assert highlighted_content[idx]['title'] == original_title
+
+    def test_detail_with_unsupported_language(self):
+        """
+        Test that requesting with an unsupported language defaults to English.
+        """
+        detail_url = reverse('api:v1:highlight-sets-detail', kwargs={'uuid': str(self.highlight_set_one.uuid)})
+        detail_url += '?lang=fr'  # French is not in AVAILABLE_TRANSLATION_LANGUAGES
+        self.set_up_catalog_learner()
+
+        response = self.client.get(detail_url)
+        assert response.status_code == status.HTTP_200_OK
+
+        highlighted_content = response.json()['highlighted_content']
+
+        # All should have original English titles (default behavior)
+        for idx in range(5):
+            original_title = self.highlighted_content_metadata_one[idx].json_metadata['title']
+            assert highlighted_content[idx]['title'] == original_title
+
+    def test_translation_with_empty_title(self):
+        """
+        Test that if a translation exists but has an empty title, it falls back to the original.
+        """
+        # Create a translation with empty title
+        content_metadata = self.highlighted_content_metadata_one[4]
+        ContentTranslationFactory(
+            content_metadata=content_metadata,
+            language_code='es',
+            title=''  # Empty title
+        )
+
+        detail_url = reverse('api:v1:highlight-sets-detail', kwargs={'uuid': str(self.highlight_set_one.uuid)})
+        detail_url += '?lang=es'
+        self.set_up_catalog_learner()
+
+        response = self.client.get(detail_url)
+        assert response.status_code == status.HTTP_200_OK
+
+        highlighted_content = response.json()['highlighted_content']
+        # Should fall back to original title when translation title is empty
+        original_title = self.highlighted_content_metadata_one[4].json_metadata['title']
+        assert highlighted_content[4]['title'] == original_title
 
 
 @ddt.ddt

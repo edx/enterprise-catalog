@@ -10,3 +10,7 @@ class SegmentEvents:
     AI_CURATIONS_TASK_COMPLETED = 'edx.server.enterprise-catalog.ai-curations.task.completed'
     AI_CURATIONS_RESULTS_FOUND = 'edx.server.enterprise-catalog.ai-curations.results-found'
     AI_CURATIONS_RESULTS_NOT_FOUND = 'edx.server.enterprise-catalog.ai-curations.results-not-found'
+
+
+DEFAULT_TRANSLATION_LANGUAGE = 'en'
+AVAILABLE_TRANSLATION_LANGUAGES = ['es']

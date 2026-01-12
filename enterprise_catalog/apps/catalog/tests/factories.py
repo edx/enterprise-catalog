@@ -15,6 +15,7 @@ from enterprise_catalog.apps.catalog.constants import (
 from enterprise_catalog.apps.catalog.models import (
     CatalogQuery,
     ContentMetadata,
+    ContentTranslation,
     EnterpriseCatalog,
     EnterpriseCatalogFeatureRole,
     EnterpriseCatalogRoleAssignment,
@@ -190,6 +191,24 @@ class ContentMetadataFactory(factory.django.DjangoModelFactory):
                 },
             })
         return json_metadata
+
+
+class ContentTranslationFactory(factory.django.DjangoModelFactory):
+    """
+    Test factory for the `ContentTranslation` model
+    """
+    class Meta:
+        model = ContentTranslation
+
+    content_metadata = factory.SubFactory(ContentMetadataFactory)
+    language_code = 'es'
+    title = factory.Faker('sentence', nb_words=4)
+    short_description = factory.Faker('paragraph', nb_sentences=2)
+    full_description = factory.Faker('paragraph', nb_sentences=5)
+    outcome = factory.Faker('paragraph', nb_sentences=3)
+    prerequisites = factory.Faker('paragraph', nb_sentences=2)
+    subtitle = factory.Faker('sentence', nb_words=6)
+    source_hash = factory.Faker('sha256')
 
 
 class RestrictedCourseMetadataFactory(factory.django.DjangoModelFactory):

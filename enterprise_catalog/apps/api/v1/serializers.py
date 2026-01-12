@@ -2,9 +2,14 @@ import logging
 from re import findall, search
 
 from django.db import IntegrityError, models
+from django.db.models import Prefetch
 from rest_framework import serializers, status
 
 from enterprise_catalog.apps.academy.models import Academy, Tag
+from enterprise_catalog.apps.api.v1.constants import (
+    AVAILABLE_TRANSLATION_LANGUAGES,
+    DEFAULT_TRANSLATION_LANGUAGE,
+)
 from enterprise_catalog.apps.api.v1.utils import (
     get_archived_content_count,
     get_enterprise_utm_context,
@@ -23,6 +28,7 @@ from enterprise_catalog.apps.catalog.constants import (
 from enterprise_catalog.apps.catalog.models import (
     CatalogQuery,
     ContentMetadata,
+    ContentTranslation,
     EnterpriseCatalog,
 )
 from enterprise_catalog.apps.catalog.utils import get_content_filter_hash
@@ -360,6 +366,7 @@ class HighlightedContentSerializer(serializers.ModelSerializer):
     Serializer for the `HighlightedContent` model.
     """
     aggregation_key = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
 
     class Meta:
         model = HighlightedContent
@@ -381,6 +388,22 @@ class HighlightedContentSerializer(serializers.ModelSerializer):
         Returns the aggregation key for the associated ContentMetadata.
         """
         return obj.aggregation_key
+
+    def get_title(self, obj):
+        """
+        Returns the title, preferring translation if language is supported and available.
+        """
+        lang = self.context.get('lang')
+        title = obj.title
+
+        if not lang or lang == DEFAULT_TRANSLATION_LANGUAGE or lang not in AVAILABLE_TRANSLATION_LANGUAGES:
+            return title
+
+        translations = obj.content_metadata.translations.all()
+        if translations and translations[0].title:
+            return translations[0].title
+
+        return title
 
 
 class HighlightSetSerializer(serializers.ModelSerializer):
@@ -406,8 +429,20 @@ class HighlightSetSerializer(serializers.ModelSerializer):
         """
         Returns the data for the associated content included in this HighlightSet object.
         """
+        lang = self.context.get('lang')
+
         qs = obj.highlighted_content.order_by('created').select_related('content_metadata')
-        return HighlightedContentSerializer(qs, many=True).data
+
+        if lang in AVAILABLE_TRANSLATION_LANGUAGES and lang != DEFAULT_TRANSLATION_LANGUAGE:
+            # Only prefetches translations if a supported non-English language is requested.
+            qs = qs.prefetch_related(
+                Prefetch(
+                    'content_metadata__translations',
+                    queryset=ContentTranslation.objects.filter(language_code=lang)
+                )
+            )
+
+        return HighlightedContentSerializer(qs, many=True, context=self.context).data
 
 
 class EnterpriseCurationConfigSerializer(serializers.ModelSerializer):

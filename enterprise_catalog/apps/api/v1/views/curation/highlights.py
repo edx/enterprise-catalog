@@ -18,7 +18,10 @@ from enterprise_catalog.apps.api.constants import (
     CURATION_CONFIG_READ_ONLY_VIEW_CACHE_TIMEOUT_SECONDS,
     HIGHLIGHT_SET_READ_ONLY_VIEW_CACHE_TIMEOUT_SECONDS,
 )
-from enterprise_catalog.apps.api.v1.constants import SegmentEvents
+from enterprise_catalog.apps.api.v1.constants import (
+    DEFAULT_TRANSLATION_LANGUAGE,
+    SegmentEvents,
+)
 from enterprise_catalog.apps.api.v1.event_utils import (
     track_highlight_set_changes,
 )
@@ -293,6 +296,14 @@ class HighlightSetReadOnlyViewSet(HighlightSetBaseViewSet, viewsets.ReadOnlyMode
     @method_decorator(vary_on_cookie)
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
+
+    def get_serializer_context(self):
+        """
+        Add language parameter from query string to serializer context.
+        """
+        context = super().get_serializer_context()
+        context['lang'] = self.request.query_params.get('lang', DEFAULT_TRANSLATION_LANGUAGE)
+        return context
 
 
 class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):

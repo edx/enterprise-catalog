@@ -961,7 +961,7 @@ class AlgoliaUtilsTests(TestCase):
 
     @ddt.data(
         (
-            {'courses': [{'key': 'program_course_key'}]},
+            {'courses': [{'key': 'program_course_key'}, {'key': 'other_course_key'}]},
             {'skill_names': ['Python', 'Programming']},
             ['Python', 'Programming'],
         ),
@@ -971,12 +971,19 @@ class AlgoliaUtilsTests(TestCase):
         """
         Assert that the list of skill names associated with a program is properly parsed.
         """
-        ContentMetadataFactory.create(
-            content_key=program_metadata['courses'][0]['key'],
-            content_type=COURSE,
-            _json_metadata=course_metadata,
-        )
-        skill_names = utils.get_program_skill_names(program_metadata)
+        for course_dict in program_metadata['courses']:
+            ContentMetadataFactory.create(
+                content_key=course_dict['key'],
+                content_type=COURSE,
+                _json_metadata=course_metadata,
+            )
+
+        # A batched lookup in _build_course_metadata_cache() means we do:
+        # 1 query to check for existence (once only)
+        # 1 query to get the result set
+        # 1 query to get the next batch (which there isn't any in this test case)
+        with self.assertNumQueries(3):
+            skill_names = utils.get_program_skill_names(program_metadata)
         self.assertEqual(sorted(skill_names), sorted(expected_skill_names))
 
     @ddt.data(
@@ -1216,7 +1223,7 @@ class AlgoliaUtilsTests(TestCase):
 
     @ddt.data(
         (
-            {'courses': [{'key': 'program_course_key'}]},
+            {'courses': [{'key': 'program_course_key'}, {'key': 'other_course_key'}]},
             {'subjects': ['Computer Science', 'Communication']},
             ['Computer Science', 'Communication'],
         ),
@@ -1244,12 +1251,19 @@ class AlgoliaUtilsTests(TestCase):
         """
         Assert that the Subjects associated with a program are properly parsed.
         """
-        ContentMetadataFactory.create(
-            content_key=program_metadata['courses'][0]['key'],
-            content_type=COURSE,
-            _json_metadata=course_metadata,
-        )
-        program_subjects = utils.get_program_subjects(program_metadata)
+        for course_dict in program_metadata['courses']:
+            ContentMetadataFactory.create(
+                content_key=course_dict['key'],
+                content_type=COURSE,
+                _json_metadata=course_metadata,
+            )
+
+        # A batched lookup in _build_course_metadata_cache() means we do:
+        # 1 query to check for existence (once only)
+        # 1 query to get the result set
+        # 1 query to get the next batch (which there isn't any in this test case)
+        with self.assertNumQueries(3):
+            program_subjects = utils.get_program_subjects(program_metadata)
         self.assertEqual(sorted(expected_subjects), sorted(program_subjects))
 
     @ddt.data(
@@ -1291,7 +1305,13 @@ class AlgoliaUtilsTests(TestCase):
                 content_type=COURSE,
                 _json_metadata=course_metadata[i],
             )
-        program_level_type = utils.get_program_level_type(program_metadata)
+
+        # A batched lookup in _build_course_metadata_cache() means we do:
+        # 1 query to check for existence (once only)
+        # 1 query to get the result set
+        # 1 query to get the next batch (which there isn't any in this test case)
+        with self.assertNumQueries(3):
+            program_level_type = utils.get_program_level_type(program_metadata)
         self.assertEqual(expected_level_type, program_level_type)
 
     @ddt.data(

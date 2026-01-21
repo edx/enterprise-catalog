@@ -876,57 +876,101 @@ def get_program_partners(program):
     return partners
 
 
-def get_program_subjects(program):
+def _build_course_metadata_cache(course_keys):
+    """
+    Builds a cache of ContentMetadata objects for the given course keys using batch_by_pk.
+
+    Arguments:
+        course_keys (list): List of course content keys to fetch.
+
+    Returns:
+        dict: A dictionary mapping content_key to ContentMetadata objects.
+    """
+    course_metadata_cache = {}
+    if course_keys:
+        # Use batch_by_pk to efficiently query course metadata
+        course_filter = Q(content_key__in=course_keys)
+        for items_batch in batch_by_pk(ContentMetadata, batch_size=25, extra_filter=course_filter):
+            for course_metadata in items_batch:
+                course_metadata_cache[course_metadata.content_key] = course_metadata
+    return course_metadata_cache
+
+
+def get_program_subjects(program, course_metadata_cache=None):
     """
     Gets the subjects for a program. Used for the "subjects" facet in Algolia.
 
     Arguments:
         program (dict): a dictionary representing a program.
+        course_metadata_cache (dict, optional): A dict mapping content_key to ContentMetadata objects
+            to avoid N+1 queries. If not provided, will be built from the program's courses.
 
     Returns:
         list: a list of subjects associated with the program.
     """
+    # If no cache provided, build one from this program's courses
+    if course_metadata_cache is None:
+        course_keys = [course.get('key') for course in program.get('courses', []) if course.get('key')]
+        course_metadata_cache = _build_course_metadata_cache(course_keys)
+
     subjects = set()
     for course in program.get('courses', []):
-        course_metadata = ContentMetadata.objects.filter(content_key=course.get('key')).first()
+        course_key = course.get('key')
+        course_metadata = course_metadata_cache.get(course_key)
         if course_metadata:
             course_subjects = get_course_subjects(course_metadata.json_metadata)
             subjects.update(course_subjects)
     return list(subjects)
 
 
-def get_program_skill_names(program):
+def get_program_skill_names(program, course_metadata_cache=None):
     """
     Gets the skills for a program. Used for the "skill_names" facet in Algolia.
 
     Arguments:
         program (dict): a dictionary representing a program.
+        course_metadata_cache (dict, optional): A dict mapping content_key to ContentMetadata objects
+            to avoid N+1 queries. If not provided, will be built from the program's courses.
 
     Returns:
         list: a list of skill_names associated with the program.
     """
+    # If no cache provided, build one from this program's courses
+    if course_metadata_cache is None:
+        course_keys = [course.get('key') for course in program.get('courses', []) if course.get('key')]
+        course_metadata_cache = _build_course_metadata_cache(course_keys)
+
     skill_names = set()
     for course in program.get('courses', []):
-        course_metadata = ContentMetadata.objects.filter(content_key=course.get('key')).first()
+        course_key = course.get('key')
+        course_metadata = course_metadata_cache.get(course_key)
         if course_metadata:
             course_skills = get_course_skill_names(course_metadata.json_metadata)
             skill_names.update(course_skills)
     return list(skill_names)
 
 
-def get_program_level_type(program):
+def get_program_level_type(program, course_metadata_cache=None):
     """
     Gets the level_type for a program. Used for the "level_type" facet in Algolia.
 
     Arguments:
         program (dict): a dictionary representing a program.
+        course_metadata_cache (dict, optional): A dict mapping content_key to ContentMetadata objects
+            to avoid N+1 queries. If not provided, will be built from the program's courses.
 
     Returns:
         str: level type associated with the program.
     """
+    # If no cache provided, build one from this program's courses
+    if course_metadata_cache is None:
+        course_keys = [course.get('key') for course in program.get('courses', []) if course.get('key')]
+        course_metadata_cache = _build_course_metadata_cache(course_keys)
+
     level_types = []
     for course in program.get('courses', []):
-        course_metadata = ContentMetadata.objects.filter(content_key=course.get('key')).first()
+        course_key = course.get('key')
+        course_metadata = course_metadata_cache.get(course_key)
         if course_metadata:
             course_level_type = course_metadata.json_metadata.get('level_type')
             if course_level_type:
@@ -1546,6 +1590,10 @@ def _algolia_object_from_product(product, algolia_fields):
             'metadata_language': searchable_product.get('metadata_language', 'en'),
         })
     elif searchable_product.get('content_type') == PROGRAM:
+        # Build course metadata cache once for all program functions that need it
+        course_keys = [course.get('key') for course in searchable_product.get('courses', []) if course.get('key')]
+        course_metadata_cache = _build_course_metadata_cache(course_keys)
+
         searchable_product.update({
             'course_keys': get_program_course_keys(searchable_product),
             'programs': [get_program_type(searchable_product)],
@@ -1553,9 +1601,9 @@ def _algolia_object_from_product(product, algolia_fields):
             'program_type': get_program_type(searchable_product),
             'availability': get_program_availability(searchable_product),
             'partners': get_program_partners(searchable_product),
-            'subjects': get_program_subjects(searchable_product),
-            'skill_names': get_program_skill_names(searchable_product),
-            'level_type': get_program_level_type(searchable_product),
+            'subjects': get_program_subjects(searchable_product, course_metadata_cache),
+            'skill_names': get_program_skill_names(searchable_product, course_metadata_cache),
+            'level_type': get_program_level_type(searchable_product, course_metadata_cache),
             'learning_items': get_program_learning_items(searchable_product),
             'prices': get_program_prices(searchable_product),
             'banner_image_url': get_program_banner_image_url(searchable_product),

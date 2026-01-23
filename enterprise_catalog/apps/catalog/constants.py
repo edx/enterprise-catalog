@@ -1,3 +1,4 @@
+import enum
 import json
 from datetime import datetime
 
@@ -137,3 +138,18 @@ def admin_model_changes_allowed():
     Returns whether changes are allowed to a model based off the disable_model_admin_changes switch
     """
     return not DISABLE_MODEL_ADMIN_CHANGES_SWITCH.is_enabled()
+
+
+class AlgoliaTraceNames(enum.StrEnum):
+    """
+    Enum of function trace names for enhanced span monitoring.
+    """
+    CONTENT_METADATA_COURSE_LOADING = 'algolia_content_metadata_course_loading'
+    CONTENT_METADATA_COURSE_RUN_LOADING = 'algolia_content_metadata_course_run_loading'
+    GET_ALGOLIA_PRODUCTS_FOR_BATCH = 'get_algolia_products_for_batch'
+    PARTITION_COURSE_KEYS_FOR_INDEXING = 'partition_course_keys_for_indexing'
+    PARTITION_PROGRAM_KEYS_FOR_INDEXING = 'partition_program_keys_for_indexing'
+    BUILD_COURSE_METADATA_CACHE = 'build_course_metadata_cache'
+    ALGOLIA_OBJECT_FROM_PRODUCT = 'algolia_object_from_product'
+    CREATE_ALGOLIA_OBJECTS = 'create_algolia_objects'
+    CREATE_SPANISH_ALGOLIA_OBJECT = 'create_spanish_algolia_object'

@@ -10,6 +10,7 @@ from django.core.cache import cache
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _
+from edx_django_utils.monitoring import function_trace
 from pytz import UTC
 
 from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
@@ -30,6 +31,7 @@ from enterprise_catalog.apps.catalog.constants import (
     PROGRAM_TYPES_MAP,
     RESTRICTION_FOR_B2B,
     VIDEO,
+    AlgoliaTraceNames,
 )
 from enterprise_catalog.apps.catalog.content_metadata_utils import (
     get_advertised_course_run,
@@ -296,6 +298,7 @@ def _has_enroll_by_deadline_passed(course_json_metadata):
         return False
 
 
+@function_trace(AlgoliaTraceNames.PARTITION_COURSE_KEYS_FOR_INDEXING)
 def partition_course_keys_for_indexing(courses_content_metadata):
     """
     Returns both the indexable and non-indexable course content keys for Algolia.
@@ -352,6 +355,7 @@ def _should_index_program(program_metadata):
         and program_json_metadata.get('status') == 'active'
 
 
+@function_trace(AlgoliaTraceNames.PARTITION_PROGRAM_KEYS_FOR_INDEXING)
 def partition_program_keys_for_indexing(programs_content_metadata):
     """
     Returns both the indexable and non-indexable program content keys for Algolia.
@@ -876,6 +880,7 @@ def get_program_partners(program):
     return partners
 
 
+@function_trace(AlgoliaTraceNames.BUILD_COURSE_METADATA_CACHE)
 def _build_course_metadata_cache(course_keys):
     """
     Builds a cache of ContentMetadata objects for the given course keys using batch_by_pk.
@@ -1548,6 +1553,7 @@ def _first_enrollable_paid_seat_price(course_record):
     return get_course_first_paid_enrollable_seat_price(course_record)
 
 
+@function_trace(AlgoliaTraceNames.ALGOLIA_OBJECT_FROM_PRODUCT)
 def _algolia_object_from_product(product, algolia_fields):
     """
     Transforms a course or program into an Algolia object.
@@ -1653,6 +1659,7 @@ def _algolia_object_from_product(product, algolia_fields):
     return algolia_object
 
 
+@function_trace(AlgoliaTraceNames.CREATE_ALGOLIA_OBJECTS)
 def create_algolia_objects(products, algolia_fields):
     """
     Transforms content into Algolia objects.
@@ -1675,6 +1682,7 @@ def create_algolia_objects(products, algolia_fields):
     return algolia_objects
 
 
+@function_trace(AlgoliaTraceNames.CREATE_SPANISH_ALGOLIA_OBJECT)
 def create_spanish_algolia_object(algolia_object, content_metadata=None):
     """
     Creates a Spanish version of the Algolia object.

@@ -17,6 +17,7 @@ from django.db import IntegrityError
 from django.db.models import Prefetch, Q
 from django.db.utils import OperationalError
 from django_celery_results.models import TaskResult
+from edx_django_utils.monitoring import function_trace
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
 from enterprise_catalog.apps.api_client.discovery import DiscoveryApiClient
@@ -46,6 +47,7 @@ from enterprise_catalog.apps.catalog.constants import (
     REINDEX_TASK_BATCH_SIZE,
     TASK_BATCH_SIZE,
     VIDEO,
+    AlgoliaTraceNames,
 )
 from enterprise_catalog.apps.catalog.content_metadata_utils import (
     transform_course_metadata_to_visible,
@@ -1025,6 +1027,7 @@ def get_algolia_objects_from_course_content_metadata(content_metadata):
 
 
 # pylint: disable=too-many-statements
+@function_trace(AlgoliaTraceNames.GET_ALGOLIA_PRODUCTS_FOR_BATCH)
 def _get_algolia_products_for_batch(
     batch_num,
     content_keys_batch,
@@ -1095,51 +1098,55 @@ def _get_algolia_products_for_batch(
         'enterprise_catalogs__academies__tags__content_metadata',
     )
 
-    # Retrieve ContentMetadata records for:
-    # * Course runs, courses, programs and learner pathways that are directly requested, and
-    # * Courses and programs indirectly related to something directly requested.
-    #   - e.g. A course that was not directly requested, but is a member of a program which was requested.
-    #   - e.g. A program that was not directly requested, but is a member of a pathway which was requested.
-    content_metadata_no_courseruns = ContentMetadata.objects.filter(
-        # All content (courses, course runs, programs, pathways) directly requested.
-        Q(content_key__in=content_keys_batch)
-        # All course runs, courses, or programs contained in programs or pathways requested.  In order to collect all
-        # UUIDs for a given program or pathway, all containing objects are needed too, but those may not happen to be
-        # part of the current batch.
-        # This could include non-indexable content, so they will need to be filtered out next.
-        | Q(
-            content_type__in=[COURSE_RUN, COURSE, PROGRAM],
-            associated_content_metadata__content_type__in=[PROGRAM, LEARNER_PATHWAY],
-            associated_content_metadata__content_key__in=content_keys_batch,
+    with function_trace(AlgoliaTraceNames.CONTENT_METADATA_COURSE_LOADING):
+        # Retrieve ContentMetadata records for:
+        # * Course runs, courses, programs and learner pathways that are directly requested, and
+        # * Courses and programs indirectly related to something directly requested.
+        #   - e.g. A course that was not directly requested, but is a member of a program which was requested.
+        #   - e.g. A program that was not directly requested, but is a member of a pathway which was requested.
+        content_metadata_no_courseruns = ContentMetadata.objects.filter(
+            # All content (courses, course runs, programs, pathways) directly requested.
+            Q(content_key__in=content_keys_batch)
+            # All course runs, courses, or programs contained in programs or pathways requested.
+            # In order to collect all UUIDs for a given program or pathway, all containing objects are needed too,
+            # but those may not happen to be part of the current batch.
+            # This could include non-indexable content, so they will need to be filtered out next.
+            | Q(
+                content_type__in=[COURSE_RUN, COURSE, PROGRAM],
+                associated_content_metadata__content_type__in=[PROGRAM, LEARNER_PATHWAY],
+                associated_content_metadata__content_key__in=content_keys_batch,
+            )
+        ).prefetch_related(
+            Prefetch('catalog_queries', queryset=all_catalog_queries),
+            'translations',
         )
-    ).prefetch_related(
-        Prefetch('catalog_queries', queryset=all_catalog_queries),
-        'translations',
-    )
-    if getattr(settings, 'SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS', False):
-        # Make the courses that we index actually contain restricted runs in the payload.
-        content_metadata_no_courseruns = content_metadata_no_courseruns.prefetch_restricted_overrides()
-        # Also just prefetch the rest of the restricted courses which will
-        # allow us to find all catalog_queries explicitly allowing a restricted
-        # run for each course.
-        content_metadata_no_courseruns = content_metadata_no_courseruns.prefetch_related(
-            'restricted_courses__catalog_query'
-        )
-    # Perform filtering of non-indexable objects in-memory because the list may be too long to shove into a SQL query.
-    content_metadata_no_courseruns = [
-        cm for cm in content_metadata_no_courseruns
-        if cm.content_key in all_indexable_content_keys
-    ]
+        if getattr(settings, 'SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS', False):
+            # Make the courses that we index actually contain restricted runs in the payload.
+            content_metadata_no_courseruns = content_metadata_no_courseruns.prefetch_restricted_overrides()
+            # Also just prefetch the rest of the restricted courses which will
+            # allow us to find all catalog_queries explicitly allowing a restricted
+            # run for each course.
+            content_metadata_no_courseruns = content_metadata_no_courseruns.prefetch_related(
+                'restricted_courses__catalog_query'
+            )
+        # Perform filtering of non-indexable objects in-memory because
+        # the list may be too long to shove into a SQL query.
+        content_metadata_no_courseruns = [
+            cm for cm in content_metadata_no_courseruns
+            if cm.content_key in all_indexable_content_keys
+        ]
 
-    # Retrieve ContentMetadata records for any course run which is part of any course found in the previous query.
-    course_content_keys = [cm.content_key for cm in content_metadata_no_courseruns]
-    content_metadata_courseruns = ContentMetadata.objects.filter(
-        parent_content_key__in=course_content_keys
-    ).prefetch_related(
-        Prefetch('catalog_queries', queryset=all_catalog_queries),
-        'translations',
-    )
-    course_run_content_keys = [cm.content_key for cm in content_metadata_courseruns]
+    with function_trace(AlgoliaTraceNames.CONTENT_METADATA_COURSE_RUN_LOADING):
+        # Retrieve ContentMetadata records for any course run which is part of any course found in the previous query.
+        course_content_keys = [cm.content_key for cm in content_metadata_no_courseruns]
+        content_metadata_courseruns = ContentMetadata.objects.filter(
+            parent_content_key__in=course_content_keys
+        ).prefetch_related(
+            Prefetch('catalog_queries', queryset=all_catalog_queries),
+            'translations',
+        )
+        course_run_content_keys = [cm.content_key for cm in content_metadata_courseruns]
+
     videos = Video.objects.filter(
         parent_content_metadata__content_key__in=course_run_content_keys
     ).select_related('parent_content_metadata')
@@ -1415,7 +1422,6 @@ def _reindex_algolia(indexable_content_keys, nonindexable_content_keys, dry_run=
     """
     Indexes courses, programs and pathways metadata in the Algolia search index.
     """
-    # NOTE: this log message is used in a Splunk alert and should remain consistent in its language
     logger.info(
         f'{_reindex_algolia_prefix(dry_run)} There are %s indexable content keys, which will replace all existing'
         ' objects in the Algolia index. %s nonindexable content keys will be removed.',

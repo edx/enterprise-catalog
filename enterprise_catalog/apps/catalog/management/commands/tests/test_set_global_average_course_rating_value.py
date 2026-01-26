@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from enterprise_catalog.apps.api_client.constants import (
     DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY,
+    DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_TTL,
 )
 from enterprise_catalog.apps.catalog.tests.factories import (
     ContentMetadataFactory,
@@ -15,7 +16,7 @@ from enterprise_catalog.apps.catalog.tests.factories import (
 class TestSetGlobalAverageCourseRatingValue(TestCase):
     command_name = 'set_global_average_course_rating_value'
 
-    @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.cache')
+    @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.TieredCache')
     def test_command_averages_course_reviews(
         self, mock_cache,
     ):
@@ -35,12 +36,13 @@ class TestSetGlobalAverageCourseRatingValue(TestCase):
         call_command(self.command_name)
         expected_total_average = ((5 * 20) + (4 * 10)) / 30
 
-        mock_cache.set.assert_called_with(
+        mock_cache.set_all_tiers.assert_called_with(
             DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY,
             expected_total_average,
+            DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_TTL,
         )
 
-    @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.cache')
+    @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.TieredCache')
     def test_command_handles_no_course_reviews(
         self, mock_cache,
     ):
@@ -48,4 +50,4 @@ class TestSetGlobalAverageCourseRatingValue(TestCase):
         Verify that the job will not blow up if there are no reviews to average.
         """
         call_command(self.command_name)
-        mock_cache.set.assert_not_called()
+        mock_cache.set_all_tiers.assert_not_called()

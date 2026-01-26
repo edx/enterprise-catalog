@@ -6,10 +6,10 @@ import time
 from algoliasearch.search_client import SearchClient
 from dateutil import parser
 from django.conf import settings
-from django.core.cache import cache
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _
+from edx_django_utils.cache import TieredCache
 from edx_django_utils.monitoring import function_trace
 from pytz import UTC
 
@@ -18,6 +18,7 @@ from enterprise_catalog.apps.api_client.constants import (
     COURSE_REVIEW_BASE_AVG_REVIEW_SCORE,
     COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER,
     DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY,
+    DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_TTL,
 )
 from enterprise_catalog.apps.catalog.constants import (
     ALGOLIA_DEFAULT_TIMESTAMP,
@@ -458,9 +459,12 @@ def set_global_course_review_avg():
 
     total_average_course_rating = rolling_rating_sum / total_number_reviews
     LOGGER.info(f"set_global_course_review_avg saving average course rating value: {total_average_course_rating}")
-    cache.set(
+    # Prefer to use a TieredCache here to fetch directly from memory (the RequestCache tier)
+    # instead of making many tiny requests to memcached.
+    TieredCache.set_all_tiers(
         DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY,
         total_average_course_rating,
+        DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_TTL,
     )
 
 
@@ -468,8 +472,10 @@ def get_global_course_review_avg():
     """
     Fetch the calculated global course review average from py-cache
     """
-    cache_key = DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY
-    return cache.get(cache_key, COURSE_REVIEW_BASE_AVG_REVIEW_SCORE)
+    cached_response = TieredCache.get_cached_response(DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY)
+    if cached_response.is_found:
+        return cached_response.value
+    return COURSE_REVIEW_BASE_AVG_REVIEW_SCORE
 
 
 def get_course_bayesian_average(course):

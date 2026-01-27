@@ -90,7 +90,7 @@ class ContentMetadataFactory(factory.django.DjangoModelFactory):
             'uuid': str(self.content_uuid),
             'title': self.title,
             'normalized_metadata': {
-                'enroll_by_date': '2026-01-26T23:59:59Z',
+                'enroll_by_date': '2056-01-26T23:59:59Z',
             },
         }
         if self.content_type == COURSE:
@@ -123,7 +123,7 @@ class ContentMetadataFactory(factory.django.DjangoModelFactory):
                         'type': 'verified',
                         'price': '50.00',
                         'currency': 'USD',
-                        'upgrade_deadline': '2026-01-26T23:59:59Z',
+                        'upgrade_deadline': '2056-01-26T23:59:59Z',
                         'upgrade_deadline_override': None,
                         'credit_provider': None,
                         'credit_hours': None,
@@ -132,7 +132,7 @@ class ContentMetadataFactory(factory.django.DjangoModelFactory):
                     }
                 ],
                 'start': '2024-02-12T11:00:00Z',
-                'end': '2026-02-05T11:00:00Z',
+                'end': '2056-02-05T11:00:00Z',
                 'fixed_price_price_usd': None,
                 'first_enrollable_paid_seat_price': 50,
             }]

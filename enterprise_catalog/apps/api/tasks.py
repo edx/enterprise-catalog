@@ -756,6 +756,7 @@ def remove_old_temporary_catalog_indices_task(
     return inactive_tmp_indices
 
 
+@function_trace('precalculate_content_mappings')
 def _precalculate_content_mappings():
     """
     Precalculate various mappings between different types of related content.
@@ -792,6 +793,7 @@ def _precalculate_content_mappings():
     return program_to_courses_mapping, pathway_to_programs_courses_mapping
 
 
+@function_trace('add_video_to_algolia_objects')
 def add_video_to_algolia_objects(
     video,
     algolia_products_by_object_id,
@@ -898,6 +900,7 @@ def add_video_to_algolia_objects(
         _add_in_algolia_products_by_object_id(algolia_products_by_object_id, batched_metadata_es)
 
 
+@function_trace('add_metadata_to_algolia_objects')
 def add_metadata_to_algolia_objects(
     metadata,
     algolia_products_by_object_id,
@@ -1012,6 +1015,7 @@ def add_metadata_to_algolia_objects(
         _add_in_algolia_products_by_object_id(algolia_products_by_object_id, batched_metadata_es)
 
 
+@function_trace('get_algolia_objects_from_course_content_metadata')
 def get_algolia_objects_from_course_content_metadata(content_metadata):
     content_key = content_metadata.content_key
     context_accumulator = {
@@ -1147,9 +1151,16 @@ def _get_algolia_products_for_batch(
         )
         course_run_content_keys = [cm.content_key for cm in content_metadata_courseruns]
 
-    videos = Video.objects.filter(
-        parent_content_metadata__content_key__in=course_run_content_keys
-    ).select_related('parent_content_metadata')
+    with function_trace(AlgoliaTraceNames.VIDEO_RECORD_LOADING):
+        video_queryset = Video.objects.filter(
+            parent_content_metadata__content_key__in=course_run_content_keys
+        ).select_related('parent_content_metadata')
+
+        all_videos = list(video_queryset)
+        video_ids_by_parent_content_key = defaultdict(list)
+        for video in all_videos:
+            parent_content_key = video.parent_content_metadata.content_key
+            video_ids_by_parent_content_key[parent_content_key].append(video.edx_video_id)
 
     # Combine both querysets to represent all the ContentMetadata needed to process this batch.
     #
@@ -1181,10 +1192,11 @@ def _get_algolia_products_for_batch(
                 associated_catalog_queries = (
                     rc.catalog_query for rc in metadata.restricted_courses.exclude(catalog_query=None)
                 )
-        for video in videos:
-            if (metadata.content_type == COURSE_RUN
-                    and video.parent_content_metadata.content_key == metadata.content_key):
-                video_ids_by_key[content_key].add(str(video.edx_video_id))
+
+        if metadata.content_type == COURSE_RUN:
+            related_video_ids = video_ids_by_parent_content_key.get(metadata.content_key, [])
+            video_ids_by_key[content_key].update(related_video_ids)
+
         for catalog_query in associated_catalog_queries:
             catalog_queries_by_key[content_key].add((str(catalog_query.uuid), catalog_query.title))
             # This line is possible thanks to `all_catalog_queries` with the prefectch_related() above.
@@ -1296,7 +1308,7 @@ def _get_algolia_products_for_batch(
 
         num_content_metadata_indexed += 1
 
-    for video in videos:
+    for video in all_videos:
         add_video_to_algolia_objects(
             video,
             algolia_products_by_object_id,
@@ -1396,7 +1408,8 @@ def _index_content_keys_in_algolia(content_keys, algolia_client, dry_run=False):
     # See function documentation for indication that an Iterator is accepted:
     # https://github.com/algolia/algoliasearch-client-python/blob/e0a2a578464a1b01caaa84dba927b99ae8476af3/algoliasearch/search_index.py#L89
     if not dry_run:
-        algolia_client.replace_all_objects(algolia_products_generator)
+        with function_trace(AlgoliaTraceNames.REPLACE_ALL_OBJECTS):
+            algolia_client.replace_all_objects(algolia_products_generator)
     else:
         logger.info(
             f'{_reindex_algolia_prefix(dry_run)} skipping algolia_client.replace_all_objects().'

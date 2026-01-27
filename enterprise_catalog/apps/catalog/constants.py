@@ -153,3 +153,5 @@ class AlgoliaTraceNames(enum.StrEnum):
     ALGOLIA_OBJECT_FROM_PRODUCT = 'algolia_object_from_product'
     CREATE_ALGOLIA_OBJECTS = 'create_algolia_objects'
     CREATE_SPANISH_ALGOLIA_OBJECT = 'create_spanish_algolia_object'
+    VIDEO_RECORD_LOADING = 'video_record_loading'
+    REPLACE_ALL_OBJECTS = 'replace_all_objects'

@@ -18,17 +18,17 @@ annotated-types==0.7.0
     # via
     #   -r requirements/base.txt
     #   pydantic
-anyio==4.12.0
+anyio==4.12.1
     # via
     #   -r requirements/base.txt
     #   httpx
     #   openai
-asgiref==3.11.0
+asgiref==3.11.1
     # via
     #   -r requirements/base.txt
     #   django
     #   django-cors-headers
-astroid==3.3.11
+astroid==4.0.4
     # via
     #   pylint
     #   pylint-celery
@@ -45,15 +45,15 @@ billiard==4.2.4
     # via
     #   -r requirements/base.txt
     #   celery
-cachetools==6.2.2
+cachetools==7.0.0
     # via tox
-celery==5.6.0
+celery==5.6.2
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/base.txt
     #   django-celery-results
     #   edx-celeryutils
-certifi==2025.11.12
+certifi==2026.1.4
     # via
     #   -r requirements/base.txt
     #   httpcore
@@ -103,11 +103,11 @@ code-annotations==2.3.0
     #   edx-toggles
 colorama==0.4.6
     # via tox
-coverage[toml]==7.13.0
+coverage[toml]==7.13.4
     # via
     #   -r requirements/test.in
     #   pytest-cov
-cryptography==46.0.3
+cryptography==46.0.4
     # via
     #   -r requirements/base.txt
     #   pyjwt
@@ -123,7 +123,7 @@ diff-match-patch==20241021
     # via
     #   -r requirements/base.txt
     #   django-import-export
-dill==0.4.0
+dill==0.4.1
     # via pylint
 distlib==0.4.0
     # via virtualenv
@@ -178,7 +178,7 @@ django-dynamic-fixture==4.0.1
     # via -r requirements/test.in
 django-extensions==4.1
     # via -r requirements/base.txt
-django-import-export==4.3.14
+django-import-export==4.4.0
     # via -r requirements/base.txt
 django-log-request-id==2.1.0
     # via -r requirements/base.txt
@@ -187,7 +187,7 @@ django-model-utils==5.0.0
     #   -r requirements/base.txt
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.19.17
+django-modeltranslation==0.19.19
     # via -r requirements/base.txt
 django-simple-history==3.11.0
     # via
@@ -199,7 +199,7 @@ django-waffle==5.0.0
     #   edx-django-utils
     #   edx-drf-extensions
     #   edx-toggles
-djangoql==0.18.1
+djangoql==0.19.1
     # via -r requirements/base.txt
 djangorestframework==3.16.1
     # via
@@ -252,15 +252,11 @@ edx-toggles==5.4.1
     # via
     #   -r requirements/base.txt
     #   edx-auth-backends
-exceptiongroup==1.3.1
-    # via
-    #   -r requirements/base.txt
-    #   celery
 factory-boy==3.3.3
     # via -r requirements/test.in
-faker==38.2.0
+faker==40.4.0
     # via factory-boy
-filelock==3.20.0
+filelock==3.20.3
     # via
     #   tox
     #   virtualenv
@@ -288,13 +284,13 @@ inflection==0.5.1
     #   drf-spectacular
 iniconfig==2.3.0
     # via pytest
-isort==6.1.0
+isort==7.0.0
     # via pylint
 jinja2==3.1.6
     # via
     #   -r requirements/base.txt
     #   code-annotations
-joblib==1.5.2
+joblib==1.5.3
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -304,7 +300,7 @@ jsonfield==3.2.0
     #   edx-celeryutils
 jsonfield2==4.0.0.post0
     # via -r requirements/base.txt
-jsonschema==4.25.1
+jsonschema==4.26.0
     # via
     #   -r requirements/base.txt
     #   drf-spectacular
@@ -312,7 +308,7 @@ jsonschema-specifications==2025.9.1
     # via
     #   -r requirements/base.txt
     #   jsonschema
-kombu==5.6.1
+kombu==5.6.2
     # via
     #   -r requirements/base.txt
     #   celery
@@ -328,7 +324,7 @@ monotonic==1.6
     #   analytics-python
 mysqlclient==2.2.7
     # via -r requirements/base.txt
-numpy==2.3.5
+numpy==2.4.2
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -342,7 +338,7 @@ openai==1.13.3
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/base.txt
-packaging==25.0
+packaging==26.0
     # via
     #   -r requirements/base.txt
     #   kombu
@@ -367,11 +363,11 @@ prompt-toolkit==3.0.52
     # via
     #   -r requirements/base.txt
     #   click-repl
-psutil==7.1.3
+psutil==7.2.2
     # via
     #   -r requirements/base.txt
     #   edx-django-utils
-pycparser==2.23
+pycparser==3.0
     # via
     #   -r requirements/base.txt
     #   cffi
@@ -385,7 +381,7 @@ pydantic-core==2.41.5
     #   pydantic
 pygments==2.19.2
     # via pytest
-pyjwt[crypto]==2.10.1
+pyjwt[crypto]==2.11.0
     # via
     #   -r requirements/base.txt
     #   drf-jwt
@@ -393,7 +389,7 @@ pyjwt[crypto]==2.10.1
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==3.3.9
+pylint==4.0.4
     # via
     #   edx-lint
     #   pylint-celery
@@ -401,7 +397,7 @@ pylint==3.3.9
     #   pylint-plugin-utils
 pylint-celery==0.3
     # via edx-lint
-pylint-django==2.6.1
+pylint-django==2.7.0
     # via edx-lint
 pylint-plugin-utils==0.9.0
     # via
@@ -409,11 +405,11 @@ pylint-plugin-utils==0.9.0
     #   pylint-django
 pymemcache==4.0.0
     # via -r requirements/base.txt
-pymongo==4.15.5
+pymongo==4.16.0
     # via
     #   -r requirements/base.txt
     #   edx-opaque-keys
-pynacl==1.6.1
+pynacl==1.6.2
     # via
     #   -r requirements/base.txt
     #   edx-django-utils
@@ -481,7 +477,7 @@ rules==3.5
     # via -r requirements/base.txt
 scikit-learn==1.8.0
     # via -r requirements/base.txt
-scipy==1.16.3
+scipy==1.17.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -504,16 +500,16 @@ sniffio==1.3.1
     # via
     #   -r requirements/base.txt
     #   openai
-social-auth-app-django==5.6.0
+social-auth-app-django==5.7.0
     # via
     #   -r requirements/base.txt
     #   edx-auth-backends
-social-auth-core==4.8.1
+social-auth-core==4.8.3
     # via
     #   -r requirements/base.txt
     #   edx-auth-backends
     #   social-auth-app-django
-sqlparse==0.5.4
+sqlparse==0.5.5
     # via
     #   -r requirements/base.txt
     #   django
@@ -535,11 +531,11 @@ threadpoolctl==3.6.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
-tomlkit==0.13.3
+tomlkit==0.14.0
     # via pylint
-tox==4.32.0
+tox==4.34.1
     # via -r requirements/test.in
-tqdm==4.67.1
+tqdm==4.67.3
     # via
     #   -r requirements/base.txt
     #   openai
@@ -547,8 +543,8 @@ typing-extensions==4.15.0
     # via
     #   -r requirements/base.txt
     #   anyio
+    #   django-modeltranslation
     #   edx-opaque-keys
-    #   exceptiongroup
     #   openai
     #   pydantic
     #   pydantic-core
@@ -558,10 +554,9 @@ typing-inspection==0.4.2
     # via
     #   -r requirements/base.txt
     #   pydantic
-tzdata==2025.2
+tzdata==2025.3
     # via
     #   -r requirements/base.txt
-    #   faker
     #   kombu
 tzlocal==5.3.1
     # via
@@ -571,7 +566,7 @@ uritemplate==4.2.0
     # via
     #   -r requirements/base.txt
     #   drf-spectacular
-urllib3==2.6.2
+urllib3==2.6.3
     # via
     #   -r requirements/base.txt
     #   requests
@@ -582,9 +577,9 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==20.35.4
+virtualenv==20.36.1
     # via tox
-wcwidth==0.2.14
+wcwidth==0.6.0
     # via
     #   -r requirements/base.txt
     #   prompt-toolkit

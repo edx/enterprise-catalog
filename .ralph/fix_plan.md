@@ -4,7 +4,7 @@
 - [ ] Implement Phase 0 improvements (see architecture-analysis.md §7):
   - [ ] Add `jsonschema` validation on ingested content metadata
   - [x] Add `is_discoverable` facet to Algolia indexing
-  - [ ] Improve Django admin/management command observability for catalog-content associations
+  - [x] Improve Django admin/management command observability for catalog-content associations
 - [ ] Implement Phase 1 app separation (structural refactor):
   - [ ] Extract `content_replication` app from `catalog`
   - [ ] Extract `catalog_inclusion` app from `catalog`
@@ -36,6 +36,13 @@
   - Tests added: `test_add_metadata_to_algolia_objects_sets_is_discoverable` (True default),
     `test_add_metadata_to_algolia_objects_sets_is_discoverable_false` (explicit False),
     `test_index_content_keys_in_algolia_with_nonindexable` (integration: nonindexable indexed with False)
+- [x] Improve Django admin/management command observability for catalog-content associations
+  - `CatalogQueryListFilter` in admin.py: filter ContentMetadata by CatalogQuery from the list view
+  - `ContentMetadataAdmin`: added `CatalogQueryListFilter` to `list_filter`
+  - `EnterpriseCatalogAdmin`: added `get_view_content_link` — clickable link to ContentMetadata list filtered to this catalog's query (shown on both list and detail views)
+  - `CatalogQueryAdmin`: added `get_view_content_link` — same filtered link from CatalogQuery list/detail views
+  - New management command: `catalog_content_status` — inspect content counts by type for a catalog UUID, or list all catalogs for an enterprise UUID; supports `--show-content-keys` to dump all content keys
+  - Tests added: `enterprise_catalog/apps/catalog/management/commands/tests/test_catalog_content_status.py` (5 tests)
 
 ## Notes
 - Full analysis written to `.ralph/architecture-analysis.md`

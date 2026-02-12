@@ -262,17 +262,20 @@ class CatalogQueryAdmin(UnchangeableMixin):
         'content_filter',
         'get_associated_catalogs',
         'get_content_metadata_count',
+        'get_view_content_link',
     )
     readonly_fields = (
         'uuid',
         'get_associated_catalogs',
         'get_content_metadata_count',
+        'get_view_content_link',
     )
     list_display = (
         'uuid',
         'title',
         'content_filter_hash',
         'get_content_metadata_count',
+        'get_view_content_link',
         'get_content_filter',
     )
     search_fields = (
@@ -298,6 +301,23 @@ class CatalogQueryAdmin(UnchangeableMixin):
     def get_associated_catalogs(self, obj):
         catalogs = obj.enterprise_catalogs.all()
         return _html_list_from_objects(catalogs, "admin:catalog_enterprisecatalog_change")
+
+    @admin.display(description='Browse Content')
+    def get_view_content_link(self, obj):
+        """
+        Clickable link to the ContentMetadata list filtered to this CatalogQuery.
+
+        Allows operators to immediately see which content records are currently associated
+        with this query, directly from the CatalogQuery admin list or detail view.
+        """
+        url = (
+            reverse('admin:catalog_contentmetadata_changelist')
+            + '?'
+            + urlencode({'catalog_query_id': obj.pk})
+        )
+        count = getattr(obj, '_content_metadata_count', None)
+        label = f'View {count} content items' if count is not None else 'View content'
+        return format_html('<a href="{}">{}</a>', url, label)
 
     form = CatalogQueryForm
 

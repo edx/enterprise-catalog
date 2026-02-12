@@ -1397,8 +1397,10 @@ class IndexEnterpriseCatalogCoursesInAlgoliaTaskTests(TestCase):
             pathway_to_programs_courses_mapping,
             context_accumulator,
             dry_run=False,
+            is_discoverable=True,
         ):
-            return [{'key': content_key, 'foo': 'bar'} for content_key in content_keys_batch]
+            return [{'key': content_key, 'foo': 'bar', 'is_discoverable': is_discoverable}
+                    for content_key in content_keys_batch]
 
         with mock.patch(
             'enterprise_catalog.apps.api.tasks._get_algolia_products_for_batch',
@@ -1409,12 +1411,63 @@ class IndexEnterpriseCatalogCoursesInAlgoliaTaskTests(TestCase):
                 tasks._index_content_keys_in_algolia(test_content_keys, mock_algolia_client)
 
         assert actual_algolia_products_sent_sequence == [
-            {'key': 'course-v1:edX+testX+0', 'foo': 'bar'},
-            {'key': 'course-v1:edX+testX+1', 'foo': 'bar'},
-            {'key': 'course-v1:edX+testX+2', 'foo': 'bar'},
-            {'key': 'course-v1:edX+testX+3', 'foo': 'bar'},
-            {'key': 'course-v1:edX+testX+4', 'foo': 'bar'},
+            {'key': 'course-v1:edX+testX+0', 'foo': 'bar', 'is_discoverable': True},
+            {'key': 'course-v1:edX+testX+1', 'foo': 'bar', 'is_discoverable': True},
+            {'key': 'course-v1:edX+testX+2', 'foo': 'bar', 'is_discoverable': True},
+            {'key': 'course-v1:edX+testX+3', 'foo': 'bar', 'is_discoverable': True},
+            {'key': 'course-v1:edX+testX+4', 'foo': 'bar', 'is_discoverable': True},
         ]
+
+    def test_index_content_keys_in_algolia_with_nonindexable(self):
+        """
+        Test that ``_index_content_keys_in_algolia`` indexes non-indexable content with ``is_discoverable=False``
+        in the same atomic ``replace_all_objects`` call as indexable content. This implements Phase 0 observability:
+        operators can filter on ``is_discoverable`` in Algolia to see what's present but hidden from search.
+        """
+        indexable_keys = ['course-v1:edX+indexable+0', 'course-v1:edX+indexable+1']
+        nonindexable_keys = ['course-v1:edX+nonindexable+0']
+
+        actual_algolia_products_sent_sequence = None
+
+        def mock_replace_all_objects(products_iterable):
+            nonlocal actual_algolia_products_sent_sequence
+            actual_algolia_products_sent_sequence = list(products_iterable)
+
+        mock_algolia_client = mock.MagicMock()
+        mock_algolia_client.replace_all_objects.side_effect = mock_replace_all_objects
+
+        # pylint: disable=unused-argument
+        def mock_get_algolia_products_for_batch(
+            batch_num,
+            content_keys_batch,
+            all_indexable_content_keys,
+            program_to_courses_courseruns_mapping,
+            pathway_to_programs_courses_mapping,
+            context_accumulator,
+            dry_run=False,
+            is_discoverable=True,
+        ):
+            return [{'key': content_key, 'is_discoverable': is_discoverable}
+                    for content_key in content_keys_batch]
+
+        with mock.patch(
+            'enterprise_catalog.apps.api.tasks._get_algolia_products_for_batch',
+            side_effect=mock_get_algolia_products_for_batch,
+        ):
+            # pylint: disable=protected-access
+            tasks._index_content_keys_in_algolia(
+                indexable_keys, mock_algolia_client,
+                nonindexable_content_keys=nonindexable_keys,
+            )
+
+        # All content (both indexable and non-indexable) should be passed to replace_all_objects in one call.
+        assert actual_algolia_products_sent_sequence == [
+            {'key': 'course-v1:edX+indexable+0', 'is_discoverable': True},
+            {'key': 'course-v1:edX+indexable+1', 'is_discoverable': True},
+            {'key': 'course-v1:edX+nonindexable+0', 'is_discoverable': False},
+        ]
+        # replace_all_objects must be called exactly once (atomic reindex).
+        mock_algolia_client.replace_all_objects.assert_called_once()
 
     @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.SearchClient')
     def test_delete_indices_exception_handling(self, mock_search_client):

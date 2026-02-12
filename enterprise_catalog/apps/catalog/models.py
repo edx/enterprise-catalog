@@ -1,6 +1,7 @@
 import collections
 import copy
 import json
+import time
 from logging import getLogger
 from uuid import uuid4
 
@@ -1484,8 +1485,12 @@ def _check_content_association_threshold(catalog_query, metadata_list):
 
 def associate_content_metadata_with_query(metadata, catalog_query, dry_run=False):
     """
-    Creates or updates a ContentMetadata object for each entry in `metadata`,
-    and then associates that object with the `catalog_query` provided.
+    Creates or updates a ContentMetadata object for each entry in ``metadata``
+    (Phase 1: content replication), and then sets the M2M relationship between
+    those records and ``catalog_query`` (Phase 2: catalog-content inclusion).
+
+    The two phases are logged separately so that operators can distinguish
+    replication failures from inclusion failures in application logs.
 
     Arguments:
         metadata (list): List of content metadata dictionaries.
@@ -1495,10 +1500,41 @@ def associate_content_metadata_with_query(metadata, catalog_query, dry_run=False
     Returns:
         list: The list of content_keys for the metadata associated with the query.
     """
+    # -------------------------------------------------------------------------
+    # Phase 1: Content Replication
+    # Create or update ContentMetadata DB records for each entry from discovery.
+    # This phase is purely about persisting the raw content data.
+    # -------------------------------------------------------------------------
+    replication_start = time.perf_counter()
+    LOGGER.info(
+        '[CONTENT_REPLICATION] Starting content metadata upsert for %d items '
+        '(catalog_query=%s dry_run=%s)',
+        len(metadata), catalog_query, dry_run,
+    )
     metadata_list = create_content_metadata(metadata, catalog_query, dry_run)
-    # Stop gap if the new metadata list is extremely different from the current one
+    replication_seconds = time.perf_counter() - replication_start
+    LOGGER.info(
+        '[CONTENT_REPLICATION] Completed upsert: %d ContentMetadata records written '
+        '(catalog_query=%s replication_seconds=%.3f)',
+        len(metadata_list), catalog_query, replication_seconds,
+    )
+
+    # -------------------------------------------------------------------------
+    # Phase 2: Catalog-Content Inclusion
+    # Update the M2M relationship between CatalogQuery and ContentMetadata.
+    # This phase determines which content is "in" each catalog.
+    # -------------------------------------------------------------------------
+    inclusion_start = time.perf_counter()
+
+    # Stop gap if the new metadata list is extremely different from the current one.
     if _check_content_association_threshold(catalog_query, metadata_list):
+        LOGGER.warning(
+            '[CATALOG_INCLUSION] Association threshold exceeded for catalog_query=%s; '
+            'keeping existing associations unchanged.',
+            catalog_query,
+        )
         return list(catalog_query.contentmetadata_set.values_list('content_key', flat=True))
+
     # Setting `clear=True` will remove all prior relationships between
     # the CatalogQuery's associated ContentMetadata objects
     # before setting all new relationships from `metadata_list`.
@@ -1506,11 +1542,21 @@ def associate_content_metadata_with_query(metadata, catalog_query, dry_run=False
     if dry_run:
         old_metadata_count = catalog_query.contentmetadata_set.count()
         new_metadata_count = len(metadata_list)
-        if old_metadata_count != new_metadata_count:
-            LOGGER.info('[Dry Run] Updated metadata count ({} -> {}) for {}'.format(
-                old_metadata_count, new_metadata_count, catalog_query))
+        LOGGER.info(
+            '[CATALOG_INCLUSION] [Dry Run] Would update association count (%d -> %d) '
+            'for catalog_query=%s',
+            old_metadata_count, new_metadata_count, catalog_query,
+        )
     else:
+        old_count = catalog_query.contentmetadata_set.count()
         catalog_query.contentmetadata_set.set(metadata_list, clear=True)
+        new_count = len(metadata_list)
+        inclusion_seconds = time.perf_counter() - inclusion_start
+        LOGGER.info(
+            '[CATALOG_INCLUSION] Completed: set %d associations (was %d) '
+            'for catalog_query=%s inclusion_seconds=%.3f',
+            new_count, old_count, catalog_query, inclusion_seconds,
+        )
 
     associated_content_keys = [metadata.content_key for metadata in metadata_list]
     return associated_content_keys

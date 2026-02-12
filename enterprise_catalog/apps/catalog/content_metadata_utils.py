@@ -4,12 +4,68 @@ Utility functions for manipulating content metadata.
 
 from logging import getLogger
 
-from enterprise_catalog.apps.catalog.utils import get_content_key
+import jsonschema
+
+from enterprise_catalog.apps.catalog.utils import get_content_key, get_content_type
 
 from .constants import FORCE_INCLUSION_METADATA_TAG_KEY
+from .content_metadata_schema import CONTENT_TYPE_SCHEMA_MAP
 
 
 LOGGER = getLogger(__name__)
+
+
+def validate_content_metadata(entry):
+    """
+    Validate a raw content metadata dict (from discovery's /search/all endpoint) against
+    the minimum JSON Schema for its content type.
+
+    Validation is *advisory only*: this function never raises an exception.  A schema
+    violation is logged as a warning so that on-call engineers can detect upstream
+    contract breakage without blocking catalog-content inclusion.
+
+    Args:
+        entry (dict): A single content metadata record from the discovery service.
+
+    Returns:
+        bool: True if the entry is valid (or has an unknown content_type), False if it
+              violates the schema.
+    """
+    content_key = get_content_key(entry)
+    content_type = get_content_type(entry)
+
+    schema = CONTENT_TYPE_SCHEMA_MAP.get(content_type)
+    if schema is None:
+        # Unknown content types are logged but not failed; they may be new types
+        # the service hasn't added schema support for yet.
+        LOGGER.debug(
+            'validate_content_metadata: no schema registered for content_type=%r '
+            '(content_key=%r); skipping validation.',
+            content_type, content_key,
+        )
+        return True
+
+    try:
+        jsonschema.validate(instance=entry, schema=schema)
+        return True
+    except jsonschema.ValidationError as exc:
+        LOGGER.warning(
+            '[CONTENT_METADATA_SCHEMA_VIOLATION] content_key=%r content_type=%r '
+            'failed schema validation. path=%s message=%s',
+            content_key,
+            content_type,
+            list(exc.absolute_path),
+            exc.message,
+        )
+        return False
+    except jsonschema.SchemaError as exc:
+        # The schema itself is malformed — this is a programming error, log at ERROR.
+        LOGGER.error(
+            '[CONTENT_METADATA_SCHEMA_ERROR] Schema for content_type=%r is invalid: %s',
+            content_type,
+            exc.message,
+        )
+        return True  # Don't penalise the content entry for a broken schema
 
 
 def tansform_force_included_courses(courses):

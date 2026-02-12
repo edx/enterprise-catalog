@@ -53,6 +53,7 @@ from enterprise_catalog.apps.catalog.constants import (
 from enterprise_catalog.apps.catalog.content_metadata_utils import (
     get_advertised_course_run,
     get_course_first_paid_enrollable_seat_price,
+    validate_content_metadata,
 )
 from enterprise_catalog.apps.catalog.utils import (
     batch,
@@ -1133,6 +1134,10 @@ def _get_defaults_from_metadata(entry, exists=False):
     Returns:
         dict: A dictionary containing the new defaults for the a ContentMetadata object.
     """
+    # Validate against the minimum schema for this content type.
+    # Violations are logged as warnings but never block ingestion.
+    validate_content_metadata(entry)
+
     content_key = get_content_key(entry)
     parent_content_key = get_parent_content_key(entry)
     content_type = get_content_type(entry)

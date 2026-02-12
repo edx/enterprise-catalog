@@ -1019,6 +1019,55 @@ class IndexEnterpriseCatalogCoursesInAlgoliaTaskTests(TestCase):
             assert str(normal_sized_course.content_uuid) in algolia_object_key
             assert not str(too_big_sized_course.content_uuid) in algolia_object_key
 
+    def test_add_metadata_to_algolia_objects_sets_is_discoverable(self):
+        """
+        Test that ``add_metadata_to_algolia_objects`` sets ``is_discoverable=True`` on all indexed objects.
+        This is a Phase 0 observability improvement: every indexed Algolia object should carry a boolean
+        ``is_discoverable`` facet so that the index state is inspectable via Algolia's dashboard.
+        """
+        algolia_products_by_object_id = {}
+        test_course = ContentMetadataFactory(content_type=COURSE, content_key='test-course-is-discoverable')
+        tasks.add_metadata_to_algolia_objects(
+            metadata=test_course,
+            algolia_products_by_object_id=algolia_products_by_object_id,
+            catalog_uuids=[str(uuid.uuid4())],
+            customer_uuids=[str(uuid.uuid4())],
+            catalog_queries=[(str(uuid.uuid4()), 'query title')],
+            academy_uuids=[],
+            academy_tags=[],
+            video_ids=[],
+        )
+        assert algolia_products_by_object_id, 'Expected at least one Algolia object to be generated'
+        for algolia_object in algolia_products_by_object_id.values():
+            assert algolia_object.get('is_discoverable') is True, (
+                f"Expected is_discoverable=True on Algolia object {algolia_object.get('objectID')}"
+            )
+
+    def test_add_metadata_to_algolia_objects_sets_is_discoverable_false(self):
+        """
+        Test that ``add_metadata_to_algolia_objects`` sets ``is_discoverable=False`` when explicitly passed.
+        This is used for non-indexable content that is indexed for observability purposes only.
+        Learner-facing search should filter on ``is_discoverable=True`` to exclude these records.
+        """
+        algolia_products_by_object_id = {}
+        test_course = ContentMetadataFactory(content_type=COURSE, content_key='test-course-not-discoverable')
+        tasks.add_metadata_to_algolia_objects(
+            metadata=test_course,
+            algolia_products_by_object_id=algolia_products_by_object_id,
+            catalog_uuids=[str(uuid.uuid4())],
+            customer_uuids=[str(uuid.uuid4())],
+            catalog_queries=[(str(uuid.uuid4()), 'query title')],
+            academy_uuids=[],
+            academy_tags=[],
+            video_ids=[],
+            is_discoverable=False,
+        )
+        assert algolia_products_by_object_id, 'Expected at least one Algolia object to be generated'
+        for algolia_object in algolia_products_by_object_id.values():
+            assert algolia_object.get('is_discoverable') is False, (
+                f"Expected is_discoverable=False on Algolia object {algolia_object.get('objectID')}"
+            )
+
     def test_get_algolia_objects_from_course_metadata(self):
         """
         Test that the ``get_algolia_objects_from_course_content_metadata`` method generates a set of algolia objects to

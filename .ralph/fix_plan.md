@@ -1,8 +1,8 @@
 # Ralph Fix Plan
 
 ## High Priority
-- [ ] Implement Phase 0 improvements (see architecture-analysis.md §7):
-  - [ ] Add `jsonschema` validation on ingested content metadata
+- [x] Implement Phase 0 improvements (see architecture-analysis.md §7):
+  - [x] Add `jsonschema` validation on ingested content metadata
   - [x] Add `is_discoverable` facet to Algolia indexing
   - [x] Improve Django admin/management command observability for catalog-content associations
 - [ ] Implement Phase 1 app separation (structural refactor):
@@ -43,6 +43,13 @@
   - `CatalogQueryAdmin`: added `get_view_content_link` — same filtered link from CatalogQuery list/detail views
   - New management command: `catalog_content_status` — inspect content counts by type for a catalog UUID, or list all catalogs for an enterprise UUID; supports `--show-content-keys` to dump all content keys
   - Tests added: `enterprise_catalog/apps/catalog/management/commands/tests/test_catalog_content_status.py` (5 tests)
+- [x] Add `jsonschema` validation on ingested content metadata
+  - New file: `catalog/content_metadata_schema.py` — minimum JSON schemas for course, courserun, program, learnerpathway
+  - `validate_content_metadata()` added to `content_metadata_utils.py` — soft-fail: logs `[CONTENT_METADATA_SCHEMA_VIOLATION]` warning, never raises, returns bool
+  - `_get_defaults_from_metadata()` in `models.py` calls `validate_content_metadata(entry)` before processing
+  - Handles `SchemaError` (broken schema = programming error, logged at ERROR, content not penalised)
+  - Unknown content_types accepted without validation (future-proof for new discovery types)
+  - Tests added: `ValidateContentMetadataTests` in `test_content_metadata_utils.py` (11 tests)
 
 ## Notes
 - Full analysis written to `.ralph/architecture-analysis.md`

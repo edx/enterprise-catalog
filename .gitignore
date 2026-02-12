@@ -99,4 +99,14 @@ tx
 .python-version
 
 .dev/
+
+# LLMs/AI
 CLAUDE.md
+*CLAUDE.md
+.claude/
+
+# Ralph
+.ralph/.*
+.ralph/status.json
+.ralph/progress.json
+.ralph/specs/

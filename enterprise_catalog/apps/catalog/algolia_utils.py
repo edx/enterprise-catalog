@@ -139,6 +139,7 @@ ALGOLIA_FIELDS = [
     'avg_course_rating',
     'course_bayesian_average',
     'transcript_languages',
+    'is_discoverable',
 ]
 
 # default configuration for the index
@@ -188,6 +189,7 @@ ALGOLIA_INDEX_SETTINGS = {
         'learning_type',
         'learning_type_v2',
         'transcript_languages',
+        'filterOnly(is_discoverable)',
     ],
     'unretrievableAttributes': [
         'enterprise_catalog_uuids',

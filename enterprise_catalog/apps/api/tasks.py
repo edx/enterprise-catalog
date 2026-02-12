@@ -1,5 +1,6 @@
 import copy
 import functools
+import itertools
 import json
 import logging
 import sys
@@ -822,6 +823,7 @@ def add_video_to_algolia_objects(
     json_metadata.update({
         'objectID': f'video-{video.edx_video_id}',
         'metadata_language': 'en',
+        'is_discoverable': True,
     })
     json_metadata.update({
         'content_type': VIDEO,
@@ -910,6 +912,7 @@ def add_metadata_to_algolia_objects(
     academy_uuids,
     academy_tags,
     video_ids,
+    is_discoverable=True,
 ):
     """
     Convert ContentMetadata objects into Algolia products and accumulate results into `algolia_products_by_object_id`.
@@ -929,12 +932,16 @@ def add_metadata_to_algolia_objects(
         academy_uuids (list of str): Associated academy UUIDs.
         academy_tags (list of str): Associated academy tags.
         catalog_queries (list of tuple(str, str)): Associated catalog queries, as a list of (UUID, title) tuples.
+        is_discoverable (bool): Whether this content should appear in search results. Non-discoverable content
+            is indexed for observability (so operators can see what's in the index) but will not surface in
+            learner-facing search queries filtered on ``is_discoverable=True``. Defaults to True.
     """
     # add enterprise-related uuids to json_metadata
     json_metadata = copy.deepcopy(metadata.json_metadata)
     json_metadata.update({
         'objectID': get_algolia_object_id(json_metadata.get('content_type'), json_metadata.get('uuid')),
         'metadata_language': 'en',
+        'is_discoverable': is_discoverable,
     })
     # academy uuids and tags are always less than 15 in number
     json_metadata.update({
@@ -1040,6 +1047,7 @@ def _get_algolia_products_for_batch(
     pathway_to_programs_courses_mapping,
     context_accumulator,
     dry_run=False,
+    is_discoverable=True,
 ):
     """
     Produce a list of products to index in algolia, given a fixed length batch of content_keys.
@@ -1068,7 +1076,9 @@ def _get_algolia_products_for_batch(
             Algolia than what is contained in `content_keys_batch`; e.g. if the batch contains a program which in turn
             contains an indexable course, that course will be "pulled into" this batch.
         all_indexable_content_keys (set of str):
-            All indexable content keys across all batches.  Must be a python set to support quick lookups.
+            The set of content keys that should pass the in-memory content filter for this batch. For normal
+            (discoverable) batches, this is all indexable content keys. For non-indexable batches, pass the
+            set of non-indexable content keys so they are not filtered out. Must be a python set for O(1) lookups.
         program_to_courses_mapping (dict of str -> list of str): Mapping of programs to the courses within.
         pathway_to_programs_courses_mapping (dict of str -> list of str):
             Mapping of pathways to programs and courses within.
@@ -1076,6 +1086,9 @@ def _get_algolia_products_for_batch(
             An object that is passed to every batch in order to enable accumulating context and metrics that can be
             useful for logging.
         dry_run (bool): If true, all logic will run except sending products to Algolia.
+        is_discoverable (bool): Value to set on the ``is_discoverable`` facet for all products in this batch.
+            Pass False for non-indexable content batches to make them visible in the index but excluded from
+            learner-facing search results. Defaults to True.
 
     Returns:
         list of dict: Algolia products to index.
@@ -1304,6 +1317,7 @@ def _get_algolia_products_for_batch(
             academy_uuids_by_key[metadata.content_key],
             academy_tags_by_key[metadata.content_key],
             video_ids_by_key[metadata.content_key],
+            is_discoverable=is_discoverable,
         )
 
         num_content_metadata_indexed += 1
@@ -1348,7 +1362,7 @@ def _get_algolia_products_for_batch(
     return create_algolia_objects(algolia_products_by_object_id.values(), ALGOLIA_FIELDS)
 
 
-def _index_content_keys_in_algolia(content_keys, algolia_client, dry_run=False):
+def _index_content_keys_in_algolia(content_keys, algolia_client, dry_run=False, nonindexable_content_keys=None):
     """
     Determines list of Algolia objects to include in the Algolia index based on the
     specified content keys, and replaces all existing objects with the new ones in an atomic reindex.
@@ -1363,10 +1377,15 @@ def _index_content_keys_in_algolia(content_keys, algolia_client, dry_run=False):
     Arguments:
         content_keys (list): List of indexable content_key strings.
         algolia_client: Instance of an Algolia API client, or None if dry_run is enabled.
+        dry_run (bool): If true, all logic will run except sending products to Algolia.
+        nonindexable_content_keys (list or None): List of non-indexable content_key strings. If provided, these
+            will be indexed with ``is_discoverable=False`` alongside the indexable content. This allows
+            operators to observe what content is present but hidden from learner-facing search results.
     """
+    nonindexable_content_keys = nonindexable_content_keys or []
     logger.info(
-        f'{_reindex_algolia_prefix(dry_run)} There are {len(content_keys)} total content keys to include in the'
-        f' Algolia index.'
+        f'{_reindex_algolia_prefix(dry_run)} There are {len(content_keys)} indexable and'
+        f' {len(nonindexable_content_keys)} non-indexable content keys to include in the Algolia index.'
     )
     (
         program_to_courses_mapping,
@@ -1376,8 +1395,9 @@ def _index_content_keys_in_algolia(content_keys, algolia_client, dry_run=False):
         'total_algolia_products_count': 0,
         'discarded_algolia_object_ids': defaultdict(int),
     }
-    # Convert the content_keys list into a set that only takes O(1) on average to lookup.
+    # Convert the content_keys lists into sets that only take O(1) on average to lookup.
     all_content_keys_set = set(content_keys)
+    all_nonindexable_content_keys_set = set(nonindexable_content_keys)
     # Produce a generator of batches of algolia products to index.  Each batch has an unpredictable, variable length.
     # Not immediately evaluated, so no memory is consumed yet.
     algolia_products_batch_generator = (
@@ -1389,17 +1409,46 @@ def _index_content_keys_in_algolia(content_keys, algolia_client, dry_run=False):
             pathway_to_programs_courses_mapping,
             context_accumulator,
             dry_run=dry_run,
+            is_discoverable=True,
         )
         for batch_num, content_keys_batch
         in enumerate(batch(content_keys, batch_size=REINDEX_TASK_BATCH_SIZE))
     )
+    # Produce a generator of batches of non-indexable algolia products (is_discoverable=False).
+    # Non-indexable content is indexed for observability: operators can see what content exists in the index
+    # but is hidden from learner-facing search results (filtered on is_discoverable=True).
+    # The all_nonindexable_content_keys_set is passed as "all_indexable_content_keys" so that the
+    # in-memory content filter in _get_algolia_products_for_batch lets these keys through.
+    # Non-indexable content won't have associated catalog/customer UUIDs (they're not in any catalog query),
+    # so those UUID fields will be empty, which is correct.
+    nonindexable_products_batch_generator = (
+        _get_algolia_products_for_batch(
+            batch_num,
+            content_keys_batch,
+            all_nonindexable_content_keys_set,
+            program_to_courses_mapping,
+            pathway_to_programs_courses_mapping,
+            context_accumulator,
+            dry_run=dry_run,
+            is_discoverable=False,
+        )
+        for batch_num, content_keys_batch
+        in enumerate(batch(nonindexable_content_keys, batch_size=REINDEX_TASK_BATCH_SIZE))
+    )
     # Flatten the variable-length batches of products into a flat iterable of all products to index.  Whatever consumes
     # this will not even know that it was already batched and recombined.
     # Still not evaluated, so no memory is consumed yet.
-    algolia_products_generator = (
-        algolia_product
-        for batch in algolia_products_batch_generator
-        for algolia_product in batch
+    algolia_products_generator = itertools.chain(
+        (
+            algolia_product
+            for products_batch in algolia_products_batch_generator
+            for algolia_product in products_batch
+        ),
+        (
+            algolia_product
+            for products_batch in nonindexable_products_batch_generator
+            for algolia_product in products_batch
+        ),
     )
 
     # Feed the un-evaluated flat iterable of algolia products into the 3rd party library function.  As of this writing,
@@ -1434,10 +1483,14 @@ def _index_content_keys_in_algolia(content_keys, algolia_client, dry_run=False):
 def _reindex_algolia(indexable_content_keys, nonindexable_content_keys, dry_run=False):
     """
     Indexes courses, programs and pathways metadata in the Algolia search index.
+
+    Indexable content is indexed with ``is_discoverable=True`` so it appears in learner-facing search.
+    Non-indexable content is indexed with ``is_discoverable=False`` for observability: operators can
+    filter on this facet to inspect what content is present in the index but hidden from search results.
     """
     logger.info(
-        f'{_reindex_algolia_prefix(dry_run)} There are %s indexable content keys, which will replace all existing'
-        ' objects in the Algolia index. %s nonindexable content keys will be removed.',
+        f'{_reindex_algolia_prefix(dry_run)} There are %s indexable content keys (is_discoverable=True) and'
+        ' %s non-indexable content keys (is_discoverable=False) to index.',
         len(indexable_content_keys), len(nonindexable_content_keys),
     )
     if len(indexable_content_keys) == 0:
@@ -1452,11 +1505,12 @@ def _reindex_algolia(indexable_content_keys, nonindexable_content_keys, dry_run=
         configure_algolia_index(algolia_client)
 
     # Replaces all objects in the Algolia index with new objects based on the specified
-    # indexable content keys.
+    # indexable content keys (is_discoverable=True) and non-indexable content keys (is_discoverable=False).
     _index_content_keys_in_algolia(
         content_keys=indexable_content_keys,
         algolia_client=algolia_client,
         dry_run=dry_run,
+        nonindexable_content_keys=nonindexable_content_keys,
     )
 
 

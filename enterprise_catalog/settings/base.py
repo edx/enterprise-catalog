@@ -31,7 +31,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = []
 
 # Application definition
 
@@ -241,11 +241,7 @@ LANGUAGE_COOKIE_NAME = 'openedx-language-preference'
 # END COOKIE CONFIGURATION
 
 CSRF_COOKIE_SECURE = False
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:8001",
-    "http://127.0.0.1:8001",
-    "https://localhost:8001",
-]
+CSRF_TRUSTED_ORIGINS = []
 
 # AUTHENTICATION CONFIGURATION
 LOGIN_URL = '/login/'

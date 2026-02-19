@@ -270,15 +270,15 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
 
         if enterprise_catalog:
             catalog_modified = enterprise_catalog.modified
-        #if enterprise_catalog and not self.context.get('skip_customer_fetch'):
-        #    customer_modified = enterprise_catalog.enterprise_customer.last_modified_date
+        
+        
         if enterprise_catalog and not self.context.get('skip_customer_fetch'):
             enterprise_customer = getattr(enterprise_catalog, "enterprise_customer", None)
             if enterprise_customer:
                 customer_modified = enterprise_customer.last_modified_date
 
         content_type = instance.content_type
-        #json_metadata = instance.json_metadata.copy()
+        
         json_metadata = (instance.json_metadata or {}).copy()
 
         marketing_url = json_metadata.get('marketing_url')
@@ -320,7 +320,7 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
                     content_key=content_key,
                 )
             if content_type == COURSE:
-                #serialized_course_runs = json_metadata.get('course_runs', [])
+    
                 serialized_course_runs = json_metadata.get('course_runs') or []
                 if not isinstance(serialized_course_runs, list):
                     serialized_course_runs = []

@@ -270,8 +270,6 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
 
         if enterprise_catalog:
             catalog_modified = enterprise_catalog.modified
-
-
         if enterprise_catalog and not self.context.get('skip_customer_fetch'):
             enterprise_customer = getattr(enterprise_catalog, "enterprise_customer", None)
             if enterprise_customer:
@@ -346,12 +344,12 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
         if not self.context.get('enterprise_catalog'):
             return
 
-        #serialized_runs_by_key = {run['key']: run for run in serialized_course_runs}
+        # serialized_runs_by_key = {run['key']: run for run in serialized_course_runs}
         serialized_runs_by_key = {
             run.get('key'): run
             for run in serialized_course_runs
             if isinstance(run, dict) and run.get('key')
-         }
+        }
 
         for course_run_instance in ContentMetadata.get_child_records(course_instance):
             serialized_run = serialized_runs_by_key.get(course_run_instance.content_key)

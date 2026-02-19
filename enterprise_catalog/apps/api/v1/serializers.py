@@ -270,20 +270,17 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
 
         if enterprise_catalog:
             catalog_modified = enterprise_catalog.modified
-        
-        
+
+
         if enterprise_catalog and not self.context.get('skip_customer_fetch'):
             enterprise_customer = getattr(enterprise_catalog, "enterprise_customer", None)
             if enterprise_customer:
                 customer_modified = enterprise_customer.last_modified_date
 
         content_type = instance.content_type
-        
         json_metadata = (instance.json_metadata or {}).copy()
-
         marketing_url = json_metadata.get('marketing_url')
         content_key = json_metadata.get('key')
-
         json_metadata['parent_content_key'] = instance.parent_content_key
 
         # Currently (3/17/23) product source can potentially be two different formats, string and dict.
@@ -320,7 +317,7 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
                     content_key=content_key,
                 )
             if content_type == COURSE:
-    
+
                 serialized_course_runs = json_metadata.get('course_runs') or []
                 if not isinstance(serialized_course_runs, list):
                     serialized_course_runs = []

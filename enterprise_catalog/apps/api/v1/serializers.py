@@ -339,15 +339,25 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
         if not self.context.get('enterprise_catalog'):
             return
 
-        serialized_runs_by_key = {run['key']: run for run in serialized_course_runs}
+        serialized_runs_by_key = {run['key']: run for run in serialized_course_runs if run.get('key')}
 
         for course_run_instance in ContentMetadata.get_child_records(course_instance):
-            serialized_run = serialized_runs_by_key.get(course_run_instance.content_key)
-            if not serialized_run:
+            try:
+                if not course_run_instance.content_key:
+                    continue
+
+                serialized_run = serialized_runs_by_key.get(course_run_instance.content_key)
+                if not serialized_run:
+                    continue
+                serialized_run['parent_content_key'] = course_run_instance.parent_content_key
+                serialized_run['enrollment_url'] = \
+                    self.context['enterprise_catalog'].get_content_enrollment_url(course_run_instance)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.warning(
+                    f"Skipping invalid course_run id={getattr(course_run_instance, 'id', None)} "
+                    f"error={str(e)}"
+                )
                 continue
-            serialized_run['parent_content_key'] = course_run_instance.parent_content_key
-            serialized_run['enrollment_url'] = \
-                self.context['enterprise_catalog'].get_content_enrollment_url(course_run_instance)
 
 
 class ContentMetadataListResponseSerializer(ImmutableStateSerializer):

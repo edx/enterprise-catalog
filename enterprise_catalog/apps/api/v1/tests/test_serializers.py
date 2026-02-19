@@ -1,3 +1,4 @@
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from django.db import transaction
@@ -45,6 +46,47 @@ class ContentMetadataSerializerTests(TestCase):
             'slug': None,
             'description': None
         }
+
+    def test_augment_serialized_runs_row_level_safety(self):
+
+        # Mock enterprise catalog
+        mock_catalog = Mock()
+        mock_catalog.get_content_enrollment_url.side_effect = [
+            Exception("Malformed UUID"),   # first call fails
+            "valid-url"                    # second call succeeds
+        ]
+
+        serializer = ContentMetadataSerializer(
+            context={"enterprise_catalog": mock_catalog}
+        )
+
+        # Fake child runs
+        run1 = Mock(content_key="key-1", parent_content_key="parent-1", id=1)
+        run2 = Mock(content_key="key-2", parent_content_key="parent-2", id=2)
+        run3 = Mock(content_key=None, parent_content_key="parent-3", id=3)
+
+        serialized_course_runs = [
+            {"key": "key-1"},
+            {"key": "key-2"},
+            {"name": "missing-key"},  # should be ignored
+        ]
+
+        with patch(
+            "enterprise_catalog.apps.api.v1.serializers.ContentMetadata.get_child_records",
+            return_value=[run1, run2, run3],
+        ):
+            # Should not raise any exception
+            serializer._augment_serialized_runs_for_course(  # pylint: disable=protected-access
+                course_instance=Mock(),
+                serialized_course_runs=serialized_course_runs,
+            )
+
+        # First run should be skipped due to exception
+        assert "enrollment_url" not in serialized_course_runs[0]
+
+        # Second run should be processed successfully
+        assert serialized_course_runs[1]["enrollment_url"] == "valid-url"
+        assert serialized_course_runs[1]["parent_content_key"] == "parent-2"
 
 
 class FindCatalogQueryTest(TestCase):

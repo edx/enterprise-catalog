@@ -96,7 +96,7 @@ code-annotations==2.3.0
     #   -r requirements/base.txt
     #   edx-lint
     #   edx-toggles
-cryptography==46.0.4
+cryptography==46.0.5
     # via
     #   -r requirements/base.txt
     #   pyjwt
@@ -258,7 +258,7 @@ inflection==0.5.1
     # via
     #   -r requirements/base.txt
     #   drf-spectacular
-isort==7.0.0
+isort==8.0.0
     # via
     #   -r requirements/quality.in
     #   pylint
@@ -298,7 +298,7 @@ monotonic==1.6
     # via
     #   -r requirements/base.txt
     #   analytics-python
-mysqlclient==2.2.7
+mysqlclient==2.2.8
     # via -r requirements/base.txt
 numpy==2.4.2
     # via
@@ -318,7 +318,7 @@ packaging==26.0
     # via
     #   -r requirements/base.txt
     #   kombu
-platformdirs==4.5.1
+platformdirs==4.9.2
     # via pylint
 ply==3.11
     # via
@@ -356,7 +356,7 @@ pyjwt[crypto]==2.11.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.0.4
+pylint==4.0.5
     # via
     #   edx-lint
     #   pylint-celery
@@ -401,7 +401,7 @@ pyyaml==6.0.3
     #   code-annotations
     #   drf-spectacular
     #   edx-django-release-util
-redis==7.1.0
+redis==7.2.0
     # via -r requirements/base.txt
 referencing==0.37.0
     # via
@@ -459,7 +459,7 @@ social-auth-app-django==5.7.0
     # via
     #   -r requirements/base.txt
     #   edx-auth-backends
-social-auth-core==4.8.3
+social-auth-core==4.8.5
     # via
     #   -r requirements/base.txt
     #   edx-auth-backends
@@ -468,7 +468,7 @@ sqlparse==0.5.5
     # via
     #   -r requirements/base.txt
     #   django
-stevedore==5.6.0
+stevedore==5.7.0
     # via
     #   -r requirements/base.txt
     #   code-annotations

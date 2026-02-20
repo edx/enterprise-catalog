@@ -56,7 +56,7 @@ billiard==4.2.4
     # via
     #   -r requirements/test.txt
     #   celery
-cachetools==7.0.0
+cachetools==7.0.1
     # via
     #   -r requirements/test.txt
     #   tox
@@ -125,7 +125,7 @@ coverage[toml]==7.13.4
     # via
     #   -r requirements/test.txt
     #   pytest-cov
-cryptography==46.0.4
+cryptography==46.0.5
     # via
     #   -r requirements/test.txt
     #   pyjwt
@@ -290,7 +290,7 @@ faker==40.4.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==3.20.3
+filelock==3.24.3
     # via
     #   -r requirements/test.txt
     #   tox
@@ -323,7 +323,7 @@ iniconfig==2.3.0
     # via
     #   -r requirements/test.txt
     #   pytest
-isort==7.0.0
+isort==8.0.0
     # via
     #   -r requirements/test.txt
     #   pylint
@@ -366,9 +366,9 @@ monotonic==1.6
     # via
     #   -r requirements/test.txt
     #   analytics-python
-mysqlclient==2.2.7
+mysqlclient==2.2.8
     # via -r requirements/test.txt
-nh3==0.3.2
+nh3==0.3.3
     # via readme-renderer
 numpy==2.4.2
     # via
@@ -393,7 +393,7 @@ packaging==26.0
     #   pytest
     #   sphinx
     #   tox
-platformdirs==4.5.1
+platformdirs==4.9.2
     # via
     #   -r requirements/test.txt
     #   pylint
@@ -448,7 +448,7 @@ pyjwt[crypto]==2.11.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.0.4
+pylint==4.0.5
     # via
     #   -r requirements/test.txt
     #   edx-lint
@@ -489,7 +489,7 @@ pytest==9.0.2
     #   pytest-django
 pytest-cov==7.0.0
     # via -r requirements/test.txt
-pytest-django==4.11.1
+pytest-django==4.12.0
     # via -r requirements/test.txt
 python-dateutil==2.9.0.post0
     # via
@@ -515,7 +515,7 @@ pyyaml==6.0.3
     #   responses
 readme-renderer==44.0
     # via -r requirements/doc.in
-redis==7.1.0
+redis==7.2.0
     # via -r requirements/test.txt
 referencing==0.37.0
     # via
@@ -537,7 +537,7 @@ requests-oauthlib==2.0.0
     # via
     #   -r requirements/test.txt
     #   social-auth-core
-responses==0.25.8
+responses==0.26.0
     # via -r requirements/test.txt
 restructuredtext-lint==2.0.2
     # via doc8
@@ -581,7 +581,7 @@ social-auth-app-django==5.7.0
     # via
     #   -r requirements/test.txt
     #   edx-auth-backends
-social-auth-core==4.8.3
+social-auth-core==4.8.5
     # via
     #   -r requirements/test.txt
     #   edx-auth-backends
@@ -611,7 +611,7 @@ sqlparse==0.5.5
     # via
     #   -r requirements/test.txt
     #   django
-stevedore==5.6.0
+stevedore==5.7.0
     # via
     #   -r requirements/test.txt
     #   code-annotations
@@ -634,7 +634,7 @@ tomlkit==0.14.0
     # via
     #   -r requirements/test.txt
     #   pylint
-tox==4.34.1
+tox==4.43.0
     # via -r requirements/test.txt
 tqdm==4.67.3
     # via
@@ -680,7 +680,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==20.36.1
+virtualenv==20.38.0
     # via
     #   -r requirements/test.txt
     #   tox

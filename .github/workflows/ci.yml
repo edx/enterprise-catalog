@@ -29,3 +29,6 @@ jobs:
     - name: Code Coverage
       if: matrix.python-version == '3.12' && matrix.django-version=='django52'
       uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false

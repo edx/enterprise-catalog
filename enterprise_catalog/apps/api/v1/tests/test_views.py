@@ -1531,10 +1531,11 @@ class EnterpriseCatalogGetContentMetadataTests(APITestMixin):
         True
     )
     def test_excludes_unpublished_courses(self, learner_portal_enabled, mock_api_client):
-    #pylint: disable=unused-argument
+        # pylint: disable=unused-argument
         """
         Verify that unpublished courses are never returned
-        in the content metadata API response.
+        in the content metadata API response, even when explicitly
+        requested via content_keys parameter.
         """
 
         unpublished_course = ContentMetadataFactory(
@@ -1550,16 +1551,24 @@ class EnterpriseCatalogGetContentMetadataTests(APITestMixin):
             [unpublished_course],
         )
 
+        # Test 1: Without content_keys parameter
         url = self._get_content_metadata_url(self.enterprise_catalog)
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
         response_data = response.json()
-
-        # Core assertions
         self.assertEqual(response_data["count"], 0)
         self.assertEqual(response_data["results"], [])
+
+        # Test 2: With content_keys parameter explicitly requesting the unpublished course
+        # This tests the regression where unpublished courses were returned when content_keys was provided
+        url_with_keys = f"{url}?content_keys={unpublished_course.content_key}"
+        response_with_keys = self.client.get(url_with_keys)
+
+        self.assertEqual(response_with_keys.status_code, status.HTTP_200_OK)
+        response_data_with_keys = response_with_keys.json()
+        self.assertEqual(response_data_with_keys["count"], 0)
+        self.assertEqual(response_data_with_keys["results"], [])
 
     @mock.patch('enterprise_catalog.apps.api_client.enterprise_cache.EnterpriseApiClient')
     @ddt.data(

@@ -209,6 +209,38 @@ class EnterpriseCatalogGetContentMetadata(BaseViewSet, GenericAPIView):
 
         return self.get_content_metadata(request, traverse_pagination, content_keys_filter)
 
+    def is_unpublished(self, item):
+        """
+        Determines if a course is unpublished (has no published course runs).
+        Args:
+            item (ContentMetadata): The content metadata item to check.
+        Returns:
+            bool: True if the course is unpublished, False otherwise.
+                For courses, checks if any course run has published status.
+                For other content types, always returns False (not unpublished).
+        """
+        if item.content_type == 'course':
+            course_runs = item.json_metadata.get('course_runs', [])
+
+            # If no course runs, check top-level status
+            if not course_runs:
+                status = item.json_metadata.get('status', '').lower()
+                is_unpublished = status == 'unpublished'
+                if is_unpublished:
+                    logger.debug(f'[get_content_metadata]: Content item {item.content_key} is unpublished (no runs).')
+                return is_unpublished
+            # Check if ANY run is published
+            has_published_run = any(
+                run.get('status', '').lower() == 'published'
+                for run in course_runs
+            )
+
+            if not has_published_run:
+                logger.debug(f'[get_content_metadata]: Content item {item.content_key} has no published runs.')
+
+            return not has_published_run
+        return False
+
     def is_active(self, item):
         """
         Determines if a content item is active.
@@ -240,12 +272,17 @@ class EnterpriseCatalogGetContentMetadata(BaseViewSet, GenericAPIView):
         queryset = self.filter_queryset(self.get_queryset(content_keys_filter=content_keys_filter))
         logger.debug(f'[get_content_metadata]: Original queryset length: {len(queryset)}, {self.enterprise_catalog}')
 
-        # Always filter out inactive courses,
-        # to ensure only active content is always returned via API
-        queryset = [item for item in queryset if self.is_active(item)]
-        filtered_queryset_length = len(queryset)
-        logger.debug(f'[get_content_metadata]: Filtered queryset length: {filtered_queryset_length}, '
+        # Always filter out unpublished courses
+        queryset = [item for item in queryset if not self.is_unpublished(item)]
+        logger.debug(f'[get_content_metadata]: After unpublished filter, queryset length: {len(queryset)}, '
+                     f'{self.enterprise_catalog}')
+
+        # Additionally filter out inactive courses if content_keys_filter is not provided
+        if not content_keys_filter:
+            queryset = [item for item in queryset if self.is_active(item)]
+            logger.debug(f'[get_content_metadata]: After active filter, queryset length: {len(queryset)}, '
                          f'{self.enterprise_catalog}')
+
         context = self.get_serializer_context()
         context['enterprise_catalog'] = self.enterprise_catalog
         page = self.paginate_queryset(queryset)

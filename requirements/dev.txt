@@ -72,7 +72,7 @@ celery==5.6.2
     #   -r requirements/test.txt
     #   django-celery-results
     #   edx-celeryutils
-certifi==2026.1.4
+certifi==2026.2.25
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -85,10 +85,6 @@ cffi==2.0.0
     #   -r requirements/test.txt
     #   cryptography
     #   pynacl
-chardet==6.0.0.post1
-    # via
-    #   -r requirements/test.txt
-    #   tox
 charset-normalizer==3.4.4
     # via
     #   -r requirements/quality.txt
@@ -249,7 +245,7 @@ django-import-export==4.4.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-django-log-request-id==2.1.0
+django-log-request-id==2.1.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -259,7 +255,7 @@ django-model-utils==5.0.0
     #   -r requirements/test.txt
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.19.19
+django-modeltranslation==0.20.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -337,7 +333,7 @@ edx-lint==5.6.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-edx-opaque-keys==3.0.0
+edx-opaque-keys==3.1.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -357,13 +353,14 @@ edx-toggles==5.4.1
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.4.0
+faker==40.5.1
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==3.24.3
+filelock==3.25.0
     # via
     #   -r requirements/test.txt
+    #   python-discovery
     #   tox
     #   virtualenv
 gunicorn==25.1.0
@@ -403,7 +400,7 @@ iniconfig==2.3.0
     # via
     #   -r requirements/test.txt
     #   pytest
-isort==8.0.0
+isort==8.0.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -450,7 +447,7 @@ lxml[html-clean]==6.0.2
     # via
     #   edx-i18n-tools
     #   lxml-html-clean
-lxml-html-clean==0.4.3
+lxml-html-clean==0.4.4
     # via lxml
 markupsafe==3.0.3
     # via
@@ -511,6 +508,7 @@ platformdirs==4.9.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pylint
+    #   python-discovery
     #   tox
     #   virtualenv
 pluggy==1.6.0
@@ -632,6 +630,10 @@ python-dateutil==2.9.0.post0
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
+python-discovery==1.1.0
+    # via
+    #   -r requirements/test.txt
+    #   virtualenv
 python-memcached==1.62
     # via -r requirements/dev.in
 python-slugify==8.0.4
@@ -657,7 +659,7 @@ pyyaml==6.0.3
     #   edx-django-release-util
     #   edx-i18n-tools
     #   responses
-redis==7.2.0
+redis==7.2.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -778,7 +780,7 @@ tomlkit==0.14.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pylint
-tox==4.44.0
+tox==4.47.0
     # via -r requirements/test.txt
 tqdm==4.67.3
     # via
@@ -833,7 +835,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==20.38.0
+virtualenv==21.1.0
     # via
     #   -r requirements/test.txt
     #   tox

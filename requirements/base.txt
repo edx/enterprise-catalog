@@ -36,7 +36,7 @@ celery==5.6.2
     #   -r requirements/base.in
     #   django-celery-results
     #   edx-celeryutils
-certifi==2026.1.4
+certifi==2026.2.25
     # via
     #   httpcore
     #   httpx
@@ -122,14 +122,14 @@ django-extensions==4.1
     # via -r requirements/base.in
 django-import-export==4.4.0
     # via -r requirements/base.in
-django-log-request-id==2.1.0
+django-log-request-id==2.1.1
     # via -r requirements/base.in
 django-model-utils==5.0.0
     # via
     #   -r requirements/base.in
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.19.19
+django-modeltranslation==0.20.2
     # via -r requirements/base.in
 django-simple-history==3.11.0
     # via
@@ -175,7 +175,7 @@ edx-drf-extensions==10.6.0
     # via
     #   -r requirements/base.in
     #   edx-rbac
-edx-opaque-keys==3.0.0
+edx-opaque-keys==3.1.0
     # via edx-drf-extensions
 edx-rbac==2.1.0
     # via -r requirements/base.in
@@ -272,7 +272,7 @@ pyyaml==6.0.3
     #   code-annotations
     #   drf-spectacular
     #   edx-django-release-util
-redis==7.2.0
+redis==7.2.1
     # via -r requirements/base.in
 referencing==0.37.0
     # via

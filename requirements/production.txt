@@ -44,7 +44,7 @@ celery==5.6.2
     #   -r requirements/base.txt
     #   django-celery-results
     #   edx-celeryutils
-certifi==2026.1.4
+certifi==2026.2.25
     # via
     #   -r requirements/base.txt
     #   httpcore
@@ -55,7 +55,7 @@ cffi==2.0.0
     #   -r requirements/base.txt
     #   cryptography
     #   pynacl
-charset-normalizer==3.4.4
+charset-normalizer==3.4.5
     # via
     #   -r requirements/base.txt
     #   requests
@@ -80,7 +80,7 @@ click-repl==0.3.0
     # via
     #   -r requirements/base.txt
     #   celery
-code-annotations==2.3.0
+code-annotations==2.3.2
     # via
     #   -r requirements/base.txt
     #   edx-toggles
@@ -102,7 +102,7 @@ distro==1.9.0
     # via
     #   -r requirements/base.txt
     #   openai
-django==5.2.11
+django==5.2.12
     # via
     #   -r requirements/base.txt
     #   django-celery-results
@@ -148,14 +148,14 @@ django-extensions==4.1
     # via -r requirements/base.txt
 django-import-export==4.4.0
     # via -r requirements/base.txt
-django-log-request-id==2.1.0
+django-log-request-id==2.1.1
     # via -r requirements/base.txt
 django-model-utils==5.0.0
     # via
     #   -r requirements/base.txt
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.19.19
+django-modeltranslation==0.20.2
     # via -r requirements/base.txt
 django-simple-history==3.11.0
     # via -r requirements/base.txt
@@ -204,7 +204,7 @@ edx-drf-extensions==10.6.0
     # via
     #   -r requirements/base.txt
     #   edx-rbac
-edx-opaque-keys==3.0.0
+edx-opaque-keys==3.1.0
     # via
     #   -r requirements/base.txt
     #   edx-drf-extensions
@@ -354,7 +354,7 @@ python3-openid==3.2.0
     # via
     #   -r requirements/base.txt
     #   social-auth-core
-pytz==2025.2
+pytz==2026.1.post1
     # via -r requirements/base.txt
 pyyaml==6.0.3
     # via
@@ -363,7 +363,7 @@ pyyaml==6.0.3
     #   code-annotations
     #   drf-spectacular
     #   edx-django-release-util
-redis==7.2.0
+redis==7.3.0
     # via -r requirements/base.txt
 referencing==0.37.0
     # via

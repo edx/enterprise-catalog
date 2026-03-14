@@ -98,5 +98,16 @@ tx
 # pyenv
 .python-version
 
+# claude code personalization
+.claude/settings.local.json
+
+# Ralph
+.ralph/.*
+.ralph/status.json
+.ralph/progress.json
+.ralph/specs/
+.ralph/logs
+.ralph/live.log
+
+# devstack
 .dev/
-CLAUDE.md

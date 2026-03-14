@@ -1,9 +1,8 @@
-comment: off
 coverage:
   status:
     patch:
       default:
-        target: 91
+        target: 91%
     project:
       default:
-        target: 91
+        target: auto  # Just make sure it doesn't get worse

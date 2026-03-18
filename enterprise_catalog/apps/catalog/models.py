@@ -1160,11 +1160,46 @@ def _get_defaults_from_metadata(entry, exists=False):
     return defaults
 
 
+def _should_skip_course_update(entry, existing_content):
+    """
+    Determine if a course update should be skipped because Discovery's 'modified' timestamp
+    is unchanged.
+
+    For courses, we compare the 'modified' timestamp from the Discovery /search/all response
+    with the existing 'modified' value in our database. If they match, there's no need to
+    update the ContentMetadata record, which avoids unnecessary churn in ContentMetadata.modified
+    and enables accurate staleness detection for incremental Algolia indexing.
+
+    Programs and pathways don't have a 'modified' field from Discovery, so they never skip.
+
+    Arguments:
+        entry (dict): The metadata entry from Discovery's /search/all API response.
+        existing_content (ContentMetadata): The existing ContentMetadata database object.
+
+    Returns:
+        bool: True if the update should be skipped, False otherwise.
+    """
+    if existing_content.content_type != COURSE:
+        return False
+
+    new_modified = entry.get('modified')
+    old_modified = existing_content._json_metadata.get('modified')  # pylint: disable=protected-access
+
+    if new_modified and old_modified and new_modified == old_modified:
+        return True
+
+    return False
+
+
 def _partition_content_metadata_defaults(batched_metadata, existing_metadata_by_key):
     """
     Given a batch of metadata entries and a list of existing ContentMetadata objects, this function
     determines the default fields to use for creates/updates depending on whether a database object exists
     for each metadata entry.
+
+    For existing courses, this function also checks if the Discovery 'modified' timestamp has changed.
+    If the timestamp is unchanged, the course is skipped to avoid unnecessary ContentMetadata.modified
+    updates (which enables accurate staleness detection for incremental Algolia indexing).
 
     Arguments:
         batched_metadata (list): List of metadata entries from the /search/all API response.
@@ -1172,27 +1207,45 @@ def _partition_content_metadata_defaults(batched_metadata, existing_metadata_by_
             database by content key.
 
     Returns:
-        (existing_metadata_defaults, nonexisting_metadata_defaults): Tuple containing lists of both
-            the default fields for ContentMetadata objects that already exist in the DB and for ContentMetadata
-            objects that will be newly created.
+        (existing_metadata_defaults, nonexisting_metadata_defaults, skipped_count): Tuple containing:
+            - List of default fields for ContentMetadata objects that already exist and need updating
+            - List of default fields for ContentMetadata objects that will be newly created
+            - Count of existing courses skipped due to unchanged 'modified' timestamp
     """
-    existing_metadata_defaults = [
-        _get_defaults_from_metadata(entry, exists=True)
-        for entry in batched_metadata
-        if get_content_key(entry) in existing_metadata_by_key
-    ]
+    existing_metadata_defaults = []
+    skipped_count = 0
+
+    for entry in batched_metadata:
+        content_key = get_content_key(entry)
+        if content_key not in existing_metadata_by_key:
+            continue
+
+        existing_content = existing_metadata_by_key[content_key]
+
+        # Skip courses where Discovery's 'modified' timestamp is unchanged
+        if _should_skip_course_update(entry, existing_content):
+            skipped_count += 1
+            continue
+
+        existing_metadata_defaults.append(_get_defaults_from_metadata(entry, exists=True))
+
     nonexisting_metadata_defaults = [
         _get_defaults_from_metadata(entry)
         for entry in batched_metadata
-        if not get_content_key(entry) in existing_metadata_by_key
+        if get_content_key(entry) not in existing_metadata_by_key
     ]
-    return existing_metadata_defaults, nonexisting_metadata_defaults
+
+    return existing_metadata_defaults, nonexisting_metadata_defaults, skipped_count
 
 
 def _update_existing_content_metadata(existing_metadata_defaults, existing_metadata_by_key, dry_run=False):
     """
     Iterates through existing ContentMetadata database objects, updating the values of various
     fields based on the defaults provided.
+
+    Note: Courses with unchanged Discovery 'modified' timestamps are filtered out earlier
+    in _partition_content_metadata_defaults(), so this function only receives records
+    that actually need updating.
 
     Arguments:
         existing_metadata_defaults (list): List of default values for various fields
@@ -1397,9 +1450,15 @@ def _execute_updates_existing_records_avoid_deadlock(content_keys, filtered_batc
         content_key__in=content_keys
     ).order_by('pk').select_for_update()
     existing_metadata_by_key = {metadata.content_key: metadata for metadata in existing_metadata}
-    existing_metadata_defaults, nonexisting_metadata_defaults = _partition_content_metadata_defaults(
+    existing_metadata_defaults, nonexisting_metadata_defaults, skipped_count = _partition_content_metadata_defaults(
         filtered_batched_metadata, existing_metadata_by_key
     )
+
+    if skipped_count > 0:
+        LOGGER.info(
+            'Skipped %d course updates where Discovery modified timestamp was unchanged',
+            skipped_count,
+        )
 
     # Update existing ContentMetadata records
     updated_metadata = _update_existing_content_metadata(

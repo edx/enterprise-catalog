@@ -299,6 +299,169 @@ def _mark_content_as_failed(content_key, reason):
         )
 
 
+def _get_stale_content_keys(content_type, force=False, include_failed=True):
+    """
+    Get content keys that need to be indexed.
+
+    Args:
+        content_type: The content type to query for (COURSE, PROGRAM, LEARNER_PATHWAY).
+        force: If True, return all content of this type regardless of staleness.
+        include_failed: If True, include previously failed records for retry.
+
+    Returns:
+        List of content keys that need indexing.
+    """
+    content_keys = []
+
+    if force:
+        # Return all content of this type
+        content_qs = ContentMetadata.objects.filter(content_type=content_type)
+        content_keys = list(content_qs.values_list('content_key', flat=True))
+        logger.info(
+            'Force mode: returning all %d %s content keys.',
+            len(content_keys),
+            content_type,
+        )
+        return content_keys
+
+    # Get stale content: never indexed, or modified since last indexed
+    content_qs = ContentMetadata.objects.filter(content_type=content_type)
+
+    for content in content_qs:
+        try:
+            state = content.indexing_state
+        except ContentMetadataIndexingState.DoesNotExist:
+            # Never indexed
+            content_keys.append(content.content_key)
+            continue
+
+        # Check if stale (modified since last indexed)
+        if state.last_indexed_at is None or content.modified > state.last_indexed_at:
+            content_keys.append(content.content_key)
+            continue
+
+        # Include failed records for retry
+        if include_failed and state.last_failure_at is not None:
+            content_keys.append(content.content_key)
+
+    logger.info(
+        'Found %d stale/failed %s content keys.',
+        len(content_keys),
+        content_type,
+    )
+    return content_keys
+
+
+def _batch_content_keys(content_keys, batch_size=None):
+    """
+    Split content keys into batches.
+
+    Args:
+        content_keys: List of content keys.
+        batch_size: Size of each batch. Defaults to INDEXING_BATCH_SIZE.
+
+    Returns:
+        Generator yielding batches of content keys.
+    """
+    if batch_size is None:
+        batch_size = INDEXING_BATCH_SIZE
+
+    for i in range(0, len(content_keys), batch_size):
+        yield content_keys[i:i + batch_size]
+
+
+@shared_task(base=LoggedTaskWithRetry, bind=True, max_retries=1)
+def dispatch_algolia_indexing(
+    self,  # pylint: disable=unused-argument
+    content_type=None,
+    force=False,
+    index_name=None,
+    dry_run=False,
+):
+    """
+    Dispatch batch indexing tasks for stale content.
+
+    This task queries for stale/failed content and dispatches batch indexing
+    tasks for each content type. It can be run:
+    - After update_content_metadata with force=True to reindex all changed content
+    - On a schedule (cron) to catch stragglers and retry failures
+
+    Args:
+        content_type: Optional content type to limit dispatch to (COURSE, PROGRAM,
+            LEARNER_PATHWAY). If not specified, dispatches for all types.
+        force: If True, dispatch tasks for all content regardless of staleness.
+        index_name: Optional custom index name for testing against a v2 index.
+        dry_run: If True, log what would be dispatched but don't actually dispatch.
+
+    Returns:
+        dict with counts of dispatched tasks per content type.
+    """
+    content_types_to_process = []
+    if content_type:
+        content_types_to_process = [content_type]
+    else:
+        # Process in dependency order: courses first, then programs, then pathways
+        content_types_to_process = [COURSE, PROGRAM, LEARNER_PATHWAY]
+
+    results = {
+        'dispatched_tasks': 0,
+        'content_types': {},
+    }
+
+    task_mapping = {
+        COURSE: index_courses_batch_in_algolia,
+        PROGRAM: index_programs_batch_in_algolia,
+        LEARNER_PATHWAY: index_pathways_batch_in_algolia,
+    }
+
+    for ctype in content_types_to_process:
+        content_keys = _get_stale_content_keys(ctype, force=force)
+        batches = list(_batch_content_keys(content_keys))
+
+        results['content_types'][ctype] = {
+            'total_content_keys': len(content_keys),
+            'batches_dispatched': 0,
+        }
+
+        if not batches:
+            logger.info('No %s content keys to index.', ctype)
+            continue
+
+        task_func = task_mapping.get(ctype)
+        if not task_func:
+            logger.error('No task function found for content type: %s', ctype)
+            continue
+
+        for batch_keys in batches:
+            if dry_run:
+                logger.info(
+                    '[DRY RUN] Would dispatch %s task for %d content keys: %s',
+                    ctype,
+                    len(batch_keys),
+                    batch_keys[:3],  # Log first 3 keys for reference
+                )
+            else:
+                task_func.delay(
+                    content_keys=batch_keys,
+                    index_name=index_name,
+                    force=force,
+                )
+                logger.info(
+                    'Dispatched %s indexing task for %d content keys.',
+                    ctype,
+                    len(batch_keys),
+                )
+
+            results['content_types'][ctype]['batches_dispatched'] += 1
+            results['dispatched_tasks'] += 1
+
+    logger.info(
+        'dispatch_algolia_indexing complete. Results: %s',
+        results,
+    )
+    return results
+
+
 @shared_task(base=LoggedTaskWithRetry, bind=True, max_retries=1)
 def index_courses_batch_in_algolia(
     self,  # pylint: disable=unused-argument

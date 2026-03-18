@@ -15,12 +15,15 @@ from enterprise_catalog.apps.catalog.constants import (
 from enterprise_catalog.apps.catalog.tests import factories
 from enterprise_catalog.apps.search.models import ContentMetadataIndexingState
 from enterprise_catalog.apps.search.tasks import (
+    _batch_content_keys,
     _filter_content_keys_for_indexing,
     _generate_algolia_objects_for_content,
     _get_algolia_client,
+    _get_stale_content_keys,
     _index_content_batch,
     _index_single_content_item,
     _mark_content_as_failed,
+    dispatch_algolia_indexing,
     index_courses_batch_in_algolia,
     index_pathways_batch_in_algolia,
     index_programs_batch_in_algolia,
@@ -445,3 +448,286 @@ class IndexTasksTests(TestCase):
         )
         self.assertEqual(result['indexed'], 2)
         self.assertEqual(result['skipped'], 1)
+
+
+@ddt.ddt
+@override_settings(ALGOLIA=ALGOLIA_SETTINGS)
+class BatchContentKeysTests(TestCase):
+    """
+    Tests for _batch_content_keys helper function.
+    """
+
+    def test_batch_content_keys_default_size(self):
+        """
+        Test batching with default batch size.
+        """
+        content_keys = [f'key-{i}' for i in range(25)]
+        batches = list(_batch_content_keys(content_keys))
+
+        # Default batch size is 10
+        self.assertEqual(len(batches), 3)
+        self.assertEqual(len(batches[0]), 10)
+        self.assertEqual(len(batches[1]), 10)
+        self.assertEqual(len(batches[2]), 5)
+
+    def test_batch_content_keys_custom_size(self):
+        """
+        Test batching with custom batch size.
+        """
+        content_keys = [f'key-{i}' for i in range(7)]
+        batches = list(_batch_content_keys(content_keys, batch_size=3))
+
+        self.assertEqual(len(batches), 3)
+        self.assertEqual(len(batches[0]), 3)
+        self.assertEqual(len(batches[1]), 3)
+        self.assertEqual(len(batches[2]), 1)
+
+    def test_batch_content_keys_empty(self):
+        """
+        Test batching with empty list.
+        """
+        batches = list(_batch_content_keys([]))
+        self.assertEqual(batches, [])
+
+
+@ddt.ddt
+@override_settings(ALGOLIA=ALGOLIA_SETTINGS)
+class GetStaleContentKeysTests(TestCase):
+    """
+    Tests for _get_stale_content_keys helper function.
+    """
+
+    def test_get_stale_content_keys_force_mode(self):
+        """
+        Test that force mode returns all content keys.
+        """
+        # Create some content
+        factories.ContentMetadataFactory(
+            content_key='course:edX+Force1',
+            content_type=COURSE,
+        )
+        factories.ContentMetadataFactory(
+            content_key='course:edX+Force2',
+            content_type=COURSE,
+        )
+
+        content_keys = _get_stale_content_keys(COURSE, force=True)
+
+        self.assertIn('course:edX+Force1', content_keys)
+        self.assertIn('course:edX+Force2', content_keys)
+
+    def test_get_stale_content_keys_never_indexed(self):
+        """
+        Test that never-indexed content is included.
+        """
+        factories.ContentMetadataFactory(
+            content_key='course:edX+NeverIndexed',
+            content_type=COURSE,
+        )
+        # No indexing state exists
+
+        content_keys = _get_stale_content_keys(COURSE, force=False)
+
+        self.assertIn('course:edX+NeverIndexed', content_keys)
+
+    def test_get_stale_content_keys_stale_content(self):
+        """
+        Test that stale content (modified since indexed) is included.
+        """
+        content = factories.ContentMetadataFactory(
+            content_key='course:edX+Stale',
+            content_type=COURSE,
+        )
+        # Create state with old indexed time
+        ContentMetadataIndexingState.objects.create(
+            content_metadata=content,
+            last_indexed_at=timezone.now() - timezone.timedelta(hours=2),
+        )
+        # Update content modified time (simulating content change)
+        content.modified = timezone.now()
+        content.save()
+
+        content_keys = _get_stale_content_keys(COURSE, force=False)
+
+        self.assertIn('course:edX+Stale', content_keys)
+
+    def test_get_stale_content_keys_fresh_content_excluded(self):
+        """
+        Test that fresh content (indexed after modified) is excluded.
+        """
+        content = factories.ContentMetadataFactory(
+            content_key='course:edX+Fresh',
+            content_type=COURSE,
+        )
+        # Create state with recent indexed time
+        ContentMetadataIndexingState.objects.create(
+            content_metadata=content,
+            last_indexed_at=timezone.now(),
+        )
+
+        content_keys = _get_stale_content_keys(COURSE, force=False)
+
+        self.assertNotIn('course:edX+Fresh', content_keys)
+
+    def test_get_stale_content_keys_failed_content_included(self):
+        """
+        Test that failed content is included for retry.
+        """
+        content = factories.ContentMetadataFactory(
+            content_key='course:edX+Failed',
+            content_type=COURSE,
+        )
+        # Create state with failure
+        ContentMetadataIndexingState.objects.create(
+            content_metadata=content,
+            last_indexed_at=timezone.now(),
+            last_failure_at=timezone.now(),
+            failure_reason='Previous failure',
+        )
+
+        content_keys = _get_stale_content_keys(COURSE, force=False, include_failed=True)
+
+        self.assertIn('course:edX+Failed', content_keys)
+
+    def test_get_stale_content_keys_failed_content_excluded(self):
+        """
+        Test that failed content is excluded when include_failed=False.
+        """
+        content = factories.ContentMetadataFactory(
+            content_key='course:edX+FailedExclude',
+            content_type=COURSE,
+        )
+        # Create state with failure but fresh index
+        ContentMetadataIndexingState.objects.create(
+            content_metadata=content,
+            last_indexed_at=timezone.now(),
+            last_failure_at=timezone.now(),
+            failure_reason='Previous failure',
+        )
+
+        content_keys = _get_stale_content_keys(COURSE, force=False, include_failed=False)
+
+        self.assertNotIn('course:edX+FailedExclude', content_keys)
+
+
+@ddt.ddt
+@override_settings(ALGOLIA=ALGOLIA_SETTINGS)
+class DispatchAlgoliaIndexingTests(TestCase):
+    """
+    Tests for dispatch_algolia_indexing task.
+    """
+
+    @mock.patch('enterprise_catalog.apps.search.tasks.index_courses_batch_in_algolia')
+    @mock.patch('enterprise_catalog.apps.search.tasks._get_stale_content_keys')
+    def test_dispatch_single_content_type(self, mock_get_stale, mock_task):
+        """
+        Test dispatching for a single content type.
+        """
+        mock_get_stale.return_value = ['course:edX+Test1', 'course:edX+Test2']
+
+        result = dispatch_algolia_indexing.run(
+            content_type=COURSE,
+            force=False,
+        )
+
+        mock_get_stale.assert_called_once_with(COURSE, force=False)
+        mock_task.delay.assert_called_once_with(
+            content_keys=['course:edX+Test1', 'course:edX+Test2'],
+            index_name=None,
+            force=False,
+        )
+        self.assertEqual(result['dispatched_tasks'], 1)
+
+    @mock.patch('enterprise_catalog.apps.search.tasks.index_pathways_batch_in_algolia')
+    @mock.patch('enterprise_catalog.apps.search.tasks.index_programs_batch_in_algolia')
+    @mock.patch('enterprise_catalog.apps.search.tasks.index_courses_batch_in_algolia')
+    @mock.patch('enterprise_catalog.apps.search.tasks._get_stale_content_keys')
+    def test_dispatch_all_content_types(
+        self, mock_get_stale, mock_courses_task, mock_programs_task, mock_pathways_task
+    ):
+        """
+        Test dispatching for all content types when none specified.
+        """
+        mock_get_stale.side_effect = [
+            ['course1', 'course2'],  # Courses
+            ['program1'],  # Programs
+            [],  # Pathways (empty)
+        ]
+
+        result = dispatch_algolia_indexing.run(force=True)
+
+        # Should query for all three types
+        self.assertEqual(mock_get_stale.call_count, 3)
+
+        # Should dispatch for courses and programs, not pathways
+        mock_courses_task.delay.assert_called_once()
+        mock_programs_task.delay.assert_called_once()
+        mock_pathways_task.delay.assert_not_called()
+
+        self.assertEqual(result['dispatched_tasks'], 2)
+
+    @mock.patch('enterprise_catalog.apps.search.tasks.index_courses_batch_in_algolia')
+    @mock.patch('enterprise_catalog.apps.search.tasks._get_stale_content_keys')
+    def test_dispatch_with_batching(self, mock_get_stale, mock_task):
+        """
+        Test that large content key lists are batched properly.
+        """
+        # Return 25 content keys (should create 3 batches with default size of 10)
+        mock_get_stale.return_value = [f'course{i}' for i in range(25)]
+
+        result = dispatch_algolia_indexing.run(content_type=COURSE)
+
+        # Should dispatch 3 batches
+        self.assertEqual(mock_task.delay.call_count, 3)
+        self.assertEqual(result['dispatched_tasks'], 3)
+        self.assertEqual(result['content_types'][COURSE]['total_content_keys'], 25)
+        self.assertEqual(result['content_types'][COURSE]['batches_dispatched'], 3)
+
+    @mock.patch('enterprise_catalog.apps.search.tasks.index_courses_batch_in_algolia')
+    @mock.patch('enterprise_catalog.apps.search.tasks._get_stale_content_keys')
+    def test_dispatch_dry_run(self, mock_get_stale, mock_task):
+        """
+        Test that dry_run mode logs but doesn't dispatch tasks.
+        """
+        mock_get_stale.return_value = ['course:edX+DryRun']
+
+        result = dispatch_algolia_indexing.run(
+            content_type=COURSE,
+            dry_run=True,
+        )
+
+        # Should not dispatch any tasks
+        mock_task.delay.assert_not_called()
+        # But should still count as if it would have
+        self.assertEqual(result['dispatched_tasks'], 1)
+
+    @mock.patch('enterprise_catalog.apps.search.tasks.index_courses_batch_in_algolia')
+    @mock.patch('enterprise_catalog.apps.search.tasks._get_stale_content_keys')
+    def test_dispatch_with_custom_index_name(self, mock_get_stale, mock_task):
+        """
+        Test that custom index name is passed to batch tasks.
+        """
+        mock_get_stale.return_value = ['course:edX+Custom']
+
+        dispatch_algolia_indexing.run(
+            content_type=COURSE,
+            index_name='v2-test-index',
+        )
+
+        mock_task.delay.assert_called_once_with(
+            content_keys=['course:edX+Custom'],
+            index_name='v2-test-index',
+            force=False,
+        )
+
+    @mock.patch('enterprise_catalog.apps.search.tasks._get_stale_content_keys')
+    def test_dispatch_no_stale_content(self, mock_get_stale):
+        """
+        Test dispatch with no stale content.
+        """
+        mock_get_stale.return_value = []
+
+        result = dispatch_algolia_indexing.run(content_type=COURSE)
+
+        self.assertEqual(result['dispatched_tasks'], 0)
+        self.assertEqual(result['content_types'][COURSE]['total_content_keys'], 0)

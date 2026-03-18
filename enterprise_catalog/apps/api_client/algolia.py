@@ -205,6 +205,166 @@ class AlgoliaSearchClient:
             )
             raise exc
 
+    def save_objects_batch(self, algolia_objects, index_name=None):
+        """
+        Saves (upserts) a batch of objects to the Algolia index.
+
+        Unlike replace_all_objects, this method only updates the specified objects
+        without affecting other records in the index.
+
+        Arguments:
+            algolia_objects (list): List of objects to save to the Algolia index.
+                Each object must have an 'objectID' key.
+            index_name (str, optional): The name of the index to save to.
+                If not provided, uses the default index.
+
+        Returns:
+            dict: The response from Algolia's save_objects API.
+
+        Raises:
+            AlgoliaException: If the save operation fails.
+        """
+        if not algolia_objects:
+            logger.debug('No objects to save to Algolia index.')
+            return None
+
+        index = self._get_index(index_name)
+        if not index:
+            logger.error('Cannot save objects: Algolia index does not exist.')
+            return None
+
+        try:
+            response = index.save_objects(algolia_objects, {
+                'autoGenerateObjectIDIfNotExist': False,
+            })
+            logger.info(
+                'Successfully saved %d objects to the %s Algolia index.',
+                len(algolia_objects),
+                index_name or self.algolia_index_name,
+            )
+            return response
+        except AlgoliaException as exc:
+            logger.exception(
+                'Could not save objects to the %s Algolia index due to an exception.',
+                index_name or self.algolia_index_name,
+            )
+            raise exc
+
+    def delete_objects_batch(self, object_ids, index_name=None):
+        """
+        Deletes a batch of objects from the Algolia index by their object IDs.
+
+        Arguments:
+            object_ids (list): List of object IDs to delete.
+            index_name (str, optional): The name of the index to delete from.
+                If not provided, uses the default index.
+
+        Returns:
+            dict: The response from Algolia's delete_objects API.
+
+        Raises:
+            AlgoliaException: If the delete operation fails.
+        """
+        if not object_ids:
+            logger.debug('No objects to delete from Algolia index.')
+            return None
+
+        index = self._get_index(index_name)
+        if not index:
+            logger.error('Cannot delete objects: Algolia index does not exist.')
+            return None
+
+        try:
+            response = index.delete_objects(object_ids)
+            logger.info(
+                'Successfully deleted %d objects from the %s Algolia index.',
+                len(object_ids),
+                index_name or self.algolia_index_name,
+            )
+            return response
+        except AlgoliaException as exc:
+            logger.exception(
+                'Could not delete objects from the %s Algolia index due to an exception.',
+                index_name or self.algolia_index_name,
+            )
+            raise exc
+
+    def get_object_ids_by_prefix(self, prefix, index_name=None):
+        """
+        Retrieves all object IDs from the index that start with the given prefix.
+
+        This is useful for finding all shards of a content item, where shards
+        have objectIDs like "course-v1:edX+DemoX+Demo_Course-0",
+        "course-v1:edX+DemoX+Demo_Course-1", etc.
+
+        Arguments:
+            prefix (str): The prefix to search for in object IDs.
+            index_name (str, optional): The name of the index to search.
+                If not provided, uses the default index.
+
+        Returns:
+            list: List of object IDs that match the prefix.
+
+        Raises:
+            AlgoliaException: If the browse operation fails.
+        """
+        index = self._get_index(index_name)
+        if not index:
+            logger.error('Cannot get objects: Algolia index does not exist.')
+            return []
+
+        object_ids = []
+        try:
+            # Use browse to iterate through all records matching the prefix
+            # Algolia doesn't support prefix search on objectID directly,
+            # so we filter by aggregation_key which should match the content_key
+            browse_iterator = index.browse_objects({
+                'attributesToRetrieve': ['objectID'],
+                'filters': f"aggregation_key:'{prefix}'"
+            })
+            for hit in browse_iterator:
+                object_ids.append(hit['objectID'])
+            logger.debug(
+                'Found %d objects with prefix %s in the %s Algolia index.',
+                len(object_ids),
+                prefix,
+                index_name or self.algolia_index_name,
+            )
+        except AlgoliaException as exc:
+            logger.exception(
+                'Could not retrieve objects with prefix %s from the %s Algolia index.',
+                prefix,
+                index_name or self.algolia_index_name,
+            )
+            raise exc
+
+        return object_ids
+
+    def _get_index(self, index_name=None):
+        """
+        Get the appropriate Algolia index object.
+
+        Arguments:
+            index_name (str, optional): The name of the index.
+                If not provided, uses the default primary index.
+
+        Returns:
+            The Algolia index object, or None if not initialized.
+        """
+        if index_name:
+            if not self._client:
+                logger.error('Algolia client not initialized.')
+                return None
+            try:
+                return self._client.init_index(index_name)
+            except AlgoliaException as exc:
+                logger.exception(
+                    'Could not initialize index %s due to an exception.',
+                    index_name,
+                )
+                raise exc
+        return self.algolia_index
+
     def generate_secured_api_key(self, user_id, enterprise_catalog_query_uuids):
         """
         Generates a secured api key for the Algolia search API.

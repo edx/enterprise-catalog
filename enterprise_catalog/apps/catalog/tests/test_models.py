@@ -27,6 +27,7 @@ from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     RestrictedCourseMetadata,
     _should_allow_metadata,
+    _update_existing_content_metadata,
 )
 from enterprise_catalog.apps.catalog.models import \
     create_content_metadata as create_content_metadata_func
@@ -1780,3 +1781,74 @@ class TestCreateContentMetadata(TestCase):
         # Should be: 2 initial batches + 2 retries = 4 total calls
         self.assertEqual(mock_execute_updates.call_count, 4)
         self.assertEqual(len(result), 1)  # Only the successful item from second batch
+
+
+@ddt.ddt
+class TestUpdateExistingContentMetadataSkipUnchanged(TestCase):
+    """
+    Tests for _update_existing_content_metadata skipping courses with unchanged Discovery modified timestamp.
+    """
+
+    @ddt.data(
+        # (content_type, existing_modified, new_modified, should_update, description)
+        # Course with unchanged modified timestamp - should skip
+        (COURSE, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z', False, 'course_unchanged_modified'),
+        # Course with changed modified timestamp - should update
+        (COURSE, '2024-01-01T00:00:00Z', '2024-02-01T00:00:00Z', True, 'course_changed_modified'),
+        # Course with no existing modified - should update (can't compare)
+        (COURSE, None, '2024-02-01T00:00:00Z', True, 'course_no_existing_modified'),
+        # Course with no new modified - should update (can't compare)
+        (COURSE, '2024-01-01T00:00:00Z', None, True, 'course_no_new_modified'),
+        # Program - should always update (no modified field from Discovery)
+        (PROGRAM, None, None, True, 'program_always_updates'),
+    )
+    @ddt.unpack
+    def test_update_existing_content_metadata_skip_logic(
+        self, content_type, existing_modified, new_modified, should_update, description
+    ):
+        """
+        Test that _update_existing_content_metadata correctly skips or updates content
+        based on the Discovery 'modified' timestamp.
+
+        Courses should only be updated when the 'modified' timestamp has changed.
+        Programs/pathways should always be updated since they don't have 'modified' from Discovery.
+        """
+        content_key = f'test-content-{description}'
+
+        # Build existing json_metadata
+        existing_json = {'title': 'Original Title'}
+        if existing_modified:
+            existing_json['modified'] = existing_modified
+
+        # Create the content
+        content = factories.ContentMetadataFactory(
+            content_key=content_key,
+            content_type=content_type,
+            _json_metadata=existing_json,
+        )
+
+        # Build new defaults
+        new_json = {'title': 'New Title'}
+        if new_modified:
+            new_json['modified'] = new_modified
+
+        existing_metadata_defaults = [
+            {
+                'content_key': content_key,
+                '_json_metadata': new_json,
+            }
+        ]
+        existing_metadata_by_key = {content_key: content}
+
+        # Call the function
+        result = _update_existing_content_metadata(
+            existing_metadata_defaults, existing_metadata_by_key
+        )
+
+        if should_update:
+            self.assertEqual(len(result), 1, f"Expected update for {description}")
+            self.assertEqual(result[0].content_key, content_key)
+            self.assertEqual(content.json_metadata.get('title'), 'New Title')
+        else:
+            self.assertEqual(len(result), 0, f"Expected skip for {description}")
+            self.assertEqual(content.json_metadata.get('title'), 'Original Title')

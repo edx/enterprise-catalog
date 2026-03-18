@@ -1205,9 +1205,26 @@ def _update_existing_content_metadata(existing_metadata_defaults, existing_metad
         list: List of ContentMetadata objects that were updated.
     """
     metadata_list = []
+    skipped_count = 0
     for defaults in existing_metadata_defaults:
         content_metadata = existing_metadata_by_key.get(defaults['content_key'])
         if content_metadata:
+            # For courses, check if Discovery's 'modified' timestamp has actually changed.
+            # If not, skip the update to avoid unnecessary ContentMetadata.modified updates.
+            # This enables accurate staleness detection for incremental Algolia indexing.
+            # Programs/pathways don't have a 'modified' field from Discovery, so they always update.
+            if (
+                content_metadata.content_type == COURSE
+                and '_json_metadata' in defaults
+                and defaults['_json_metadata']
+            ):
+                new_modified = defaults['_json_metadata'].get('modified')
+                old_modified = content_metadata._json_metadata.get('modified')  # pylint: disable=protected-access
+                if new_modified and old_modified and new_modified == old_modified:
+                    # Content unchanged in Discovery; skip update
+                    skipped_count += 1
+                    continue
+
             for key, value in defaults.items():
                 if key == '_json_metadata':
                     # merge new json_metadata with old json_metadata (i.e., don't replace it fully)
@@ -1216,6 +1233,12 @@ def _update_existing_content_metadata(existing_metadata_defaults, existing_metad
                     # replace attributes with new values
                     setattr(content_metadata, key, value)
             metadata_list.append(content_metadata)
+
+    if skipped_count > 0:
+        LOGGER.info(
+            'Skipped %d course updates where Discovery modified timestamp was unchanged',
+            skipped_count,
+        )
 
     if dry_run:
         LOGGER.info(f"[Dry Run] Number of Content Metadata records that would have been updated: {len(metadata_list)}")

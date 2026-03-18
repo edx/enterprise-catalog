@@ -26,7 +26,10 @@ from enterprise_catalog.apps.catalog.constants import (
 from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     RestrictedCourseMetadata,
+    _partition_content_metadata_defaults,
     _should_allow_metadata,
+    _should_skip_course_update,
+    _update_existing_content_metadata,
 )
 from enterprise_catalog.apps.catalog.models import \
     create_content_metadata as create_content_metadata_func
@@ -1780,3 +1783,310 @@ class TestCreateContentMetadata(TestCase):
         # Should be: 2 initial batches + 2 retries = 4 total calls
         self.assertEqual(mock_execute_updates.call_count, 4)
         self.assertEqual(len(result), 1)  # Only the successful item from second batch
+
+
+@ddt.ddt
+class TestShouldSkipCourseUpdate(TestCase):
+    """
+    Tests for _should_skip_course_update which determines if a course update should be skipped
+    based on unchanged Discovery 'modified' timestamp.
+    """
+
+    @ddt.data(
+        # (content_type, existing_modified, new_modified, should_skip, description)
+        # Course with unchanged modified timestamp - should skip
+        (COURSE, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z', True, 'course_unchanged_modified'),
+        # Course with changed modified timestamp - should NOT skip
+        (COURSE, '2024-01-01T00:00:00Z', '2024-02-01T00:00:00Z', False, 'course_changed_modified'),
+        # Course with no existing modified - should NOT skip (can't compare)
+        (COURSE, None, '2024-02-01T00:00:00Z', False, 'course_no_existing_modified'),
+        # Course with no new modified - should NOT skip (can't compare)
+        (COURSE, '2024-01-01T00:00:00Z', None, False, 'course_no_new_modified'),
+        # Program - should never skip (no modified field from Discovery)
+        (PROGRAM, None, None, False, 'program_never_skips'),
+        # Program with modified timestamps - should still never skip
+        (PROGRAM, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z', False, 'program_ignores_modified'),
+    )
+    @ddt.unpack
+    def test_should_skip_course_update(
+        self, content_type, existing_modified, new_modified, should_skip, description
+    ):
+        """
+        Test that _should_skip_course_update correctly determines whether to skip an update
+        based on the Discovery 'modified' timestamp.
+
+        Courses should skip only when the 'modified' timestamp is unchanged.
+        Programs/pathways should never skip since they don't have 'modified' from Discovery.
+        """
+        content_key = f'test-content-{description}'
+
+        # Build existing json_metadata
+        existing_json = {'title': 'Original Title'}
+        if existing_modified:
+            existing_json['modified'] = existing_modified
+
+        # Create the existing content
+        existing_content = factories.ContentMetadataFactory(
+            content_key=content_key,
+            content_type=content_type,
+            _json_metadata=existing_json,
+        )
+
+        # Build the Discovery entry
+        entry = {
+            'key': content_key,
+            'aggregation_key': f'{content_type}:{content_key}',
+            'content_type': content_type,
+            'title': 'New Title',
+        }
+        if new_modified:
+            entry['modified'] = new_modified
+
+        # Call the function
+        result = _should_skip_course_update(entry, existing_content)
+
+        self.assertEqual(
+            result, should_skip,
+            f"Expected should_skip={should_skip} for {description}, got {result}"
+        )
+
+
+class TestPartitionContentMetadataDefaultsSkipLogic(TestCase):
+    """
+    Tests for skip logic in _partition_content_metadata_defaults.
+    """
+
+    def test_partition_skips_unchanged_courses(self):
+        """
+        Test that _partition_content_metadata_defaults skips courses with unchanged 'modified'.
+        """
+        content_key = 'course-v1:edX+TestCourse+2024'
+        modified_timestamp = '2024-06-15T10:30:00Z'
+
+        # Create existing content with a specific modified timestamp
+        existing_content = factories.ContentMetadataFactory(
+            content_key=content_key,
+            content_type=COURSE,
+            _json_metadata={
+                'title': 'Original Course Title',
+                'modified': modified_timestamp,
+                'aggregation_key': f'course:{content_key}',
+            },
+        )
+
+        # Simulate a Discovery API response with the SAME modified timestamp
+        discovery_entry = {
+            'key': content_key,
+            'aggregation_key': f'course:{content_key}',
+            'content_type': 'course',
+            'title': 'Updated Course Title',
+            'modified': modified_timestamp,  # Same as existing
+            'seat_types': ['verified'],
+        }
+
+        existing_metadata_by_key = {content_key: existing_content}
+
+        # Call _partition_content_metadata_defaults
+        existing_defaults, nonexisting_defaults, skipped_count = _partition_content_metadata_defaults(
+            [discovery_entry],
+            existing_metadata_by_key
+        )
+
+        # Should have skipped the course
+        self.assertEqual(skipped_count, 1)
+        self.assertEqual(len(existing_defaults), 0)
+        self.assertEqual(len(nonexisting_defaults), 0)
+
+    def test_partition_updates_changed_courses(self):
+        """
+        Test that _partition_content_metadata_defaults includes courses with changed 'modified'.
+        """
+        content_key = 'course-v1:edX+TestCourse+2024'
+        old_modified = '2024-01-01T00:00:00Z'
+        new_modified = '2024-06-15T10:30:00Z'
+
+        # Create existing content
+        existing_content = factories.ContentMetadataFactory(
+            content_key=content_key,
+            content_type=COURSE,
+            _json_metadata={
+                'title': 'Original Course Title',
+                'modified': old_modified,
+                'aggregation_key': f'course:{content_key}',
+            },
+        )
+
+        # Simulate a Discovery API response with a NEW modified timestamp
+        discovery_entry = {
+            'key': content_key,
+            'aggregation_key': f'course:{content_key}',
+            'content_type': 'course',
+            'title': 'Updated Course Title',
+            'modified': new_modified,  # Different from existing
+            'seat_types': ['verified'],
+        }
+
+        existing_metadata_by_key = {content_key: existing_content}
+
+        # Call _partition_content_metadata_defaults
+        existing_defaults, nonexisting_defaults, skipped_count = _partition_content_metadata_defaults(
+            [discovery_entry],
+            existing_metadata_by_key
+        )
+
+        # Should NOT have skipped the course
+        self.assertEqual(skipped_count, 0)
+        self.assertEqual(len(existing_defaults), 1)
+        self.assertEqual(existing_defaults[0]['content_key'], content_key)
+        self.assertEqual(len(nonexisting_defaults), 0)
+
+    def test_partition_always_updates_programs(self):
+        """
+        Test that _partition_content_metadata_defaults always includes programs (never skips).
+        """
+        content_key = 'test-program-uuid'
+
+        # Create existing program
+        existing_content = factories.ContentMetadataFactory(
+            content_key=content_key,
+            content_type=PROGRAM,
+            _json_metadata={
+                'title': 'Original Program Title',
+                'aggregation_key': f'program:{content_key}',
+            },
+        )
+
+        # Simulate a Discovery API response
+        discovery_entry = {
+            'uuid': content_key,
+            'aggregation_key': f'program:{content_key}',
+            'content_type': 'program',
+            'title': 'Updated Program Title',
+        }
+
+        existing_metadata_by_key = {content_key: existing_content}
+
+        # Call _partition_content_metadata_defaults
+        existing_defaults, nonexisting_defaults, skipped_count = _partition_content_metadata_defaults(
+            [discovery_entry],
+            existing_metadata_by_key
+        )
+
+        # Programs should never be skipped
+        self.assertEqual(skipped_count, 0)
+        self.assertEqual(len(existing_defaults), 1)
+        self.assertEqual(len(nonexisting_defaults), 0)
+
+
+class TestFullPathSkipUnchangedCourse(TestCase):
+    """
+    Integration tests for the full code path from Discovery entry to ContentMetadata update,
+    verifying that courses with unchanged 'modified' timestamps are skipped.
+    """
+
+    def test_full_path_skip_unchanged_course(self):
+        """
+        Integration test that exercises the full code path:
+        _partition_content_metadata_defaults → _update_existing_content_metadata
+
+        This verifies that the 'modified' field from the Discovery API response is used
+        to skip updates, ensuring ContentMetadata.modified doesn't churn unnecessarily.
+        """
+        content_key = 'course-v1:edX+IntegrationTest+2024'
+        modified_timestamp = '2024-06-15T10:30:00Z'
+
+        # Create existing content with a specific modified timestamp
+        existing_content = factories.ContentMetadataFactory(
+            content_key=content_key,
+            content_type=COURSE,
+            _json_metadata={
+                'title': 'Original Course Title',
+                'modified': modified_timestamp,
+                'aggregation_key': f'course:{content_key}',
+            },
+        )
+
+        # Simulate a Discovery API response with the SAME modified timestamp
+        discovery_entry_unchanged = {
+            'key': content_key,
+            'aggregation_key': f'course:{content_key}',
+            'content_type': 'course',
+            'title': 'Updated Course Title',  # Title changed but modified timestamp same
+            'modified': modified_timestamp,  # Same as existing
+            'seat_types': ['verified'],
+            'end_date': '2025-01-01T00:00:00Z',
+        }
+
+        existing_metadata_by_key = {content_key: existing_content}
+
+        # Run through the full update path
+        existing_defaults, _, skipped_count = _partition_content_metadata_defaults(
+            [discovery_entry_unchanged],
+            existing_metadata_by_key
+        )
+
+        # Should have skipped because modified is unchanged
+        self.assertEqual(skipped_count, 1)
+        self.assertEqual(len(existing_defaults), 0)
+
+        # Call update function with the (empty) defaults
+        result = _update_existing_content_metadata(
+            existing_defaults,
+            existing_metadata_by_key
+        )
+
+        # No updates should have happened
+        self.assertEqual(len(result), 0)
+
+        # Content should not have been modified
+        existing_content.refresh_from_db()
+        self.assertEqual(existing_content.json_metadata.get('title'), 'Original Course Title')
+
+    def test_full_path_updates_course_when_modified_changes(self):
+        """
+        Integration test verifying that updates DO happen when the modified timestamp changes.
+        """
+        content_key = 'course-v1:edX+IntegrationTest2+2024'
+        old_modified = '2024-01-01T00:00:00Z'
+        new_modified = '2024-06-15T10:30:00Z'
+
+        # Create existing content
+        existing_content = factories.ContentMetadataFactory(
+            content_key=content_key,
+            content_type=COURSE,
+            _json_metadata={
+                'title': 'Original Course Title',
+                'modified': old_modified,
+                'aggregation_key': f'course:{content_key}',
+            },
+        )
+
+        # Simulate a Discovery API response with a NEW modified timestamp
+        discovery_entry_changed = {
+            'key': content_key,
+            'aggregation_key': f'course:{content_key}',
+            'content_type': 'course',
+            'title': 'Updated Course Title',
+            'modified': new_modified,  # Different from existing
+            'seat_types': ['verified'],
+        }
+
+        existing_metadata_by_key = {content_key: existing_content}
+
+        # Run through the full update path
+        existing_defaults, _, skipped_count = _partition_content_metadata_defaults(
+            [discovery_entry_changed],
+            existing_metadata_by_key
+        )
+
+        # Should NOT have skipped
+        self.assertEqual(skipped_count, 0)
+        self.assertEqual(len(existing_defaults), 1)
+
+        result = _update_existing_content_metadata(
+            existing_defaults,
+            existing_metadata_by_key
+        )
+
+        # Should have updated because modified timestamp changed
+        self.assertEqual(len(result), 1, "Should update when modified timestamp changed")

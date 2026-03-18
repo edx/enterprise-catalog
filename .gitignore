@@ -99,6 +99,8 @@ tx
 .python-version
 
 # claude code personalization
+# temporary, should be aligned with claude practices from other repos soon
+CLAUDE.md 
 .claude/settings.local.json
 
 # Ralph

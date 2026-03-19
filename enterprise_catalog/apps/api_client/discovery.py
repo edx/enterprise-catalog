@@ -112,6 +112,9 @@ class DiscoveryApiClient(BaseOAuthClient):
             'page_size': 100,
             # Ensure paginated results are consistently ordered by `aggregation_key` and `start`
             'ordering': 'aggregation_key,start',
+            # Ensures we get the course modified field in the response payload
+            # Important for de-duplication of ContentMetadata updates.
+            'detail_fields': 'true',
         }
         page = 1
         results = []

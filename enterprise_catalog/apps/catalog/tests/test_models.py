@@ -26,6 +26,7 @@ from enterprise_catalog.apps.catalog.constants import (
 from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     RestrictedCourseMetadata,
+    _get_defaults_from_metadata,
     _partition_content_metadata_defaults,
     _should_allow_metadata,
     _should_skip_course_update,
@@ -1785,6 +1786,57 @@ class TestCreateContentMetadata(TestCase):
         self.assertEqual(len(result), 1)  # Only the successful item from second batch
 
 
+class TestGetDefaultsFromMetadata(TestCase):
+    """
+    Tests for _get_defaults_from_metadata to ensure proper field handling.
+    """
+
+    def test_modified_included_for_existing_courses(self):
+        """
+        Test that 'modified' is always included in defaults for existing courses,
+        even though it's not in COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL.
+
+        This is critical for staleness detection - without persisting 'modified',
+        the skip logic would fail on subsequent syncs:
+          Sync 1: Discovery modified='2024-02-01', DB='2024-01-01' → UPDATE
+                  (but if 'modified' not persisted, DB stays '2024-01-01')
+          Sync 2: Discovery modified='2024-02-01', DB='2024-01-01' → UPDATE again
+        """
+        entry = {
+            'key': 'course-v1:edX+Test+2024',
+            'aggregation_key': 'course:course-v1:edX+Test+2024',
+            'content_type': 'course',
+            'title': 'Test Course',
+            'modified': '2024-06-15T10:30:00Z',
+            'seat_types': ['verified'],
+            'end_date': '2025-01-01T00:00:00Z',
+        }
+
+        defaults = _get_defaults_from_metadata(entry, exists=True)
+
+        # Verify 'modified' is included even though it's not in the pluck list
+        self.assertIn('_json_metadata', defaults)
+        self.assertEqual(defaults['_json_metadata'].get('modified'), '2024-06-15T10:30:00Z')
+
+    def test_modified_not_included_when_missing_from_entry(self):
+        """
+        Test that if Discovery doesn't provide 'modified', we don't add a None value.
+        """
+        entry = {
+            'key': 'course-v1:edX+Test+2024',
+            'aggregation_key': 'course:course-v1:edX+Test+2024',
+            'content_type': 'course',
+            'title': 'Test Course',
+            'seat_types': ['verified'],
+            # No 'modified' field
+        }
+
+        defaults = _get_defaults_from_metadata(entry, exists=True)
+
+        self.assertIn('_json_metadata', defaults)
+        self.assertNotIn('modified', defaults['_json_metadata'])
+
+
 @ddt.ddt
 class TestShouldSkipCourseUpdate(TestCase):
     """
@@ -1806,6 +1858,11 @@ class TestShouldSkipCourseUpdate(TestCase):
         (PROGRAM, None, None, False, 'program_never_skips'),
         # Program with modified timestamps - should still never skip
         (PROGRAM, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z', False, 'program_ignores_modified'),
+        # Different timezone formats representing the same time - should skip
+        # Discovery returns '+00:00' format, DB stores 'Z' format
+        (COURSE, '2024-10-21T20:31:23.006470Z', '2024-10-21T20:31:23.006470+00:00', True, 'course_tz_format_diff'),
+        # Same time with microseconds in different formats - should skip
+        (COURSE, '2024-10-21T20:31:23Z', '2024-10-21T20:31:23+00:00', True, 'course_tz_format_no_micro'),
     )
     @ddt.unpack
     def test_should_skip_course_update(

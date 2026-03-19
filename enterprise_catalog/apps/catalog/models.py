@@ -1,6 +1,7 @@
 import collections
 import copy
 import json
+from datetime import datetime
 from logging import getLogger
 from uuid import uuid4
 
@@ -1150,6 +1151,15 @@ def _get_defaults_from_metadata(entry, exists=False):
         for field in settings.COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL:
             if value := entry.get(field):
                 entry_minimal[field] = value
+        # Always include 'modified' for staleness detection in incremental Algolia indexing,
+        # regardless of COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL. Without this, the skip logic
+        # in _should_skip_course_update() would fail on subsequent syncs:
+        #   Sync 1: Discovery modified='2024-02-01', DB='2024-01-01' → Different, UPDATE
+        #           (but if 'modified' not persisted, DB stays '2024-01-01')
+        #   Sync 2: Discovery modified='2024-02-01', DB='2024-01-01' → Different, UPDATE again
+        #   (repeats forever until update_full_content_metadata overwrites json_metadata)
+        if modified := entry.get('modified'):
+            entry_minimal['modified'] = modified
         if entry_minimal:
             defaults.update({'_json_metadata': entry_minimal})
     elif not exists or (content_type != 'course'):
@@ -1158,6 +1168,34 @@ def _get_defaults_from_metadata(entry, exists=False):
         # does not yet exist in the database.
         defaults.update({'_json_metadata': entry})
     return defaults
+
+
+def _parse_datetime_string(dt_string):
+    """
+    Parse a datetime string into a datetime object for comparison.
+
+    Handles different ISO 8601 timezone formats that may differ between
+    Discovery API responses and our stored JSON metadata:
+      - '2024-10-21T20:31:23.006470+00:00' (explicit offset)
+      - '2024-10-21T20:31:23.006470Z' (Zulu time)
+
+    Returns:
+        datetime or None: Parsed datetime object, or None if parsing fails.
+    """
+    if not dt_string or not isinstance(dt_string, str):
+        return None
+
+    dt_string = dt_string.strip()
+
+    # Normalize trailing 'Z' (Zulu time) to an explicit UTC offset so that
+    # datetime.fromisoformat can parse it efficiently.
+    if dt_string.endswith('Z'):
+        dt_string = dt_string[:-1] + '+00:00'
+
+    try:
+        return datetime.fromisoformat(dt_string)
+    except ValueError:
+        return None
 
 
 def _should_skip_course_update(entry, existing_content):
@@ -1182,8 +1220,10 @@ def _should_skip_course_update(entry, existing_content):
     if existing_content.content_type != COURSE:
         return False
 
-    new_modified = entry.get('modified')
-    old_modified = existing_content._json_metadata.get('modified')  # pylint: disable=protected-access
+    new_modified = _parse_datetime_string(entry.get('modified'))
+    old_modified = _parse_datetime_string(
+        existing_content._json_metadata.get('modified')  # pylint: disable=protected-access
+    )
 
     if new_modified and old_modified and new_modified == old_modified:
         return True
@@ -1456,7 +1496,7 @@ def _execute_updates_existing_records_avoid_deadlock(content_keys, filtered_batc
 
     if skipped_count > 0:
         LOGGER.info(
-            'Skipped %d course updates where Discovery modified timestamp was unchanged',
+            'Skipped %d course updates in this batch where Discovery modified timestamp was unchanged',
             skipped_count,
         )
 

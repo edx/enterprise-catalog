@@ -220,8 +220,9 @@ class CatalogQueryAdmin(UnchangeableMixin):
         'uuid',
         'title',
         'content_filter',
+        'get_content_count',
     )
-    readonly_fields = ('uuid',)
+    readonly_fields = ('uuid', 'get_content_count')
     list_display = (
         'uuid',
         'content_filter_hash',
@@ -231,11 +232,14 @@ class CatalogQueryAdmin(UnchangeableMixin):
         'content_filter_hash',
     )
 
-    @admin.display(
-        description='Content Filter'
-    )
+    @admin.display(description='Content Filter')
     def get_content_filter(self, obj):
         return obj.pretty_print_content_filter()
+
+    @admin.display(description='Content Count')
+    def get_content_count(self, obj):
+        return obj.contentmetadata_set.count()
+
     form = CatalogQueryForm
 
 

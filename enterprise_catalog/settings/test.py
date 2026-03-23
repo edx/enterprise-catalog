@@ -30,3 +30,7 @@ CELERY_TASK_ALWAYS_EAGER = True
 
 results_dir = tempfile.TemporaryDirectory()
 CELERY_RESULT_BACKEND = f'file://{results_dir.name}'
+
+# A faster (but less secure) password hasher like MD5 makes UserFactory faster, shaving ~80% off
+# test runtimes compared with the more secure PBKDF2-based hasher used in production.
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']

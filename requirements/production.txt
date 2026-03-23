@@ -26,7 +26,7 @@ asgiref==3.11.1
     #   -r requirements/base.txt
     #   django
     #   django-cors-headers
-attrs==25.4.0
+attrs==26.1.0
     # via
     #   -r requirements/base.txt
     #   jsonschema
@@ -167,7 +167,7 @@ django-waffle==5.0.0
     #   edx-toggles
 djangoql==0.19.1
     # via -r requirements/base.txt
-djangorestframework==3.16.1
+djangorestframework==3.17.0
     # via
     #   -r requirements/base.txt
     #   django-config-models

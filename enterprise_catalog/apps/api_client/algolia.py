@@ -148,9 +148,11 @@ class AlgoliaSearchClient:
             # index must exist to continue, nothing left to do
             return
 
+        # The 'safe' field makes the client wait for asynchronous indexing operations to complete
+        use_safe = getattr(settings, 'USE_REPLACE_ALL_OBJECTS_SAFE', True)
         try:
             self.algolia_index.replace_all_objects(algolia_objects, {
-                'safe': True,  # wait for asynchronous indexing operations to complete
+                'safe': use_safe,
             })
             logger.info('The %s Algolia index was successfully indexed.', self.algolia_index_name)
         except AlgoliaException as exc:

@@ -26,6 +26,8 @@ from enterprise_catalog.apps.catalog.constants import (
 from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     RestrictedCourseMetadata,
+    _check_content_association_threshold,
+    _execute_updates_existing_records_avoid_deadlock,
     _get_defaults_from_metadata,
     _partition_content_metadata_defaults,
     _should_allow_metadata,
@@ -1944,13 +1946,14 @@ class TestPartitionContentMetadataDefaultsSkipLogic(TestCase):
         existing_metadata_by_key = {content_key: existing_content}
 
         # Call _partition_content_metadata_defaults
-        existing_defaults, nonexisting_defaults, skipped_count = _partition_content_metadata_defaults(
+        existing_defaults, nonexisting_defaults, skipped_metadata = _partition_content_metadata_defaults(
             [discovery_entry],
             existing_metadata_by_key
         )
 
-        # Should have skipped the course
-        self.assertEqual(skipped_count, 1)
+        # Should have skipped the course but returned it in skipped_metadata
+        self.assertEqual(len(skipped_metadata), 1)
+        self.assertEqual(skipped_metadata[0], existing_content)
         self.assertEqual(len(existing_defaults), 0)
         self.assertEqual(len(nonexisting_defaults), 0)
 
@@ -1986,13 +1989,13 @@ class TestPartitionContentMetadataDefaultsSkipLogic(TestCase):
         existing_metadata_by_key = {content_key: existing_content}
 
         # Call _partition_content_metadata_defaults
-        existing_defaults, nonexisting_defaults, skipped_count = _partition_content_metadata_defaults(
+        existing_defaults, nonexisting_defaults, skipped_metadata = _partition_content_metadata_defaults(
             [discovery_entry],
             existing_metadata_by_key
         )
 
         # Should NOT have skipped the course
-        self.assertEqual(skipped_count, 0)
+        self.assertEqual(len(skipped_metadata), 0)
         self.assertEqual(len(existing_defaults), 1)
         self.assertEqual(existing_defaults[0]['content_key'], content_key)
         self.assertEqual(len(nonexisting_defaults), 0)
@@ -2024,13 +2027,13 @@ class TestPartitionContentMetadataDefaultsSkipLogic(TestCase):
         existing_metadata_by_key = {content_key: existing_content}
 
         # Call _partition_content_metadata_defaults
-        existing_defaults, nonexisting_defaults, skipped_count = _partition_content_metadata_defaults(
+        existing_defaults, nonexisting_defaults, skipped_metadata = _partition_content_metadata_defaults(
             [discovery_entry],
             existing_metadata_by_key
         )
 
         # Programs should never be skipped
-        self.assertEqual(skipped_count, 0)
+        self.assertEqual(len(skipped_metadata), 0)
         self.assertEqual(len(existing_defaults), 1)
         self.assertEqual(len(nonexisting_defaults), 0)
 
@@ -2077,13 +2080,14 @@ class TestFullPathSkipUnchangedCourse(TestCase):
         existing_metadata_by_key = {content_key: existing_content}
 
         # Run through the full update path
-        existing_defaults, _, skipped_count = _partition_content_metadata_defaults(
+        existing_defaults, _, skipped_metadata = _partition_content_metadata_defaults(
             [discovery_entry_unchanged],
             existing_metadata_by_key
         )
 
-        # Should have skipped because modified is unchanged
-        self.assertEqual(skipped_count, 1)
+        # Should have skipped because modified is unchanged, but returned in skipped_metadata
+        self.assertEqual(len(skipped_metadata), 1)
+        self.assertEqual(skipped_metadata[0], existing_content)
         self.assertEqual(len(existing_defaults), 0)
 
         # Call update function with the (empty) defaults
@@ -2131,13 +2135,13 @@ class TestFullPathSkipUnchangedCourse(TestCase):
         existing_metadata_by_key = {content_key: existing_content}
 
         # Run through the full update path
-        existing_defaults, _, skipped_count = _partition_content_metadata_defaults(
+        existing_defaults, _, skipped_metadata = _partition_content_metadata_defaults(
             [discovery_entry_changed],
             existing_metadata_by_key
         )
 
         # Should NOT have skipped
-        self.assertEqual(skipped_count, 0)
+        self.assertEqual(len(skipped_metadata), 0)
         self.assertEqual(len(existing_defaults), 1)
 
         result = _update_existing_content_metadata(
@@ -2147,3 +2151,236 @@ class TestFullPathSkipUnchangedCourse(TestCase):
 
         # Should have updated because modified timestamp changed
         self.assertEqual(len(result), 1, "Should update when modified timestamp changed")
+
+    def test_skipped_courses_maintain_catalog_associations(self):
+        """
+        Regression test: Verify that skipped courses (unchanged 'modified' timestamp) still
+        maintain their catalog associations.
+
+        Previously, skipped courses were excluded from the metadata_list used for catalog
+        associations, causing them to be disassociated when `catalog_query.contentmetadata_set.set()`
+        was called with `clear=True`. This resulted in search results disappearing for customers
+        whose catalogs contained courses with unchanged modified timestamps.
+
+        This test verifies the fix: skipped courses should be included in the returned metadata
+        list so they maintain their catalog associations even though they don't need updating.
+        """
+        content_key_unchanged = 'course-v1:edX+UnchangedCourse+2024'
+        content_key_changed = 'course-v1:edX+ChangedCourse+2024'
+        modified_timestamp = '2024-06-15T10:30:00Z'
+        old_modified = '2024-01-01T00:00:00Z'
+        new_modified = '2024-06-15T10:30:00Z'
+
+        # Create two existing courses - one with unchanged modified, one with changed
+        course_unchanged = factories.ContentMetadataFactory(
+            content_key=content_key_unchanged,
+            content_type=COURSE,
+            _json_metadata={
+                'title': 'Unchanged Course',
+                'modified': modified_timestamp,
+                'aggregation_key': f'course:{content_key_unchanged}',
+            },
+        )
+        course_changed = factories.ContentMetadataFactory(
+            content_key=content_key_changed,
+            content_type=COURSE,
+            _json_metadata={
+                'title': 'Changed Course Original',
+                'modified': old_modified,
+                'aggregation_key': f'course:{content_key_changed}',
+            },
+        )
+
+        # Discovery entries - one unchanged, one with new modified timestamp
+        discovery_entries = [
+            {
+                'key': content_key_unchanged,
+                'aggregation_key': f'course:{content_key_unchanged}',
+                'content_type': 'course',
+                'title': 'Unchanged Course',
+                'modified': modified_timestamp,  # Same as existing
+                'seat_types': ['verified'],
+            },
+            {
+                'key': content_key_changed,
+                'aggregation_key': f'course:{content_key_changed}',
+                'content_type': 'course',
+                'title': 'Changed Course Updated',
+                'modified': new_modified,  # Different from existing
+                'seat_types': ['verified'],
+            },
+        ]
+
+        existing_metadata_by_key = {
+            content_key_unchanged: course_unchanged,
+            content_key_changed: course_changed,
+        }
+
+        # Partition the entries
+        existing_defaults, _, skipped_metadata = _partition_content_metadata_defaults(
+            discovery_entries,
+            existing_metadata_by_key
+        )
+
+        # One should be skipped (unchanged), one should be updated (changed)
+        self.assertEqual(len(skipped_metadata), 1)
+        self.assertEqual(skipped_metadata[0], course_unchanged)
+        self.assertEqual(len(existing_defaults), 1)
+        self.assertEqual(existing_defaults[0]['content_key'], content_key_changed)
+
+        # Update existing content
+        updated_metadata = _update_existing_content_metadata(
+            existing_defaults,
+            existing_metadata_by_key
+        )
+
+        # The updated list should contain ONLY the changed course
+        self.assertEqual(len(updated_metadata), 1)
+        self.assertEqual(updated_metadata[0].content_key, content_key_changed)
+
+        # Combine updated + skipped (as the real code does in _execute_updates_existing_records_avoid_deadlock)
+        all_existing_metadata = updated_metadata + list(skipped_metadata)
+
+        # CRITICAL: Both courses should be in the combined list for catalog associations
+        self.assertEqual(len(all_existing_metadata), 2)
+        content_keys_in_result = {m.content_key for m in all_existing_metadata}
+        self.assertIn(content_key_unchanged, content_keys_in_result)
+        self.assertIn(content_key_changed, content_keys_in_result)
+
+
+class TestContentAssociationSafeguards(TestCase):
+    """
+    Tests for safeguards that prevent accidental catalog association wipeouts.
+    """
+
+    def test_zero_association_blocker_prevents_wipeout(self):
+        """
+        Test that _check_content_association_threshold blocks setting a non-empty catalog to empty.
+        """
+        # Create a catalog query with existing content
+        catalog = factories.EnterpriseCatalogFactory()
+        query = catalog.catalog_query
+
+        # Add some content to the catalog
+        content_metadata = factories.ContentMetadataFactory.create_batch(
+            5,
+            content_type=COURSE,
+        )
+        query.contentmetadata_set.set(content_metadata)
+
+        # Attempt to set associations to empty list - should be blocked
+        empty_list = []
+        result = _check_content_association_threshold(query, empty_list)
+
+        # Should return True, indicating the update should be blocked
+        self.assertTrue(result)
+
+    def test_zero_association_blocker_allows_empty_to_empty(self):
+        """
+        Test that setting an already-empty catalog to empty is allowed.
+        """
+        # Create a catalog query with NO existing content
+        catalog = factories.EnterpriseCatalogFactory()
+        query = catalog.catalog_query
+
+        # Verify it starts empty
+        self.assertEqual(query.contentmetadata_set.count(), 0)
+
+        # Attempt to set associations to empty list - should be allowed
+        empty_list = []
+        result = _check_content_association_threshold(query, empty_list)
+
+        # Should return False, indicating the update is allowed
+        self.assertFalse(result)
+
+    def test_zero_association_blocker_allows_normal_updates(self):
+        """
+        Test that normal updates (non-empty to non-empty) are allowed through the blocker.
+        """
+        # Create a catalog query with existing content
+        catalog = factories.EnterpriseCatalogFactory()
+        query = catalog.catalog_query
+
+        # Add some content to the catalog
+        content_metadata = factories.ContentMetadataFactory.create_batch(
+            5,
+            content_type=COURSE,
+        )
+        query.contentmetadata_set.set(content_metadata)
+
+        # Create new metadata list (non-empty)
+        new_metadata = factories.ContentMetadataFactory.create_batch(
+            3,
+            content_type=COURSE,
+        )
+
+        # This should NOT be blocked by the zero-association blocker
+        # (may still be blocked by other guardrails, but that's not what we're testing)
+        result = _check_content_association_threshold(query, new_metadata)
+
+        # The zero-association blocker should allow this through
+        # (the result depends on other guardrail settings, but we're just testing
+        # that empty-list blocking doesn't interfere with normal updates)
+        # For small catalogs under the floor, this should return False
+        self.assertFalse(result)
+
+    @mock.patch('enterprise_catalog.apps.catalog.models._partition_content_metadata_defaults')
+    @mock.patch('enterprise_catalog.apps.catalog.models.LOGGER')
+    def test_batch_count_validation_logs_mismatch(self, mock_logger, mock_partition):
+        """
+        Test that the batch count validation logs an error when items are 'lost' from the pipeline.
+
+        This safeguard catches bugs where the partition function doesn't account for all items
+        in the batch (e.g., items dropped due to a code bug).
+        """
+        content_key = 'course-v1:edX+TestCourse+2024'
+
+        # Create existing content
+        factories.ContentMetadataFactory(
+            content_key=content_key,
+            content_type=COURSE,
+            _json_metadata={
+                'title': 'Test Course',
+                'aggregation_key': f'course:{content_key}',
+            },
+        )
+
+        # Simulate a Discovery API batch with 3 entries
+        batch_entries = [
+            {
+                'key': content_key,
+                'aggregation_key': f'course:{content_key}', 'content_type': 'course',
+            },
+            {
+                'key': 'course-v1:edX+Test2+2024',
+                'aggregation_key': 'course:course-v1:edX+Test2+2024', 'content_type': 'course',
+            },
+            {
+                'key': 'course-v1:edX+Test3+2024',
+                'aggregation_key': 'course:course-v1:edX+Test3+2024', 'content_type': 'course',
+            },
+        ]
+
+        # Mock partition to return only 1 item (simulating a bug where 2 items are "lost")
+        mock_partition.return_value = (
+            [{'content_key': content_key, 'content_type': COURSE}],  # existing_defaults (1 item)
+            [],  # nonexisting_defaults (0 items)
+            [],  # skipped_metadata (0 items)
+        )
+        # Total accounted = 1, but batch size = 3 -> mismatch!
+
+        # Run the function
+        _execute_updates_existing_records_avoid_deadlock(
+            [content_key, 'course-v1:edX+Test2+2024', 'course-v1:edX+Test3+2024'],
+            batch_entries,
+            dry_run=True,
+        )
+
+        # Verify the error was logged
+        mock_logger.error.assert_called_once()
+        call_args = mock_logger.error.call_args
+        self.assertIn('[CONTENT_METADATA_SAFEGUARD]', call_args[0][0])
+        self.assertIn('Batch item count mismatch', call_args[0][0])
+        # Verify the counts are in the log message
+        self.assertEqual(call_args[0][1], 3)  # batch_count
+        self.assertEqual(call_args[0][2], 1)  # accounted_count

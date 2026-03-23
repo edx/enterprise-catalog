@@ -805,7 +805,7 @@ class ContentMetadata(BaseContentMetadata):
         # runs were actually found for this specific course and the requester's
         # specific Catalog.
         if restricted_course_metadata_for_catalog_query:
-            # pylint: disable=protected-access, unsubscriptable-object
+            # pylint: disable=protected-access
             return restricted_course_metadata_for_catalog_query[0]._json_metadata
         return self._json_metadata
 
@@ -1247,13 +1247,14 @@ def _partition_content_metadata_defaults(batched_metadata, existing_metadata_by_
             database by content key.
 
     Returns:
-        (existing_metadata_defaults, nonexisting_metadata_defaults, skipped_count): Tuple containing:
+        (existing_metadata_defaults, nonexisting_metadata_defaults, skipped_metadata): Tuple containing:
             - List of default fields for ContentMetadata objects that already exist and need updating
             - List of default fields for ContentMetadata objects that will be newly created
-            - Count of existing courses skipped due to unchanged 'modified' timestamp
+            - List of existing ContentMetadata objects skipped due to unchanged 'modified' timestamp
+              (these must still be included in catalog associations even though they don't need updating)
     """
     existing_metadata_defaults = []
-    skipped_count = 0
+    skipped_metadata = []
 
     for entry in batched_metadata:
         content_key = get_content_key(entry)
@@ -1262,9 +1263,10 @@ def _partition_content_metadata_defaults(batched_metadata, existing_metadata_by_
 
         existing_content = existing_metadata_by_key[content_key]
 
-        # Skip courses where Discovery's 'modified' timestamp is unchanged
+        # Skip courses where Discovery's 'modified' timestamp is unchanged.
+        # We still need to track these objects for catalog associations.
         if _should_skip_course_update(entry, existing_content):
-            skipped_count += 1
+            skipped_metadata.append(existing_content)
             continue
 
         existing_metadata_defaults.append(_get_defaults_from_metadata(entry, exists=True))
@@ -1275,7 +1277,7 @@ def _partition_content_metadata_defaults(batched_metadata, existing_metadata_by_
         if get_content_key(entry) not in existing_metadata_by_key
     ]
 
-    return existing_metadata_defaults, nonexisting_metadata_defaults, skipped_count
+    return existing_metadata_defaults, nonexisting_metadata_defaults, skipped_metadata
 
 
 def _update_existing_content_metadata(existing_metadata_defaults, existing_metadata_by_key, dry_run=False):
@@ -1481,23 +1483,44 @@ def _update_or_create_content_metadata(content_keys, filtered_batched_metadata, 
 def _execute_updates_existing_records_avoid_deadlock(content_keys, filtered_batched_metadata, dry_run):
     """
     Finds and updates existing metadata records matching the given content keys, returning
-    a list of the updated records, along with a set of metadata defaults for content_keys that
-    do *not* already exist in the system. This version tries to avoid deadlocks by using
-    a transaction with select_for_update().
+    a list of the updated records (including skipped records that don't need updating),
+    along with a set of metadata defaults for content_keys that do *not* already exist
+    in the system. This version tries to avoid deadlocks by using a transaction with
+    select_for_update().
+
+    Note: Skipped records (courses with unchanged 'modified' timestamps) are included in
+    the returned list even though they weren't updated. This is critical because the
+    returned list is used for catalog associations - excluding skipped records would
+    cause them to be disassociated from their catalogs.
     """
     # see https://docs.djangoproject.com/en/5.2/ref/models/querysets/#select-for-update
     existing_metadata = ContentMetadata.objects.filter(
         content_key__in=content_keys
     ).order_by('pk').select_for_update()
     existing_metadata_by_key = {metadata.content_key: metadata for metadata in existing_metadata}
-    existing_metadata_defaults, nonexisting_metadata_defaults, skipped_count = _partition_content_metadata_defaults(
+    existing_metadata_defaults, nonexisting_metadata_defaults, skipped_metadata = _partition_content_metadata_defaults(
         filtered_batched_metadata, existing_metadata_by_key
     )
 
-    if skipped_count > 0:
+    # Safeguard: Verify all items in the batch are accounted for (updated, created, or skipped).
+    # This catches bugs where items are accidentally "lost" from the pipeline.
+    accounted_count = len(existing_metadata_defaults) + len(nonexisting_metadata_defaults) + len(skipped_metadata)
+    batch_count = len(filtered_batched_metadata)
+    if accounted_count != batch_count:
+        LOGGER.error(
+            '[CONTENT_METADATA_SAFEGUARD] Batch item count mismatch: batch=%d, accounted=%d '
+            '(existing=%d, new=%d, skipped=%d). This may indicate a bug in the update pipeline.',
+            batch_count,
+            accounted_count,
+            len(existing_metadata_defaults),
+            len(nonexisting_metadata_defaults),
+            len(skipped_metadata),
+        )
+
+    if skipped_metadata:
         LOGGER.info(
             'Skipped %d course updates in this batch where Discovery modified timestamp was unchanged',
-            skipped_count,
+            len(skipped_metadata),
         )
 
     # Update existing ContentMetadata records
@@ -1506,6 +1529,11 @@ def _execute_updates_existing_records_avoid_deadlock(content_keys, filtered_batc
         existing_metadata_by_key,
         dry_run
     )
+
+    # Include skipped metadata in the returned list so they maintain their catalog associations.
+    # These records don't need updating but must still be associated with catalogs.
+    updated_metadata.extend(skipped_metadata)
+
     return updated_metadata, nonexisting_metadata_defaults
 
 
@@ -1523,6 +1551,19 @@ def _check_content_association_threshold(catalog_query, metadata_list):
     """
     existing_relations_size = catalog_query.contentmetadata_set.count()
     new_relations_size = len(metadata_list)
+
+    # Safeguard: Never allow wiping out a catalog's associations entirely.
+    # This catches severe bugs where the metadata pipeline returns an empty list
+    # when it should have returned content.
+    if existing_relations_size > 0 and new_relations_size == 0:
+        LOGGER.error(
+            '[CONTENT_METADATA_SAFEGUARD] Blocked attempt to remove all %d content associations from query %s. '
+            'This likely indicates a bug in the content metadata pipeline.',
+            existing_relations_size,
+            catalog_query,
+        )
+        return True
+
     # To prevent false positives, this content association action stop gap will only apply to reasonably sized
     # content sets
     LOGGER.info(

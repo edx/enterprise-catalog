@@ -271,13 +271,14 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
         if enterprise_catalog:
             catalog_modified = enterprise_catalog.modified
         if enterprise_catalog and not self.context.get('skip_customer_fetch'):
-            customer_modified = enterprise_catalog.enterprise_customer.last_modified_date
+            enterprise_customer = getattr(enterprise_catalog, "enterprise_customer", None)
+            if enterprise_customer:
+                customer_modified = enterprise_customer.last_modified_date
 
         content_type = instance.content_type
-        json_metadata = instance.json_metadata.copy()
+        json_metadata = (instance.json_metadata or {}).copy()
         marketing_url = json_metadata.get('marketing_url')
         content_key = json_metadata.get('key')
-
         json_metadata['parent_content_key'] = instance.parent_content_key
 
         # Currently (3/17/23) product source can potentially be two different formats, string and dict.
@@ -314,7 +315,11 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
                     content_key=content_key,
                 )
             if content_type == COURSE:
-                serialized_course_runs = json_metadata.get('course_runs', [])
+
+                serialized_course_runs = json_metadata.get('course_runs') or []
+                if not isinstance(serialized_course_runs, list):
+                    serialized_course_runs = []
+
                 json_metadata['active'] = is_any_course_run_active(serialized_course_runs)
                 # We don't include enrollment_url values for the nested course runs in a course
                 # for exec-ed-2u content, because enrollment fulfillment for such content
@@ -339,7 +344,12 @@ class ContentMetadataSerializer(ImmutableStateSerializer):
         if not self.context.get('enterprise_catalog'):
             return
 
-        serialized_runs_by_key = {run['key']: run for run in serialized_course_runs}
+        # serialized_runs_by_key = {run['key']: run for run in serialized_course_runs}
+        serialized_runs_by_key = {
+            run.get('key'): run
+            for run in serialized_course_runs
+            if isinstance(run, dict) and run.get('key')
+        }
 
         for course_run_instance in ContentMetadata.get_child_records(course_instance):
             serialized_run = serialized_runs_by_key.get(course_run_instance.content_key)

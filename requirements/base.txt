@@ -22,7 +22,7 @@ asgiref==3.11.1
     # via
     #   django
     #   django-cors-headers
-attrs==25.4.0
+attrs==26.1.0
     # via
     #   jsonschema
     #   referencing
@@ -142,7 +142,7 @@ django-waffle==5.0.0
     #   edx-toggles
 djangoql==0.19.1
     # via -r requirements/base.in
-djangorestframework==3.16.1
+djangorestframework==3.17.0
     # via
     #   -r requirements/base.in
     #   django-config-models

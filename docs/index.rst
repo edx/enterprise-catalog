@@ -14,3 +14,4 @@ A microservice for Enterprise catalogs.
    testing
    features
    internationalization
+   enterprise_repositories

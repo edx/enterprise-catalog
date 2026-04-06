@@ -45,9 +45,9 @@ cffi==2.0.0
     # via
     #   cryptography
     #   pynacl
-charset-normalizer==3.4.6
+charset-normalizer==3.4.7
     # via requests
-click==8.3.1
+click==8.3.2
     # via
     #   celery
     #   click-didyoumean
@@ -175,7 +175,7 @@ edx-drf-extensions==10.6.0
     # via
     #   -r requirements/base.in
     #   edx-rbac
-edx-opaque-keys==3.1.0
+edx-opaque-keys==4.0.0
     # via edx-drf-extensions
 edx-rbac==3.0.0
     # via -r requirements/base.in
@@ -278,7 +278,7 @@ referencing==0.37.0
     # via
     #   jsonschema
     #   jsonschema-specifications
-requests==2.33.0
+requests==2.33.1
     # via
     #   algoliasearch
     #   analytics-python
@@ -346,7 +346,7 @@ typing-extensions==4.15.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
-tzdata==2025.3
+tzdata==2026.1
     # via kombu
 tzlocal==5.3.1
     # via celery

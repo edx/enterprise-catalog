@@ -85,12 +85,12 @@ cffi==2.0.0
     #   -r requirements/test.txt
     #   cryptography
     #   pynacl
-charset-normalizer==3.4.6
+charset-normalizer==3.4.7
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   requests
-click==8.3.1
+click==8.3.2
     # via
     #   -r requirements/pip-tools.txt
     #   -r requirements/quality.txt
@@ -138,7 +138,7 @@ coverage[toml]==7.13.5
     # via
     #   -r requirements/test.txt
     #   pytest-cov
-cryptography==46.0.6
+cryptography==46.0.7
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -177,7 +177,7 @@ distro==1.9.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   openai
-django==5.2.12
+django==5.2.13
     # via
     #   -c requirements/common_constraints.txt
     #   -c requirements/constraints.txt
@@ -233,7 +233,7 @@ django-crum==0.7.9
     #   edx-django-utils
     #   edx-rbac
     #   edx-toggles
-django-debug-toolbar==6.2.0
+django-debug-toolbar==6.3.0
     # via -r requirements/dev.in
 django-dynamic-fixture==4.0.1
     # via -r requirements/test.txt
@@ -305,7 +305,7 @@ edx-auth-backends==5.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-edx-celeryutils==1.4.0
+edx-celeryutils==2.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -333,7 +333,7 @@ edx-lint==6.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-edx-opaque-keys==3.1.0
+edx-opaque-keys==4.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -342,18 +342,18 @@ edx-rbac==3.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-edx-rest-api-client==6.2.0
+edx-rest-api-client==7.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-edx-toggles==5.4.1
+edx-toggles==6.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.11.1
+faker==40.13.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
@@ -464,7 +464,7 @@ monotonic==1.6
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   analytics-python
-more-itertools==10.8.0
+more-itertools==11.0.1
     # via inflect
 mysqlclient==2.2.8
     # via
@@ -615,7 +615,7 @@ pyproject-hooks==1.2.0
     #   -r requirements/pip-tools.txt
     #   build
     #   pip-tools
-pytest==9.0.2
+pytest==9.0.3
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -630,7 +630,7 @@ python-dateutil==2.9.0.post0
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
-python-discovery==1.2.1
+python-discovery==1.2.2
     # via
     #   -r requirements/test.txt
     #   tox
@@ -670,7 +670,7 @@ referencing==0.37.0
     #   -r requirements/test.txt
     #   jsonschema
     #   jsonschema-specifications
-requests==2.33.0
+requests==2.33.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -785,7 +785,7 @@ tomlkit==0.14.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pylint
-tox==4.51.0
+tox==4.52.0
     # via -r requirements/test.txt
 tqdm==4.67.3
     # via
@@ -812,7 +812,7 @@ typing-inspection==0.4.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pydantic
-tzdata==2025.3
+tzdata==2026.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

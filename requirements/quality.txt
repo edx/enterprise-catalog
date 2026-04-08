@@ -62,11 +62,11 @@ cffi==2.0.0
     #   -r requirements/base.txt
     #   cryptography
     #   pynacl
-charset-normalizer==3.4.6
+charset-normalizer==3.4.7
     # via
     #   -r requirements/base.txt
     #   requests
-click==8.3.1
+click==8.3.2
     # via
     #   -r requirements/base.txt
     #   celery
@@ -96,7 +96,7 @@ code-annotations==3.0.0
     #   -r requirements/base.txt
     #   edx-lint
     #   edx-toggles
-cryptography==46.0.6
+cryptography==46.0.7
     # via
     #   -r requirements/base.txt
     #   pyjwt
@@ -116,7 +116,7 @@ distro==1.9.0
     # via
     #   -r requirements/base.txt
     #   openai
-django==5.2.12
+django==5.2.13
     # via
     #   -c requirements/common_constraints.txt
     #   -c requirements/constraints.txt
@@ -206,7 +206,7 @@ drf-spectacular==0.29.0
     # via -r requirements/base.txt
 edx-auth-backends==5.0.0
     # via -r requirements/base.txt
-edx-celeryutils==1.4.0
+edx-celeryutils==2.0.0
     # via -r requirements/base.txt
 edx-django-release-util==1.5.0
     # via -r requirements/base.txt
@@ -224,15 +224,15 @@ edx-drf-extensions==10.6.0
     #   edx-rbac
 edx-lint==6.0.0
     # via -r requirements/quality.in
-edx-opaque-keys==3.1.0
+edx-opaque-keys==4.0.0
     # via
     #   -r requirements/base.txt
     #   edx-drf-extensions
 edx-rbac==3.0.0
     # via -r requirements/base.txt
-edx-rest-api-client==6.2.0
+edx-rest-api-client==7.0.0
     # via -r requirements/base.txt
-edx-toggles==5.4.1
+edx-toggles==6.0.0
     # via
     #   -r requirements/base.txt
     #   edx-auth-backends
@@ -408,7 +408,7 @@ referencing==0.37.0
     #   -r requirements/base.txt
     #   jsonschema
     #   jsonschema-specifications
-requests==2.33.0
+requests==2.33.1
     # via
     #   -r requirements/base.txt
     #   algoliasearch
@@ -507,7 +507,7 @@ typing-inspection==0.4.2
     # via
     #   -r requirements/base.txt
     #   pydantic
-tzdata==2025.3
+tzdata==2026.1
     # via
     #   -r requirements/base.txt
     #   kombu

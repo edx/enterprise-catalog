@@ -11,6 +11,7 @@ from rest_framework_xml.renderers import XMLRenderer
 
 from enterprise_catalog.apps.academy.models import Academy
 from enterprise_catalog.apps.api.v1.serializers import AcademySerializer
+from enterprise_catalog.apps.catalog.models import ContentMetadata
 
 
 class AcademiesReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):
@@ -54,7 +55,14 @@ class AcademiesReadOnlyViewSet(viewsets.ReadOnlyModelViewSet):
                         enterprise_uuid=enterprise_customer
                     )
                     if enterprise_associated_catalogs:
-                        user_accessible_academy_uuids.append(academy.uuid)
+                        # Verify the academy has actual content in the enterprise catalog,
+                        # not just a catalog association.
+                        academy_content = ContentMetadata.objects.filter(tags__academies=academy)
+                        catalog_query_ids = enterprise_associated_catalogs.values_list(
+                            'catalog_query_id', flat=True,
+                        )
+                        if academy_content.filter(catalog_queries__in=catalog_query_ids).exists():
+                            user_accessible_academy_uuids.append(academy.uuid)
                 return all_academies.filter(uuid__in=user_accessible_academy_uuids)
             else:
                 return Academy.objects.none()

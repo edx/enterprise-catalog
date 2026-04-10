@@ -2114,6 +2114,11 @@ class AcademiesViewSetTests(APITestMixin):
         self.enterprise_catalog1.academies.add(self.academy1)
         self.enterprise_catalog2 = EnterpriseCatalogFactory(catalog_query=self.enterprise_catalog_query)
         self.enterprise_catalog2.academies.add(self.academy2)
+        # Create content metadata linked to academy tags and catalog query
+        # so that the academy passes the content existence check.
+        self.content_metadata = ContentMetadataFactory()
+        self.content_metadata.catalog_queries.add(self.enterprise_catalog_query)
+        self.tag1.content_metadata.add(self.content_metadata)
 
     @mock.patch('enterprise_catalog.apps.api_client.enterprise_cache.EnterpriseApiClient')
     @mock.patch('enterprise_catalog.apps.api.v1.serializers.get_initialized_algolia_client')

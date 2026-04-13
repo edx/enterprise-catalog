@@ -344,7 +344,7 @@ packaging==26.0
     #   pyproject-api
     #   pytest
     #   tox
-platformdirs==4.9.4
+platformdirs==4.9.6
     # via
     #   pylint
     #   python-discovery
@@ -539,7 +539,7 @@ tomli-w==1.2.0
     # via tox
 tomlkit==0.14.0
     # via pylint
-tox==4.52.0
+tox==4.52.1
     # via -r requirements/test.in
 tqdm==4.67.3
     # via
@@ -583,7 +583,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.2.0
+virtualenv==21.2.1
     # via tox
 wcwidth==0.6.0
     # via

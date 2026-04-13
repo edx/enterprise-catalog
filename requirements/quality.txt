@@ -318,7 +318,7 @@ packaging==26.0
     # via
     #   -r requirements/base.txt
     #   kombu
-platformdirs==4.9.4
+platformdirs==4.9.6
     # via pylint
 ply==3.11
     # via

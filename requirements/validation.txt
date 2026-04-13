@@ -459,7 +459,7 @@ packaging==26.0
     #   pyproject-api
     #   pytest
     #   tox
-platformdirs==4.9.4
+platformdirs==4.9.6
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -726,7 +726,7 @@ tomlkit==0.14.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pylint
-tox==4.52.0
+tox==4.52.1
     # via -r requirements/test.txt
 tqdm==4.67.3
     # via
@@ -778,7 +778,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.2.0
+virtualenv==21.2.1
     # via
     #   -r requirements/test.txt
     #   tox

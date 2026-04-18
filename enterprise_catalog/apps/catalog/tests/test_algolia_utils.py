@@ -3,6 +3,7 @@ from unittest import mock
 from uuid import uuid4
 
 import ddt
+from dateutil.relativedelta import relativedelta
 from django.test import TestCase
 
 from enterprise_catalog.apps.catalog import algolia_utils as utils
@@ -211,6 +212,39 @@ class AlgoliaUtilsTests(TestCase):
         assert utils.is_course_archived(course_metadata.json_metadata) is False
         course_metadata.json_metadata.get('course_runs')[0]['availability'] = ''
         assert utils.is_course_archived(course_metadata.json_metadata) is True
+
+    def test_is_course_new_content(self):
+        """
+        Verify the "new content" classification uses min published-run start within 12 months.
+        """
+        now = localized_utcnow()
+        recent = (now - timedelta(days=30)).isoformat()
+        old = (now - timedelta(days=500)).isoformat()
+
+        assert utils.is_course_new_content({'course_runs': []}) is False
+        assert utils.is_course_new_content({'course_runs': [{'status': 'unpublished', 'start': recent}]}) is False
+        assert utils.is_course_new_content({'course_runs': [{'status': 'published', 'start': old}]}) is False
+        assert utils.is_course_new_content({'course_runs': [{'status': 'published', 'start': recent}]}) is True
+        # Regression: an old unpublished draft must not disqualify a course with a recent published run.
+        assert utils.is_course_new_content({'course_runs': [
+            {'status': 'unpublished', 'start': old},
+            {'status': 'published', 'start': recent},
+        ]}) is True
+        # Boundary: just within 12 calendar months is True, just outside is False.
+        assert utils.is_course_new_content({'course_runs': [
+            {'status': 'published', 'start': (now - relativedelta(months=12) + timedelta(days=1)).isoformat()},
+        ]}) is True
+        assert utils.is_course_new_content({'course_runs': [
+            {'status': 'published', 'start': (now - relativedelta(months=12) - timedelta(days=1)).isoformat()},
+        ]}) is False
+        # Future start dates are not "new content" (upper-bound check).
+        assert utils.is_course_new_content({'course_runs': [
+            {'status': 'published', 'start': (now + timedelta(days=30)).isoformat()},
+        ]}) is False
+        # Malformed ISO strings are silently ignored.
+        assert utils.is_course_new_content({'course_runs': [
+            {'status': 'published', 'start': 'not-a-date'},
+        ]}) is False
 
     @ddt.data(
         (

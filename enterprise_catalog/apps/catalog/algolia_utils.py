@@ -5,6 +5,7 @@ import time
 
 from algoliasearch.search_client import SearchClient
 from dateutil import parser
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
@@ -139,6 +140,7 @@ ALGOLIA_FIELDS = [
     'avg_course_rating',
     'course_bayesian_average',
     'transcript_languages',
+    'is_new_content',
 ]
 
 # default configuration for the index
@@ -188,6 +190,7 @@ ALGOLIA_INDEX_SETTINGS = {
         'learning_type',
         'learning_type_v2',
         'transcript_languages',
+        'is_new_content',
     ],
     'unretrievableAttributes': [
         'enterprise_catalog_uuids',
@@ -572,6 +575,20 @@ def is_course_archived(course):
     """
     availability_list = get_course_availability(course)
     return len(availability_list) == 0 or 'Archived' in availability_list
+
+
+def is_course_new_content(course):
+    """True if the earliest published course-run start is within the last 12 months (ENT-11384)."""
+    starts = []
+    for run in course.get('course_runs') or []:
+        if (run.get('status') or '').lower() == 'published' and run.get('start'):
+            parsed = parse_datetime(run['start'])
+            if parsed:
+                starts.append(parsed)
+    if not starts:
+        return False
+    now = localized_utcnow()
+    return now - relativedelta(months=12) <= min(starts) <= now
 
 
 def get_course_partners(course):
@@ -1600,6 +1617,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'course_bayesian_average': get_course_bayesian_average(searchable_product),
             'transcript_languages': get_course_transcript_languages(searchable_product),
             'metadata_language': searchable_product.get('metadata_language', 'en'),
+            'is_new_content': is_course_new_content(searchable_product),
         })
     elif searchable_product.get('content_type') == PROGRAM:
         # Build course metadata cache once for all program functions that need it

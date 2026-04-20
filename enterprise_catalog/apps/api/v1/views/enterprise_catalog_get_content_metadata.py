@@ -21,6 +21,10 @@ from enterprise_catalog.apps.api.v1.serializers import (
     ContentMetadataListResponseSerializer,
     ContentMetadataSerializer,
 )
+from enterprise_catalog.apps.api.v1.throttles import (
+    GetContentMetadataHourlyThrottle,
+    GetContentMetadataMinuteThrottle,
+)
 from enterprise_catalog.apps.api.v1.utils import is_any_course_run_active
 from enterprise_catalog.apps.api.v1.views.base import BaseViewSet
 from enterprise_catalog.apps.catalog.models import EnterpriseCatalog
@@ -35,6 +39,7 @@ class EnterpriseCatalogGetContentMetadata(BaseViewSet, GenericAPIView):
     renderer_classes = [JSONRenderer, XMLRenderer]
     lookup_field = 'uuid'
     pagination_class = DefaultPagination
+    throttle_classes = [GetContentMetadataHourlyThrottle, GetContentMetadataMinuteThrottle]
     MAX_GET_CONTENT_KEYS = 100
 
     @cached_property

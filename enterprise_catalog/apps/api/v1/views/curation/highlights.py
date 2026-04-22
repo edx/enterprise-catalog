@@ -672,7 +672,6 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
 
         Returns:
             rest_framework.response.Response:
-                400: Missing/invalid input parameters.
                 403: Insufficient write permissions, or requested content count
                      exceeds the backend limit.
                 200: Contents were reconciled successfully.  Body shape:
@@ -711,12 +710,9 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                     content_metadata__content_key__in=removed_content_keys,
                 ).delete()
 
-            try:
-                added_content_keys, ignored_content_keys, existing_content_keys = (
-                    self._add_requested_content(highlight_set)
-                )
-            except LimitExceeded as e:
-                return Response({'Error': str(e)}, status=status.HTTP_403_FORBIDDEN)
+            added_content_keys, ignored_content_keys, existing_content_keys = (
+                self._add_requested_content(highlight_set)
+            )
 
         additional_properties = {
             'added_content_keys': added_content_keys,

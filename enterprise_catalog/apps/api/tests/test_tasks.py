@@ -3212,8 +3212,8 @@ class IndexEnterpriseCatalogCoursesInAlgoliaTaskTests(TestCase):
     @mock.patch('enterprise_catalog.apps.api.tasks._update_full_content_metadata_program')
     def test_update_full_content_metadata_course_preserves_subjects(
         self,
-        mock_update_content_metadata_program,
-        mock_create_course_associated_programs,
+        _mock_update_content_metadata_program,
+        _mock_create_course_associated_programs,
         mock_filter,
         mock_get_course_reviews,
         mock_fetch_courses_by_keys,
@@ -3255,8 +3255,8 @@ class IndexEnterpriseCatalogCoursesInAlgoliaTaskTests(TestCase):
     @mock.patch('enterprise_catalog.apps.api.tasks._update_full_content_metadata_program')
     def test_update_full_content_metadata_course_updates_subjects_when_provided(
         self,
-        mock_update_content_metadata_program,
-        mock_create_course_associated_programs,
+        _mock_update_content_metadata_program,
+        _mock_create_course_associated_programs,
         mock_filter,
         mock_get_course_reviews,
         mock_fetch_courses_by_keys,

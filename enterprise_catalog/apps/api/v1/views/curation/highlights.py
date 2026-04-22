@@ -1,6 +1,7 @@
 import logging
 from uuid import UUID
 
+from django.db import transaction
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_cookie
@@ -649,6 +650,92 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                 'highlight_set': HighlightSetSerializer(highlight_set).data,
             },
             status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'], url_path='set-content')
+    def set_content(self, request, uuid, *args, **kwargs):
+        """
+        Replace the full contents of an existing HighlightSet.
+
+        Reconciles HighlightedContent rows so the set contains exactly the
+        provided content_keys: items not present are added, and items
+        currently on the set but not in the request are removed.
+
+        POST /v1/highlight-sets-admin/<uuid>/set-content/
+
+        Request URL Arguments:
+            uuid (str): UUID of the HighlightSet to edit.
+
+        Request JSON Arguments:
+            content_keys (list of str): The desired final list of content keys
+                for the HighlightSet.  Pass an empty list to clear the set.
+
+        Returns:
+            rest_framework.response.Response:
+                400: Missing/invalid input parameters.
+                403: Insufficient write permissions, or requested content count
+                     exceeds the backend limit.
+                200: Contents were reconciled successfully.  Body shape:
+                     {
+                         "added_content_keys": [...],
+                         "removed_content_keys": [...],
+                         "existing_content_keys": [...],
+                         "ignored_content_keys": [...],
+                         "highlight_set": <serialized HighlightSet>,
+                     }
+        """
+        requested_content_keys = self.requested_content_keys
+
+        if len(requested_content_keys) > CONTENT_PER_HIGHLIGHTSET_LIMIT:
+            return Response(
+                {
+                    'Error': (
+                        'Request exceeds the backend maximum content count per highlight set '
+                        f'({CONTENT_PER_HIGHLIGHTSET_LIMIT}).'
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        highlight_set = HighlightSet.objects.get(uuid=uuid)
+
+        with transaction.atomic():
+            current_content_keys = set(
+                highlight_set.highlighted_content.values_list(
+                    'content_metadata__content_key', flat=True,
+                )
+            )
+            removed_content_keys = list(current_content_keys - set(requested_content_keys))
+            if removed_content_keys:
+                highlight_set.highlighted_content.filter(
+                    content_metadata__content_key__in=removed_content_keys,
+                ).delete()
+
+            try:
+                added_content_keys, ignored_content_keys, existing_content_keys = (
+                    self._add_requested_content(highlight_set)
+                )
+            except LimitExceeded as e:
+                return Response({'Error': str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+        additional_properties = {
+            'added_content_keys': added_content_keys,
+            'removed_content_keys': removed_content_keys,
+        }
+        track_highlight_set_changes(
+            request, highlight_set, SegmentEvents.HIGHLIGHT_SET_UPDATED,
+            additional_properties=additional_properties,
+        )
+
+        return Response(
+            {
+                'added_content_keys': added_content_keys,
+                'removed_content_keys': removed_content_keys,
+                'existing_content_keys': existing_content_keys,
+                'ignored_content_keys': ignored_content_keys,
+                'highlight_set': HighlightSetSerializer(highlight_set).data,
+            },
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=['post'], url_path='remove-content')

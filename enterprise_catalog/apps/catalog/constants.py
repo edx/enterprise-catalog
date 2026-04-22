@@ -99,6 +99,7 @@ DEFAULT_COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL = [
     'end_date',
     'course_ends',
     'languages',
+    'subjects',
 ]
 
 PROGRAM_TYPES_MAP = {

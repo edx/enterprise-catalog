@@ -3205,6 +3205,89 @@ class IndexEnterpriseCatalogCoursesInAlgoliaTaskTests(TestCase):
         self.assertEqual(mock_update_content_metadata_program.call_count, 2)
         self.assertEqual(mock_create_course_associated_programs.call_count, 2)
 
+    @mock.patch('enterprise_catalog.apps.api.tasks._fetch_courses_by_keys')
+    @mock.patch('enterprise_catalog.apps.api.tasks.DiscoveryApiClient.get_course_reviews')
+    @mock.patch('enterprise_catalog.apps.api.tasks.ContentMetadata.objects.filter')
+    @mock.patch('enterprise_catalog.apps.api.tasks.create_course_associated_programs')
+    @mock.patch('enterprise_catalog.apps.api.tasks._update_full_content_metadata_program')
+    def test_update_full_content_metadata_course_preserves_subjects(
+        self,
+        _mock_update_content_metadata_program,
+        _mock_create_course_associated_programs,
+        mock_filter,
+        mock_get_course_reviews,
+        mock_fetch_courses_by_keys,
+    ):
+        """
+        Assert that existing subjects in json_metadata are preserved when the full
+        course metadata from /api/v1/courses returns an empty subjects list.
+
+        This guards against the case where discovery's /api/v1/courses endpoint
+        returns subjects: [] for a course that has subjects in the discovery database.
+        Without this guard, a spurious empty-subjects response would overwrite the
+        subjects that were correctly synced from the /search/all endpoint.
+        """
+        course_key = 'edX+SubjectCourse'
+        existing_subjects = [{'name': 'Computer Science', 'slug': 'computer-science'}]
+
+        # Course record already has subjects populated (e.g., from search/all sync)
+        content_metadata = ContentMetadataFactory(content_type=COURSE, content_key=course_key)
+        content_metadata._json_metadata['subjects'] = existing_subjects  # pylint: disable=protected-access
+        content_metadata.save()
+
+        # Full course metadata from /api/v1/courses returns empty subjects
+        full_course_dict_empty_subjects = {'key': course_key, 'title': 'Subject Course', 'subjects': []}
+
+        mock_fetch_courses_by_keys.return_value = [full_course_dict_empty_subjects]
+        mock_get_course_reviews.return_value = {}
+        mock_filter.return_value = [content_metadata]
+
+        tasks._update_full_content_metadata_course([course_key])  # pylint: disable=protected-access
+
+        content_metadata.refresh_from_db()
+        # Subjects should be preserved, not overwritten with empty
+        assert content_metadata.json_metadata.get('subjects') == existing_subjects
+
+    @mock.patch('enterprise_catalog.apps.api.tasks._fetch_courses_by_keys')
+    @mock.patch('enterprise_catalog.apps.api.tasks.DiscoveryApiClient.get_course_reviews')
+    @mock.patch('enterprise_catalog.apps.api.tasks.ContentMetadata.objects.filter')
+    @mock.patch('enterprise_catalog.apps.api.tasks.create_course_associated_programs')
+    @mock.patch('enterprise_catalog.apps.api.tasks._update_full_content_metadata_program')
+    def test_update_full_content_metadata_course_updates_subjects_when_provided(
+        self,
+        _mock_update_content_metadata_program,
+        _mock_create_course_associated_programs,
+        mock_filter,
+        mock_get_course_reviews,
+        mock_fetch_courses_by_keys,
+    ):
+        """
+        Assert that subjects are updated normally when the full course metadata from
+        /api/v1/courses returns a non-empty subjects list.
+        """
+        course_key = 'edX+SubjectCourse2'
+        old_subjects = [{'name': 'Old Subject', 'slug': 'old-subject'}]
+        new_subjects = [
+            {'name': 'Computer Science', 'slug': 'computer-science'},
+            {'name': 'Data Analysis', 'slug': 'data-analysis'},
+        ]
+
+        content_metadata = ContentMetadataFactory(content_type=COURSE, content_key=course_key)
+        content_metadata._json_metadata['subjects'] = old_subjects  # pylint: disable=protected-access
+        content_metadata.save()
+
+        full_course_dict_with_subjects = {'key': course_key, 'title': 'Subject Course 2', 'subjects': new_subjects}
+
+        mock_fetch_courses_by_keys.return_value = [full_course_dict_with_subjects]
+        mock_get_course_reviews.return_value = {}
+        mock_filter.return_value = [content_metadata]
+
+        tasks._update_full_content_metadata_course([course_key])  # pylint: disable=protected-access
+
+        content_metadata.refresh_from_db()
+        # Subjects should be updated with the new non-empty subjects
+        assert content_metadata.json_metadata.get('subjects') == new_subjects
+
     @mock.patch('enterprise_catalog.apps.api.tasks.get_initialized_algolia_client', return_value=mock.MagicMock())
     @override_settings(SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS=True)
     # pylint: disable=too-many-statements

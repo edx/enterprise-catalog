@@ -1305,7 +1305,12 @@ def _update_existing_content_metadata(existing_metadata_defaults, existing_metad
         if content_metadata:
             for key, value in defaults.items():
                 if key == '_json_metadata':
-                    # merge new json_metadata with old json_metadata (i.e., don't replace it fully)
+                    # merge new json_metadata with old json_metadata (i.e., don't replace it fully).
+                    # Note: Empty list values (e.g., subjects: []) from /search/all/ are treated as
+                    # non-authoritative — they will overwrite existing data here via .update(), but
+                    # the downstream _update_single_full_course_record() in tasks.py will restore
+                    # any previously-populated subjects if the /api/v1/courses/ response also returns
+                    # an empty list. See the parallel guard there for details.
                     content_metadata._json_metadata.update(value)  # pylint: disable=protected-access
                 else:
                     # replace attributes with new values

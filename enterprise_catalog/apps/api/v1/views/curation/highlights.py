@@ -329,12 +329,14 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
 
         return existing_curation_config_for_enterprise
 
-    def _add_requested_content(self, highlight_set):
+    def _add_requested_content(self, highlight_set, content_keys=None):
         """
         Helper function to add requested content to the given highlight set.
 
         Arguments:
             highlight_set (HighlightSet model instance): The highlight set to attempt to add content to.
+            content_keys (list of str, optional): Explicit list of content keys to add.  When omitted,
+                falls back to ``self.requested_content_keys`` (i.e. reads from the request body).
 
         Returns:
             3-tuple of lists of str: Each tuple element represents "added", "ignored", and "existing" content_keys.
@@ -347,6 +349,8 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                 If the requested content keys would cause the resulting highlight set to contain more than the maximum
                 allowed content.
         """
+        effective_content_keys = content_keys if content_keys is not None else self.requested_content_keys
+
         # Prepare the 3 output lists that collectively bucket all elements in the requested `content_keys` argument.
         added_content_keys = []  # requested content_keys that are successfully added as part of handling this request.
         ignored_content_keys = []  # requested content_keys that do not exist in the catalog.
@@ -355,14 +359,14 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
         # Determine `valid_requested_content_keys_to_add`.  Eventually equivalent to the union of `added_content_keys`
         # and `existing_content_keys`.  I.e. These are content_keys which are valid options to add to a highlight set.
         valid_requested_content_to_add = sorted(
-            ContentMetadata.objects.filter(content_key__in=self.requested_content_keys),
-            key=lambda cm: self.requested_content_keys.index(cm.content_key)
+            ContentMetadata.objects.filter(content_key__in=effective_content_keys),
+            key=lambda cm: effective_content_keys.index(cm.content_key)
         )
         valid_requested_content_keys_to_add = [cm.content_key for cm in valid_requested_content_to_add]
 
         # Store the remainder in `ignored_content_keys`, representing content_keys that we will not even attempt to add.
         # Use a comprehension instead of set logic so that order is preserved.
-        ignored_content_keys = [k for k in self.requested_content_keys if k not in valid_requested_content_keys_to_add]
+        ignored_content_keys = [k for k in effective_content_keys if k not in valid_requested_content_keys_to_add]
         if ignored_content_keys:
             logger.warning('The following content_keys were not found: %s', ignored_content_keys)
 
@@ -539,23 +543,144 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
             rest_framework.response.Response:
                 400: If there are missing or otherwise invalid input parameters.  Response body is JSON with a single
                      `Error` key.
-                403: If the requester has insufficient write permissions or enters title greater than 60 character.
+                403: If the requester has insufficient write permissions.
                     Response body is JSON with a single `Error` key.
-                201: If highlight set name was successfully updated.  Response body is JSON with a single `title` key.
+                404: If no HighlightSet exists for the given UUID.
+                200: If highlight set name was successfully updated.  Response body is a serialized HighlightSet
+                     containing uuid, title, is_published, enterprise_curation, card_image_url, and highlighted_content.
         """
-        highlight_set = HighlightSet.objects.get(uuid=uuid)
+        try:
+            highlight_set = HighlightSet.objects.get(uuid=uuid)
+        except HighlightSet.DoesNotExist:
+            return Response(
+                {'Error': f'No HighlightSet found with uuid {uuid}'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         title = request.data.get('title')
         if not title:
             return Response({'Error': 'Missing title parameter'}, status=status.HTTP_400_BAD_REQUEST)
         if len(title) > 60:
-            return Response({'Error': 'title cannot exceed 60 characters'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'Error': 'title cannot exceed 60 characters'}, status=status.HTTP_400_BAD_REQUEST)
         highlight_set.title = title
         highlight_set.save()
+        logger.info(
+            'HighlightSet %s title updated to "%s" by user %s',
+            uuid, title, request.user.id,
+        )
+        track_highlight_set_changes(request, highlight_set, SegmentEvents.HIGHLIGHT_SET_UPDATED)
+        serializer = self.get_serializer(highlight_set)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['patch'], url_path='edit-highlight')
+    def edit_highlight(self, request, uuid, *args, **kwargs):
+        """
+        Atomically update a HighlightSet's title and/or associated course content in a single request.
+
+        PATCH /v1/highlight-sets-admin/<uuid>/edit-highlight/
+
+        Request URL Arguments:
+            uuid (str): UUID of the HighlightSet to update.
+
+        Request JSON Arguments:
+            title (str, optional): New title for the HighlightSet.
+            add_content_keys (list of str, optional): Content keys to add to the highlight set.
+            remove_content_keys (list of str, optional): Content keys to remove from the highlight set.
+
+        Returns:
+            rest_framework.response.Response:
+                400: If validation fails (empty title, title > 60 chars, or neither title nor content keys given).
+                     Response body is JSON with a single `Error` key.
+                403: If the requester has insufficient write permissions, or if adding content would exceed limits.
+                     Response body is JSON with a single `Error` key.
+                404: If no HighlightSet exists for the given UUID.
+                200: Update successful.  Response body contains:
+                     {
+                         "highlight_set": <serialized HighlightSet with uuid, title, highlighted_content, ...>,
+                         "added_content_keys": <list of content keys successfully added>,
+                         "removed_content_keys": <list of content keys successfully removed>,
+                         "ignored_content_keys": <list of requested add keys that were not found in the catalog>,
+                     }
+        """
+        try:
+            highlight_set = HighlightSet.objects.get(uuid=uuid)
+        except HighlightSet.DoesNotExist:
+            return Response(
+                {'Error': f'No HighlightSet found with uuid {uuid}'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        title = request.data.get('title')
+        add_content_keys = request.data.get('add_content_keys', [])
+        remove_content_keys = request.data.get('remove_content_keys', [])
+
+        if title is None and not add_content_keys and not remove_content_keys:
+            return Response(
+                {'Error': 'At least one of title, add_content_keys, or remove_content_keys must be provided.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # --- Validate and apply title update ---
+        if title is not None:
+            if not title:
+                return Response({'Error': 'title cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(title) > 60:
+                return Response({'Error': 'title cannot exceed 60 characters'}, status=status.HTTP_400_BAD_REQUEST)
+            highlight_set.title = title
+            highlight_set.save()
+            logger.info(
+                'HighlightSet %s title updated to "%s" by user %s',
+                uuid, title, request.user.id,
+            )
+
+        # --- Apply content removals ---
+        removed_content_keys = []
+        if remove_content_keys:
+            content_to_remove = highlight_set.highlighted_content.filter(
+                content_metadata__content_key__in=remove_content_keys
+            )
+            removed_content_keys = [
+                item.content_metadata.content_key for item in content_to_remove
+            ]
+            content_to_remove.delete()
+            logger.info(
+                'HighlightSet %s: removed %d content keys by user %s',
+                uuid, len(removed_content_keys), request.user.id,
+            )
+
+        # --- Apply content additions ---
+        added_content_keys = []
+        ignored_content_keys = []
+        if add_content_keys:
+            try:
+                added_content_keys, ignored_content_keys, _ = self._add_requested_content(
+                    highlight_set, content_keys=add_content_keys
+                )
+            except LimitExceeded as exc:
+                return Response({'Error': str(exc)}, status=status.HTTP_403_FORBIDDEN)
+            logger.info(
+                'HighlightSet %s: added %d content keys by user %s',
+                uuid, len(added_content_keys), request.user.id,
+            )
+
+        # --- Segment tracking ---
+        additional_properties = {
+            'added_content_keys': added_content_keys,
+            'removed_content_keys': removed_content_keys,
+        }
+        track_highlight_set_changes(
+            request, highlight_set, SegmentEvents.HIGHLIGHT_SET_UPDATED,
+            additional_properties=additional_properties,
+        )
+
+        serializer = self.get_serializer(highlight_set)
         return Response(
             {
-                'title': title
+                'highlight_set': serializer.data,
+                'added_content_keys': added_content_keys,
+                'removed_content_keys': removed_content_keys,
+                'ignored_content_keys': ignored_content_keys,
             },
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=['post'], url_path='toggle-favorite-highlight')

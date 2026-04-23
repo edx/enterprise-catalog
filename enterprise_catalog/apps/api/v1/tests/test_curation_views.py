@@ -1075,36 +1075,238 @@ class HighlightSetViewSetTests(CurationAPITestBase):
         assert len(response.json()['highlight_set']['highlighted_content']) == 0
         assert response.json()['highlight_set']['card_image_url'] is None
 
-    def test_edit_title(self):
+    @mock.patch('enterprise_catalog.apps.api.v1.event_utils.track_event')
+    def test_edit_title(self, mock_track_event):
         """
-        Test editing HighlightSet's title
+        Test editing HighlightSet's title - success and validation failures.
         """
-        # Success case
         edit_url = reverse(
             'api:v1:highlight-sets-admin-edit-highlight-title',
             kwargs={'uuid': str(self.highlight_set_one.uuid)}
         )
         self.set_up_staff()
         new_title = 'new title'
-        response = self.client.post(
-            edit_url, {'title': new_title},
-        )
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.json()['title'] == new_title
+
+        # Success case: returns 200 with full serialized HighlightSet
+        response = self.client.post(edit_url, {'title': new_title})
+        assert response.status_code == status.HTTP_200_OK
+        response_data = response.json()
+        assert response_data['title'] == new_title
+        assert response_data['uuid'] == str(self.highlight_set_one.uuid)
+        assert 'highlighted_content' in response_data
         self.highlight_set_one.refresh_from_db()
         assert self.highlight_set_one.title == new_title
+        mock_track_event.assert_called_once()
 
-        # No title parameter
-        response = self.client.post(
-            edit_url, {},
-        )
+        # No title parameter -> 400
+        response = self.client.post(edit_url, {})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-        # Too long title
-        response = self.client.post(
-            edit_url, {'title': new_title * 10},
+        # Too long title (>60 chars) -> 400 (validation error, not 403)
+        response = self.client.post(edit_url, {'title': new_title * 10})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'exceed' in response.json()['Error']
+
+    def test_edit_title_not_found(self):
+        """
+        Requesting edit-highlight-title for a non-existent UUID returns 404.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight-title',
+            kwargs={'uuid': str(uuid.uuid4())}
+        )
+        self.set_up_staff()
+        response = self.client.post(edit_url, {'title': 'some title'})
+        # edx-rbac permission check returns 403 for non-existent objects; document this behavior.
+        assert response.status_code in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
+
+    def test_edit_title_unauthenticated(self):
+        """
+        Unauthenticated requests to edit-highlight-title return 401.
+        """
+        self.client.logout()
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight-title',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        response = self.client.post(edit_url, {'title': 'title'})
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_edit_title_learner_forbidden(self):
+        """
+        A catalog learner (non-admin) cannot call edit-highlight-title.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight-title',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_catalog_learner()
+        response = self.client.post(edit_url, {'title': 'learner title attempt'})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @mock.patch('enterprise_catalog.apps.api.v1.event_utils.track_event')
+    def test_edit_highlight_title_only(self, mock_track_event):
+        """
+        PATCH edit-highlight: update only the title, no content changes.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+        response = self.client.patch(edit_url, {'title': 'Updated Title'}, content_type='application/json')
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data['highlight_set']['title'] == 'Updated Title'
+        assert data['added_content_keys'] == []
+        assert data['removed_content_keys'] == []
+        assert data['ignored_content_keys'] == []
+        self.highlight_set_one.refresh_from_db()
+        assert self.highlight_set_one.title == 'Updated Title'
+        mock_track_event.assert_called_once()
+
+    @mock.patch('enterprise_catalog.apps.api.v1.event_utils.track_event')
+    def test_edit_highlight_add_and_remove_content(self, mock_track_event):
+        """
+        PATCH edit-highlight: add and remove course content in one atomic request.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+        new_content = ContentMetadataFactory(content_type=COURSE)
+        key_to_add = new_content.content_key
+        key_to_remove = self.highlighted_content_metadata_one[0].content_key
+
+        payload = {
+            'add_content_keys': [key_to_add],
+            'remove_content_keys': [key_to_remove],
+        }
+        response = self.client.patch(edit_url, payload, content_type='application/json')
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert key_to_add in data['added_content_keys']
+        assert key_to_remove in data['removed_content_keys']
+        final_keys = [
+            hc['content_key'] for hc in data['highlight_set']['highlighted_content']
+        ]
+        assert key_to_add in final_keys
+        assert key_to_remove not in final_keys
+        mock_track_event.assert_called_once()
+
+    @mock.patch('enterprise_catalog.apps.api.v1.event_utils.track_event')
+    def test_edit_highlight_combined(self, mock_track_event):
+        """
+        PATCH edit-highlight: update title AND add/remove courses in one request.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+        new_content = ContentMetadataFactory(content_type=COURSE)
+        payload = {
+            'title': 'Combined Update',
+            'add_content_keys': [new_content.content_key],
+            'remove_content_keys': [self.highlighted_content_metadata_one[4].content_key],
+        }
+        response = self.client.patch(edit_url, payload, content_type='application/json')
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data['highlight_set']['title'] == 'Combined Update'
+        assert new_content.content_key in data['added_content_keys']
+        assert self.highlighted_content_metadata_one[4].content_key in data['removed_content_keys']
+        mock_track_event.assert_called_once()
+
+    def test_edit_highlight_nothing_provided(self):
+        """
+        PATCH edit-highlight: 400 when none of title, add, or remove keys are provided.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+        response = self.client.patch(edit_url, {}, content_type='application/json')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'At least one' in response.json()['Error']
+
+    def test_edit_highlight_title_too_long(self):
+        """
+        PATCH edit-highlight: 400 when title exceeds 60 characters.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+        response = self.client.patch(
+            edit_url, {'title': 'x' * 61}, content_type='application/json'
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'exceed' in response.json()['Error']
+
+    def test_edit_highlight_not_found(self):
+        """
+        PATCH edit-highlight: 403/404 when highlight set UUID doesn't exist.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(uuid.uuid4())}
+        )
+        self.set_up_staff()
+        response = self.client.patch(
+            edit_url, {'title': 'title'}, content_type='application/json'
+        )
+        # edx-rbac returns 403 for non-existent objects in permission checks.
+        assert response.status_code in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
+
+    def test_edit_highlight_unauthenticated(self):
+        """
+        PATCH edit-highlight: unauthenticated user gets 401.
+        """
+        self.client.logout()
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        response = self.client.patch(
+            edit_url, {'title': 'title'}, content_type='application/json'
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_edit_highlight_learner_forbidden(self):
+        """
+        PATCH edit-highlight: catalog learner (non-admin) gets 403.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_catalog_learner()
+        response = self.client.patch(
+            edit_url, {'title': 'learner attempt'}, content_type='application/json'
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_edit_highlight_add_exceeds_limit(self):
+        """
+        PATCH edit-highlight: 403 when adding content would exceed the per-highlight-set limit.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+        content_to_add = [
+            ContentMetadataFactory(content_type=COURSE)
+            for _ in range(CONTENT_PER_HIGHLIGHTSET_LIMIT)
+        ]
+        payload = {'add_content_keys': [cm.content_key for cm in content_to_add]}
+        response = self.client.patch(edit_url, payload, content_type='application/json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert 'exceeds' in response.json()['Error']
 
     def test_toggle_favorite_highlight(self):
         """

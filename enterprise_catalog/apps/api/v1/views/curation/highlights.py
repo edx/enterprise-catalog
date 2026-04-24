@@ -661,6 +661,11 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
         provided content_keys: items not present are added, and items
         currently on the set but not in the request are removed.
 
+        This endpoint reconciles membership only; the ordering of items
+        already on the set is preserved (newly-added items are appended).
+        The position of a content_key within the request list is not used
+        to reorder existing rows.
+
         POST /v1/highlight-sets-admin/<uuid>/set-content/
 
         Request URL Arguments:

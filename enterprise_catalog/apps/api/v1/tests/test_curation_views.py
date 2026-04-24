@@ -1045,6 +1045,35 @@ class HighlightSetViewSetTests(CurationAPITestBase):
         final_keys = [hc['content_key'] for hc in body['highlight_set']['highlighted_content']]
         assert sorted(final_keys) == sorted(requested)
 
+    def test_set_content_preserves_existing_order(self):
+        """
+        set-content reconciles membership only; it does not reorder rows already
+        on the set based on the position of keys in the request. Posting the
+        existing keys in reversed order is a no-op for ordering.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)},
+        )
+        self.set_up_staff()
+
+        original_keys = [cm.content_key for cm in self.highlighted_content_metadata_one]
+        pre_response = self.client.get(
+            reverse('api:v1:highlight-sets-admin-detail', kwargs={'uuid': str(self.highlight_set_one.uuid)})
+        )
+        pre_order = [hc['content_key'] for hc in pre_response.json()['highlighted_content']]
+
+        response = self.client.post(url, {'content_keys': list(reversed(original_keys))})
+        assert response.status_code == status.HTTP_200_OK
+
+        body = response.json()
+        assert body['added_content_keys'] == []
+        assert body['removed_content_keys'] == []
+        assert sorted(body['existing_content_keys']) == sorted(original_keys)
+
+        final_keys = [hc['content_key'] for hc in body['highlight_set']['highlighted_content']]
+        assert final_keys == pre_order
+
     def test_set_content_with_empty_list_clears_set(self):
         """
         set-content with an empty list removes all highlighted content from the set.

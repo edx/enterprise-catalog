@@ -129,7 +129,7 @@ django-model-utils==5.0.0
     #   -r requirements/base.in
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.20.2
+django-modeltranslation==0.20.3
     # via -r requirements/base.in
 django-simple-history==3.11.0
     # via
@@ -230,7 +230,7 @@ openai==1.13.3
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/base.in
-packaging==26.0
+packaging==26.1
     # via kombu
 ply==3.11
     # via djangoql
@@ -240,9 +240,9 @@ psutil==7.2.2
     # via edx-django-utils
 pycparser==3.0
     # via cffi
-pydantic==2.12.5
+pydantic==2.13.2
     # via openai
-pydantic-core==2.41.5
+pydantic-core==2.46.2
     # via pydantic
 pyjwt[crypto]==2.12.1
     # via
@@ -300,7 +300,7 @@ scipy==1.17.1
     # via scikit-learn
 semantic-version==2.10.0
     # via edx-drf-extensions
-simplejson==3.20.2
+simplejson==4.0.1
     # via -r requirements/base.in
 six==1.17.0
     # via
@@ -363,7 +363,7 @@ wcwidth==0.6.0
     # via prompt-toolkit
 xlsxwriter==3.2.9
     # via -r requirements/base.in
-zipp==3.23.0
+zipp==3.23.1
     # via -r requirements/base.in
 
 # The following packages are considered to be unsafe in a requirements file:

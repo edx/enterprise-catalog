@@ -34,3 +34,13 @@ CELERY_RESULT_BACKEND = f'file://{results_dir.name}'
 # A faster (but less secure) password hasher like MD5 makes UserFactory faster, shaving ~80% off
 # test runtimes compared with the more secure PBKDF2-based hasher used in production.
 PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
+# Disable API throttling by default in tests; individual tests can re-enable
+# specific rates via ``override_settings``. DRF treats a ``None`` rate as no limit.
+REST_FRAMEWORK = {
+    **REST_FRAMEWORK,
+    'DEFAULT_THROTTLE_RATES': {
+        'get_content_metadata_hour': None,
+        'get_content_metadata_minute': None,
+    },
+}

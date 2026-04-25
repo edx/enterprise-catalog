@@ -9,7 +9,9 @@ from urllib.parse import urljoin
 import ddt
 import pytz
 from django.conf import settings
+from django.core.cache import cache
 from django.db import IntegrityError
+from django.test import override_settings
 from django.utils.http import urlencode
 from django.utils.text import slugify
 from rest_framework import status
@@ -1776,6 +1778,74 @@ class EnterpriseCatalogGetContentMetadataTests(APITestMixin):
             json.dumps(actual_metadata, sort_keys=True),
             json.dumps(expected_metadata, sort_keys=True),
         )
+
+
+def _throttle_rates_override(hour_rate, minute_rate):
+    """
+    Build a REST_FRAMEWORK override dict with the given rates so throttle
+    tests can enable low limits without affecting other tests.
+    """
+    return {
+        **settings.REST_FRAMEWORK,
+        'DEFAULT_THROTTLE_RATES': {
+            'get_content_metadata_hour': hour_rate,
+            'get_content_metadata_minute': minute_rate,
+        },
+    }
+
+
+@ddt.ddt
+class EnterpriseCatalogGetContentMetadataThrottleTests(APITestMixin):
+    """
+    Tests that non-staff users are rate limited on the get_content_metadata endpoint
+    and that staff users bypass the limits entirely.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.enterprise_catalog = EnterpriseCatalogFactory(enterprise_uuid=self.enterprise_uuid)
+        self.enterprise_catalog.catalog_query.save()
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def _url(self):
+        return reverse('api:v1:get-content-metadata', kwargs={'uuid': self.enterprise_catalog.uuid})
+
+    @ddt.data(
+        ('2/hour', None),
+        (None, '2/minute'),
+    )
+    @ddt.unpack
+    def test_non_staff_user_is_throttled(self, hour_rate, minute_rate):
+        """
+        Non-staff users should receive 429 once they exceed either the per-minute
+        or per-hour limit. Only one scope is active per parameterization so each
+        case isolates a single throttle class.
+        """
+        self.set_up_catalog_learner()
+        url = self._url()
+        with override_settings(REST_FRAMEWORK=_throttle_rates_override(hour_rate, minute_rate)):
+            for _ in range(2):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_staff_user_is_not_throttled(self):
+        """
+        Staff users should bypass throttling even when both rates are set to
+        extremely restrictive values.
+        """
+        self.set_up_staff()
+        url = self._url()
+        with override_settings(REST_FRAMEWORK=_throttle_rates_override('1/hour', '1/minute')):
+            for _ in range(5):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class EnterpriseCatalogRefreshDataFromDiscoveryTests(APITestMixin):

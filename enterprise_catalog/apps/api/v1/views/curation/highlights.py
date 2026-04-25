@@ -1,6 +1,7 @@
 import logging
 from uuid import UUID
 
+from django.db import transaction
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_cookie
@@ -556,7 +557,7 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                 {'Error': f'No HighlightSet found with uuid {uuid}'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        title = request.data.get('title')
+        title = (request.data.get('title') or '').strip()
         if not title:
             return Response({'Error': 'Missing title parameter'}, status=status.HTTP_400_BAD_REQUEST)
         if len(title) > 60:
@@ -609,7 +610,10 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        title = request.data.get('title')
+        raw_title = request.data.get('title')
+        # Strip whitespace from title when provided, but preserve None to distinguish
+        # "not supplied" from "explicitly empty".
+        title = raw_title.strip() if raw_title is not None else None
         add_content_keys = request.data.get('add_content_keys', [])
         remove_content_keys = request.data.get('remove_content_keys', [])
 
@@ -619,57 +623,59 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # --- Validate and apply title update ---
+        # --- Validate title before opening a DB transaction ---
         if title is not None:
             if not title:
                 return Response({'Error': 'title cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
             if len(title) > 60:
                 return Response({'Error': 'title cannot exceed 60 characters'}, status=status.HTTP_400_BAD_REQUEST)
-            highlight_set.title = title
-            highlight_set.save()
-            logger.info(
-                'HighlightSet %s title updated to "%s" by user %s',
-                uuid, title, request.user.id,
-            )
 
-        # --- Apply content removals ---
-        removed_content_keys = []
-        if remove_content_keys:
-            content_to_remove = highlight_set.highlighted_content.filter(
-                content_metadata__content_key__in=remove_content_keys
-            )
-            removed_content_keys = [
-                item.content_metadata.content_key for item in content_to_remove
-            ]
-            content_to_remove.delete()
-            logger.info(
-                'HighlightSet %s: removed %d content keys by user %s',
-                uuid, len(removed_content_keys), request.user.id,
-            )
-
-        # --- Apply content additions ---
+        # --- Apply all DB writes atomically so a mid-way LimitExceeded rolls everything back ---
         added_content_keys = []
         ignored_content_keys = []
-        if add_content_keys:
-            try:
-                added_content_keys, ignored_content_keys, _ = self._add_requested_content(
-                    highlight_set, content_keys=add_content_keys
-                )
-            except LimitExceeded as exc:
-                return Response({'Error': str(exc)}, status=status.HTTP_403_FORBIDDEN)
-            logger.info(
-                'HighlightSet %s: added %d content keys by user %s',
-                uuid, len(added_content_keys), request.user.id,
-            )
+        removed_content_keys = []
+        try:
+            with transaction.atomic():
+                if title is not None:
+                    highlight_set.title = title
+                    highlight_set.save()
+                    logger.info(
+                        'HighlightSet %s title updated to "%s" by user %s',
+                        uuid, title, request.user.id,
+                    )
 
-        # --- Segment tracking ---
-        additional_properties = {
-            'added_content_keys': added_content_keys,
-            'removed_content_keys': removed_content_keys,
-        }
+                # remove_content_keys is filtered through highlight_set.highlighted_content so it
+                # is already scoped to this highlight set only — no cross-set leakage is possible.
+                if remove_content_keys:
+                    content_to_remove = highlight_set.highlighted_content.filter(
+                        content_metadata__content_key__in=remove_content_keys
+                    )
+                    removed_content_keys = [
+                        item.content_metadata.content_key for item in content_to_remove
+                    ]
+                    content_to_remove.delete()
+                    logger.info(
+                        'HighlightSet %s: removed %d content keys by user %s',
+                        uuid, len(removed_content_keys), request.user.id,
+                    )
+
+                if add_content_keys:
+                    added_content_keys, ignored_content_keys, _ = self._add_requested_content(
+                        highlight_set, content_keys=add_content_keys
+                    )
+                    logger.info(
+                        'HighlightSet %s: added %d content keys by user %s',
+                        uuid, len(added_content_keys), request.user.id,
+                    )
+        except LimitExceeded as exc:
+            return Response({'Error': str(exc)}, status=status.HTTP_403_FORBIDDEN)
+
         track_highlight_set_changes(
             request, highlight_set, SegmentEvents.HIGHLIGHT_SET_UPDATED,
-            additional_properties=additional_properties,
+            additional_properties={
+                'added_content_keys': added_content_keys,
+                'removed_content_keys': removed_content_keys,
+            },
         )
 
         serializer = self.get_serializer(highlight_set)

@@ -1107,6 +1107,19 @@ class HighlightSetViewSetTests(CurationAPITestBase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert 'exceed' in response.json()['Error']
 
+    def test_edit_highlight_title_whitespace_only(self):
+        """
+        edit-highlight-title: whitespace-only title is treated as empty and returns 400.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight-title',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+        for bad_title in ('   ', '\t', '\n  \n'):
+            response = self.client.post(edit_url, {'title': bad_title})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, f'Expected 400 for title={bad_title!r}'
+
     def test_edit_title_not_found(self):
         """
         Requesting edit-highlight-title for a non-existent UUID returns 404.
@@ -1218,6 +1231,21 @@ class HighlightSetViewSetTests(CurationAPITestBase):
         assert new_content.content_key in data['added_content_keys']
         assert self.highlighted_content_metadata_one[4].content_key in data['removed_content_keys']
         mock_track_event.assert_called_once()
+
+    def test_edit_highlight_title_whitespace_only(self):
+        """
+        PATCH edit-highlight: whitespace-only title is treated as empty and returns 400.
+        """
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-edit-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+        for bad_title in ('   ', '\t', '\n  \n'):
+            response = self.client.patch(
+                edit_url, {'title': bad_title}, content_type='application/json'
+            )
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, f'Expected 400 for title={bad_title!r}'
 
     def test_edit_highlight_nothing_provided(self):
         """

@@ -28,6 +28,8 @@ from drf_spectacular.views import (
 from enterprise_catalog.apps.ai_curation.api import urls as ai_curation_urls
 from enterprise_catalog.apps.api import urls as api_urls
 from enterprise_catalog.apps.core import views as core_views
+from enterprise_catalog.apps.core.admin_views import \
+    settings_view as admin_settings_view
 
 
 admin.autodiscover()
@@ -48,6 +50,7 @@ urlpatterns = [
     path('', include(oauth2_urlpatterns)),
     path('', include('csrf.urls')),  # Include csrf urls from edx-drf-extensions
     path('admin/clearcache/', include('clearcache.urls')),
+    path('admin/settings/', admin_settings_view, name='admin-settings'),
     path('admin/', admin.site.urls),
     path('api/', include(api_urls), name='api'),
     path('api/', include(ai_curation_urls), name='api'),

@@ -142,17 +142,16 @@ DATABASES = {
 }
 
 # Django Rest Framework
-DEFAULT_THROTTLE_RATES = {
-    'get_content_metadata_hour': '120/hour',
-    'get_content_metadata_minute': '6/minute',
-}
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'edx_rest_framework_extensions.paginators.DefaultPagination',
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_THROTTLE_RATES': DEFAULT_THROTTLE_RATES,
+    'DEFAULT_THROTTLE_RATES': {
+        'get_content_metadata_hour': '300/hour',
+        'get_content_metadata_minute': '30/minute',
+    },
     'PAGE_SIZE': 10,
     'TEST_REQUEST_DEFAULT_FORMAT': 'json',
 }

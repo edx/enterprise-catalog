@@ -1838,47 +1838,6 @@ class TestGetDefaultsFromMetadata(TestCase):
         self.assertIn('_json_metadata', defaults)
         self.assertNotIn('modified', defaults['_json_metadata'])
 
-    def test_subjects_included_for_existing_courses_when_non_empty(self):
-        """
-        Test that non-empty 'subjects' from search/all are included in the minimal
-        update for existing courses, so subjects stay in sync without waiting for
-        update_full_content_metadata_task.
-        """
-        entry = {
-            'key': 'edX+TestX',
-            'aggregation_key': 'course:edX+TestX',
-            'content_type': 'course',
-            'subjects': [{'name': 'Business & Management', 'slug': 'business-management'}],
-            'modified': '2024-06-15T10:30:00Z',
-        }
-
-        defaults = _get_defaults_from_metadata(entry, exists=True)
-
-        self.assertIn('_json_metadata', defaults)
-        self.assertEqual(
-            defaults['_json_metadata'].get('subjects'),
-            [{'name': 'Business & Management', 'slug': 'business-management'}],
-        )
-
-    def test_subjects_not_overwritten_with_empty_for_existing_courses(self):
-        """
-        Test that an empty 'subjects' list from search/all does NOT overwrite existing
-        subjects in the minimal update for existing courses (walrus operator guard).
-        """
-        entry = {
-            'key': 'edX+TestX',
-            'aggregation_key': 'course:edX+TestX',
-            'content_type': 'course',
-            'subjects': [],  # empty from discovery
-            'modified': '2024-06-15T10:30:00Z',
-        }
-
-        defaults = _get_defaults_from_metadata(entry, exists=True)
-
-        self.assertIn('_json_metadata', defaults)
-        # 'subjects' should NOT be present in the minimal update when the value is falsy
-        self.assertNotIn('subjects', defaults['_json_metadata'])
-
 
 @ddt.ddt
 class TestShouldSkipCourseUpdate(TestCase):

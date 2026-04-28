@@ -399,14 +399,14 @@ def _update_single_full_course_record(
     """
     if not skip_json_metadata_update:
         # Preserve existing subjects if the full course metadata returns an empty subjects list.
-        # Subjects may be omitted or returned empty from /api/v1/courses in some cases, but
-        # they are populated correctly from /search/all and should not be lost.
+        # The /api/v1/courses/ endpoint may omit or return empty subjects in some cases, but
+        # subjects should already be populated from a prior /api/v1/courses/ sync.
         #
-        # Important: empty subjects payloads from *either* /search/all/ or /api/v1/courses/
-        # are treated as non-authoritative.  The /search/all/ ingestion path
-        # (see _update_existing_content_metadata in catalog/models.py) can also deliver
-        # subjects: [], so this guard acts as a second line of defence to ensure that
-        # valid subjects already stored in the database are never silently erased.
+        # Note: /search/all/ returns subjects as flat strings (e.g. ["Business", "CS"]),
+        # while /api/v1/courses/ returns rich dicts (name, slug, uuid, etc.).  Because of
+        # this shape mismatch, subjects are intentionally excluded from
+        # COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL (see constants.py).  This guard is the
+        # sole protection against losing previously-stored rich subject data.
         existing_subjects = metadata_record._json_metadata.get('subjects')  # pylint: disable=protected-access
         # Merge the full metadata from discovery's /api/v1/courses into the local metadata object.
         metadata_record._json_metadata.update(course_metadata_dict)  # pylint: disable=protected-access

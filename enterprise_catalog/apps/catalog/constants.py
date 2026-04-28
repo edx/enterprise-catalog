@@ -92,6 +92,14 @@ TASK_TIMEOUT = 3 * 60 * 60  # Gives tasks (usually chains) 3 hours to return bef
 
 # Which fields should be plucked from the /search/all course-discovery API
 # response in `update_catalog_metadata_task` for course content metadata?
+#
+# Note: ``subjects`` is intentionally excluded from this list.  The /search/all/
+# endpoint returns subjects as a flat list of strings (e.g. ["Business", "CS"]),
+# whereas /api/v1/courses/ returns them as a list of rich dicts (with name, slug,
+# uuid, description, banner_image_url, etc.).  Consumers of the get-content-metadata
+# API expect the rich dict format, so plucking the flat-string version here would
+# break that contract.  See https://github.com/openedx/enterprise-catalog/pull/284
+# for the original discussion.
 DEFAULT_COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL = [
     'aggregation_key',
     'content_type',
@@ -99,7 +107,6 @@ DEFAULT_COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL = [
     'end_date',
     'course_ends',
     'languages',
-    'subjects',
 ]
 
 PROGRAM_TYPES_MAP = {

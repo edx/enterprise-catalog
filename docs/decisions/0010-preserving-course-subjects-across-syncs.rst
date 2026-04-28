@@ -18,65 +18,65 @@ course-discovery payloads:
 This distinction matters for course ``subjects``, which power categories and subcategories in downstream
 enterprise experiences.
 
-For net-new course records, the ``/search/all/`` payload is stored when the ``ContentMetadata`` record is
-created, so ``subjects`` can be present immediately. For existing course records, however, Enterprise Catalog
-does not fully overwrite the stored metadata with ``/search/all/`` results. Instead, it merges only a small
-allowlist of fields from ``COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL`` in order to preserve the existing API
-contract for full course metadata.
+Critically, the two endpoints return ``subjects`` in **different shapes**:
 
-Before this decision, ``subjects`` was not part of that allowlist. As a result:
+* ``/search/all/`` returns subjects as a flat list of strings, e.g.
+  ``["Communication", "Art & Culture", "Humanities"]``
+* ``/api/v1/courses/`` returns subjects as a list of rich dicts containing ``name``, ``slug``, ``uuid``,
+  ``description``, ``banner_image_url``, ``card_image_url``, and other fields
 
-* some courses retained ``subjects`` because they were newly created from ``/search/all/`` or had already
-  been enriched by a successful full metadata refresh
-* other existing courses did not pick up subject changes from ``/search/all/`` at all
-* a full ``/api/v1/courses/`` refresh could also clear a previously populated ``subjects`` value when the
-  response omitted subjects or returned an empty list
+Consumers of the ``get-content-metadata`` API expect the rich dict format. Because of this shape mismatch,
+``subjects`` is intentionally excluded from ``COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL`` — the allowlist of
+fields merged from ``/search/all/`` into existing course records. Plucking the flat-string version would
+break the API contract (see `PR #284 <https://github.com/openedx/enterprise-catalog/pull/284>`_).
 
-This produced inconsistent category and subcategory behavior where otherwise similar courses could appear
-with or without those facets depending on which sync path last updated them.
+This means that ``/api/v1/courses/`` is the sole authoritative source of ``subjects`` for existing course
+records. However, that endpoint can occasionally return an empty or missing ``subjects`` list for courses
+that do have subjects in the discovery database.
+
+Without protection, an empty ``subjects`` response from ``/api/v1/courses/`` would overwrite the existing
+rich subject data, causing categories and subcategories to disappear from the learner experience until a
+later sync restores them.
 
 Decision
 --------
 
-We will treat ``subjects`` as a field that must be preserved across both discovery sync paths:
+We will add a defensive guard in ``_update_single_full_course_record`` (in ``tasks.py``) so that an empty
+or missing ``subjects`` value from ``/api/v1/courses/`` does not overwrite an existing non-empty ``subjects``
+value in ``ContentMetadata.json_metadata``:
 
-* ``subjects`` will be included in ``COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL`` so that existing course
-  records receive subject updates during incremental catalog metadata syncs.
-* During full ``/api/v1/courses/`` updates, an empty or missing ``subjects`` value will not overwrite an
-  existing non-empty ``subjects`` value already stored in ``ContentMetadata.json_metadata``.
-* A non-empty ``subjects`` value from ``/api/v1/courses/`` will continue to replace the stored value.
+* Before merging the full course metadata dict, snapshot the existing ``subjects`` value.
+* After the merge, if the resulting ``subjects`` is empty but the prior value was non-empty, restore the
+  prior value.
+* A non-empty ``subjects`` value from ``/api/v1/courses/`` continues to replace the stored value normally.
 
-This is a targeted exception to the more general pattern described in :doc:`0002-celery-task-restructuring`,
-where full course metadata is normally expected to come from ``/api/v1/courses/``. In practice, ``subjects``
-must remain available for category/subcategory faceting even when the full course payload is incomplete.
+This is a targeted exception to the general pattern described in :doc:`0002-celery-task-restructuring`,
+where full course metadata is normally expected to come from ``/api/v1/courses/``.
 
 Consequences
 ------------
 
-Courses will now converge more reliably on a consistent ``subjects`` value, reducing the chance that some
-catalog items display categories/subcategories while others do not.
-
-This decision also introduces an intentional field-level precedence rule:
-
-* ``/search/all/`` is the authoritative incremental source for keeping ``subjects`` current on existing
-  course records
-* ``/api/v1/courses/`` remains the full metadata source, except that empty ``subjects`` payloads are treated
-  as non-authoritative so they do not erase known-good subject data
+* Empty ``subjects`` payloads from ``/api/v1/courses/`` are treated as non-authoritative and will not
+  clear existing known-good subject data.
+* Non-empty ``subjects`` payloads from ``/api/v1/courses/`` update the stored value normally.
+* ``subjects`` remains excluded from ``COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL`` because of the shape
+  mismatch between the two endpoints.  The ``/search/all/`` ingestion path does not touch stored
+  ``subjects`` at all for existing course records.
 
 The tradeoff is that, in cases where ``/api/v1/courses/`` temporarily returns empty ``subjects``, older
-stored subjects may persist until discovery returns a non-empty value or ``/search/all/`` updates the field
-again. We accept this because preserving known-good subject data is less disruptive than clearing categories
-and subcategories from the learner experience.
+stored subjects may persist until a later sync provides a non-empty value. We accept this because preserving
+known-good subject data is less disruptive than clearing categories and subcategories from the learner
+experience.
 
 Alternatives considered
 -----------------------
 
-Rely solely on ``/api/v1/courses/`` for subjects
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Add ``subjects`` to ``COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We rejected this because the observed issue was caused in part by empty or omitted ``subjects`` values in the
-full course payload. Using that payload as the only authority would continue to produce inconsistent category
-and subcategory data.
+We rejected this because the ``/search/all/`` endpoint returns subjects as flat strings while the
+``get-content-metadata`` API contract requires rich dicts. Plucking the flat-string version would silently
+change the shape of ``subjects`` in downstream responses.
 
 Fully overwrite existing course metadata from ``/search/all/``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

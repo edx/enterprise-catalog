@@ -1,0 +1,18 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+<div id="content-main">
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+  {% if user.is_superuser %}
+  <div class="module" id="project-tools-module">
+    <table>
+      <caption><a class="section" href="{% url 'admin-settings' %}">Tools</a></caption>
+      <tr>
+        <th scope="row"><a href="{% url 'admin-settings' %}">Project settings</a></th>
+        <td>Read-only, redacted view of Django settings (superuser only).</td>
+      </tr>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

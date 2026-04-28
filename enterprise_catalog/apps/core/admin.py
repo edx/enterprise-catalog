@@ -7,6 +7,14 @@ from django.utils.translation import gettext_lazy as _
 from enterprise_catalog.apps.core.models import User
 
 
+# Use our custom admin index template so the dashboard can include a Tools
+# panel linking to the project settings view (see admin_views.py). The
+# template extends the upstream admin/index.html, so renaming it (rather
+# than overriding admin/index.html directly) avoids template-extends
+# recursion from our project-level templates dir.
+admin.site.index_template = 'admin/catalog_index.html'
+
+
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
     """ Admin configuration for the custom User model. """

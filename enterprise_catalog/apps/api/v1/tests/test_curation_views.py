@@ -972,6 +972,211 @@ class HighlightSetViewSetTests(CurationAPITestBase):
             },
         )
 
+    @mock.patch('enterprise_catalog.apps.api.v1.event_utils.track_event')
+    def test_set_content_replaces_full(self, mock_track_event):
+        """
+        set-content with a list of brand-new content keys replaces the entire set:
+        all pre-existing items are removed and all new items are added.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)},
+        )
+        self.set_up_staff()
+
+        original_keys = [cm.content_key for cm in self.highlighted_content_metadata_one]
+        new_content_metadata = [ContentMetadataFactory(content_type=COURSE) for _ in range(3)]
+        new_keys = [cm.content_key for cm in new_content_metadata]
+
+        response = self.client.post(url, {'content_keys': new_keys})
+        assert response.status_code == status.HTTP_200_OK
+
+        body = response.json()
+        assert sorted(body['added_content_keys']) == sorted(new_keys)
+        assert sorted(body['removed_content_keys']) == sorted(original_keys)
+        assert body['existing_content_keys'] == []
+        assert body['ignored_content_keys'] == []
+
+        final_keys = [hc['content_key'] for hc in body['highlight_set']['highlighted_content']]
+        assert sorted(final_keys) == sorted(new_keys)
+
+        mock_track_event.assert_called_once_with(
+            STATIC_LMS_USER_ID,
+            SegmentEvents.HIGHLIGHT_SET_UPDATED,
+            {
+                'highlight_set_uuid': str(self.highlight_set_one.uuid),
+                'enterprise_customer_uuid': str(self.curation_config_one.enterprise_uuid),
+                'enterprise_curation_uuid': str(self.curation_config_one.uuid),
+                'added_content_keys': mock.ANY,
+                'removed_content_keys': mock.ANY,
+            },
+        )
+        call_props = mock_track_event.call_args[0][2]
+        assert sorted(call_props['added_content_keys']) == sorted(new_keys)
+        assert sorted(call_props['removed_content_keys']) == sorted(original_keys)
+
+    def test_set_content_with_overlap(self):
+        """
+        set-content with a mix of existing and new keys: only the diff is mutated.
+        Existing keys stay (reported as 'existing'), missing keys are removed, new keys are added.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)},
+        )
+        self.set_up_staff()
+
+        original_keys = [cm.content_key for cm in self.highlighted_content_metadata_one]
+        keep_keys = original_keys[:3]
+        drop_keys = original_keys[3:]
+        new_content_metadata = [ContentMetadataFactory(content_type=COURSE) for _ in range(2)]
+        new_keys = [cm.content_key for cm in new_content_metadata]
+        requested = keep_keys + new_keys
+
+        response = self.client.post(url, {'content_keys': requested})
+        assert response.status_code == status.HTTP_200_OK
+
+        body = response.json()
+        assert sorted(body['added_content_keys']) == sorted(new_keys)
+        assert sorted(body['removed_content_keys']) == sorted(drop_keys)
+        assert sorted(body['existing_content_keys']) == sorted(keep_keys)
+        assert body['ignored_content_keys'] == []
+
+        final_keys = [hc['content_key'] for hc in body['highlight_set']['highlighted_content']]
+        assert sorted(final_keys) == sorted(requested)
+
+    def test_set_content_preserves_existing_order(self):
+        """
+        set-content reconciles membership only; it does not reorder rows already
+        on the set based on the position of keys in the request. Posting the
+        existing keys in reversed order is a no-op for ordering.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)},
+        )
+        self.set_up_staff()
+
+        original_keys = [cm.content_key for cm in self.highlighted_content_metadata_one]
+        pre_response = self.client.get(
+            reverse('api:v1:highlight-sets-admin-detail', kwargs={'uuid': str(self.highlight_set_one.uuid)})
+        )
+        pre_order = [hc['content_key'] for hc in pre_response.json()['highlighted_content']]
+
+        response = self.client.post(url, {'content_keys': list(reversed(original_keys))})
+        assert response.status_code == status.HTTP_200_OK
+
+        body = response.json()
+        assert body['added_content_keys'] == []
+        assert body['removed_content_keys'] == []
+        assert sorted(body['existing_content_keys']) == sorted(original_keys)
+
+        final_keys = [hc['content_key'] for hc in body['highlight_set']['highlighted_content']]
+        assert final_keys == pre_order
+
+    def test_set_content_with_empty_list_clears_set(self):
+        """
+        set-content with an empty list removes all highlighted content from the set.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)},
+        )
+        self.set_up_staff()
+        original_keys = [cm.content_key for cm in self.highlighted_content_metadata_one]
+
+        response = self.client.post(url, {'content_keys': []})
+        assert response.status_code == status.HTTP_200_OK
+
+        body = response.json()
+        assert body['added_content_keys'] == []
+        assert sorted(body['removed_content_keys']) == sorted(original_keys)
+        assert body['highlight_set']['highlighted_content'] == []
+
+    def test_set_content_exceeds_limit(self):
+        """
+        set-content with more than CONTENT_PER_HIGHLIGHTSET_LIMIT keys is rejected with 403
+        and leaves the existing highlight set untouched.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)},
+        )
+        self.set_up_staff()
+        too_many_content = [
+            ContentMetadataFactory(content_type=COURSE)
+            for _ in range(CONTENT_PER_HIGHLIGHTSET_LIMIT + 1)
+        ]
+        too_many_keys = [cm.content_key for cm in too_many_content]
+
+        response = self.client.post(url, {'content_keys': too_many_keys})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert 'exceeds' in response.json()['Error']
+
+        # Original contents untouched.
+        self.highlight_set_one.refresh_from_db()
+        assert self.highlight_set_one.highlighted_content.count() == len(self.highlighted_content_metadata_one)
+
+    def test_set_content_ignores_unknown_keys(self):
+        """
+        Content keys that don't correspond to any ContentMetadata row are returned as 'ignored'
+        rather than causing a failure.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)},
+        )
+        self.set_up_staff()
+        real_content = ContentMetadataFactory(content_type=COURSE)
+        requested = [real_content.content_key, 'course-v1:bogus+NOPE+2026']
+
+        response = self.client.post(url, {'content_keys': requested})
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body['added_content_keys'] == [real_content.content_key]
+        assert body['ignored_content_keys'] == ['course-v1:bogus+NOPE+2026']
+
+    @ddt.data(
+        ({}, 'missing field'),
+        ({'content_keys': None}, 'null value'),
+        ({'content_keys': 'course-v1:edX+DemoX+Demo_Course'}, 'non-list string'),
+        ({'content_keys': {'foo': 'bar'}}, 'non-list dict'),
+    )
+    @ddt.unpack
+    def test_set_content_rejects_invalid_payload(self, payload, _label):
+        """
+        A request whose body is missing `content_keys` or whose value is not a list
+        must return 400 and leave the HighlightSet untouched. An explicit empty list
+        ([]) is the only way to clear the set.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)},
+        )
+        self.set_up_staff()
+        original_count = self.highlight_set_one.highlighted_content.count()
+        assert original_count > 0  # sanity: the fixture has items to lose
+
+        response = self.client.post(url, payload, format='json')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'content_keys' in response.json()['Error']
+
+        # Set is untouched: nothing was cleared.
+        self.highlight_set_one.refresh_from_db()
+        assert self.highlight_set_one.highlighted_content.count() == original_count
+
+    def test_set_content_unauthorized_other_customer(self):
+        """
+        A staff user for customer one cannot reconcile customer two's highlight set.
+        """
+        url = reverse(
+            'api:v1:highlight-sets-admin-set-content',
+            kwargs={'uuid': str(self.highlight_set_two.uuid)},
+        )
+        self.set_up_staff()
+        response = self.client.post(url, {'content_keys': []})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
     @ddt.data(
         {'highlight_set_exists': False},
         {'highlight_set_exists': False},

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from unittest import mock
 
 import pytz
-from algoliasearch.exceptions import AlgoliaException
+from algoliasearch.http.exceptions import AlgoliaException
 from django.test import override_settings
 from rest_framework import status
 
@@ -525,10 +525,14 @@ class EnterpriseCustomerViewSetTests(BaseEnterpriseCustomerViewSetTests):
         self.assertEqual(response.data, expected_error_response)
 
     @mock.patch(
-        "algoliasearch.search_client.SearchClient.generate_secured_api_key",
+        "algoliasearch.search.client.SearchClientSync.generate_secured_api_key",
         side_effect=AlgoliaException("Mocked exception"),
     )
-    @override_settings(ALGOLIA={'SEARCH_API_KEY': 'fake-search-api-search'})
+    @override_settings(ALGOLIA={
+        'SEARCH_API_KEY': 'fake-search-api-search',
+        'APPLICATION_ID': 'fake-app-id',
+        'API_KEY': 'fake-api-key',
+    })
     def test_secured_algolia_api_key_algolia_exception(self, mock_generate_key):  # pylint: disable=unused-argument
         """
         Test that the secured Algolia API key is not generated if an AlgoliaException occurs.

@@ -8,7 +8,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from operator import itemgetter
 
-from algoliasearch.exceptions import AlgoliaException
+from algoliasearch.http.exceptions import AlgoliaException
 from celery import shared_task, states
 from celery.exceptions import Ignore
 from celery_utils.logged_task import LoggedTask
@@ -677,10 +677,19 @@ def _is_tmp_index(index):
 
 def _get_all_indices(client):
     """
-    Returns a list of indices from the Algolia client.
+    Returns a list of indices from the Algolia client as plain dicts
+    (camelCase keys, e.g. ``updatedAt``) so downstream helpers can keep using
+    dict-style access regardless of the underlying SDK version.
+
+    Uses ``list_indices_with_http_info`` and parses the raw JSON body rather
+    than relying on the v4 SDK's strict ``FetchedIndex`` Pydantic model: in
+    practice the real Algolia API omits fields (``lastBuildTimeS``,
+    ``numberOfPendingTasks``, ``pendingTask``) that the SDK declares as
+    required, which makes the typed deserialization raise ``ValidationError``.
     """
-    indices = client.list_indices().get('items', [])
-    return indices
+    response = client.list_indices_with_http_info()
+    payload = json.loads(response.raw_data)
+    return payload.get('items', [])
 
 
 def _retrieve_inactive_tmp_indices(client, min_days_ago, max_days_ago):
@@ -712,7 +721,7 @@ def _delete_indices(client, indices, dry_run=True):
     for index_name in indices:
         try:
             logger.info('Deleting index: %s', index_name)
-            client.init_index(index_name).delete()
+            client.delete_index(index_name)
             logger.info('Deleted index: %s', index_name)
         except Exception as exep:
             logger.exception(

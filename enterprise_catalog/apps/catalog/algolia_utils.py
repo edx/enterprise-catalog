@@ -3,7 +3,7 @@ import datetime
 import logging
 import time
 
-from algoliasearch.search_client import SearchClient
+from algoliasearch.search.client import SearchClientSync
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
@@ -397,16 +397,13 @@ def new_search_client_or_error():
     """
     Returns a new Algolia search client that is not initialized to any specific index.
     """
-    client = SearchClient.create(
-        settings.ALGOLIA.get('APPLICATION_ID', None),
-        settings.ALGOLIA.get('API_KEY', None)
-    )
-    if not client:
+    app_id = settings.ALGOLIA.get('APPLICATION_ID', None)
+    api_key = settings.ALGOLIA.get('API_KEY', None)
+    if not app_id or not api_key:
         raise TypeError(
-            'Failed to create Algolia search client.'
-            f'The client should be an Algolia search client, but was {client}.'
+            'Failed to create Algolia search client: missing APPLICATION_ID or API_KEY.'
         )
-    return client
+    return SearchClientSync(app_id, api_key)
 
 
 def configure_algolia_index(algolia_client):

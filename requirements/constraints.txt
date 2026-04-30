@@ -30,5 +30,5 @@ diff-cover==4.0.0
 # To avoid any breaking changes
 openai<=1.13.3
 
-# algoliasearch 4.0 is not backwards compatible with 3.0
-algoliasearch<4
+# Stay on major version 4 of algolia client
+algoliasearch>=4,<5

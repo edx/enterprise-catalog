@@ -72,6 +72,9 @@ acceptance_tests.*.png
 override.cfg
 private.py
 
+# Integration test secrets
+scripts/.env
+
 # JetBrains
 .idea
 

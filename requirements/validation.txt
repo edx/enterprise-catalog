@@ -4,7 +4,22 @@
 #
 #    make upgrade
 #
-algoliasearch==3.0.0
+aiohappyeyeballs==2.6.1
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   aiohttp
+aiohttp==3.13.5
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   algoliasearch
+aiosignal==1.4.0
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   aiohttp
+algoliasearch==4.39.0
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/quality.txt
@@ -35,16 +50,23 @@ asgiref==3.11.1
     #   -r requirements/test.txt
     #   django
     #   django-cors-headers
+    #   social-auth-app-django
 astroid==4.0.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pylint
     #   pylint-celery
+async-timeout==5.0.1
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   algoliasearch
 attrs==26.1.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
+    #   aiohttp
     #   jsonschema
     #   referencing
 backoff==1.10.0
@@ -57,7 +79,7 @@ billiard==4.2.4
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
-cachetools==7.0.5
+cachetools==7.0.6
     # via
     #   -r requirements/test.txt
     #   tox
@@ -68,7 +90,7 @@ celery==5.6.3
     #   -r requirements/test.txt
     #   django-celery-results
     #   edx-celeryutils
-certifi==2026.2.25
+certifi==2026.4.22
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -86,7 +108,7 @@ charset-normalizer==3.4.7
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   requests
-click==8.3.2
+click==8.3.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -132,11 +154,12 @@ coverage[toml]==7.13.5
     # via
     #   -r requirements/test.txt
     #   pytest-cov
-cryptography==46.0.7
+cryptography==47.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pyjwt
+    #   social-auth-core
 ddt==1.7.2
     # via -r requirements/test.txt
 defusedxml==0.7.1
@@ -239,7 +262,7 @@ django-model-utils==5.0.0
     #   -r requirements/test.txt
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.20.2
+django-modeltranslation==0.20.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -311,7 +334,7 @@ edx-drf-extensions==10.6.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-rbac
-edx-lint==6.0.0
+edx-lint==6.1.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -335,16 +358,22 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.13.0
+faker==40.15.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==3.25.2
+filelock==3.29.0
     # via
     #   -r requirements/test.txt
     #   python-discovery
     #   tox
     #   virtualenv
+frozenlist==1.8.0
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   aiohttp
+    #   aiosignal
 h11==0.16.0
     # via
     #   -r requirements/quality.txt
@@ -360,13 +389,14 @@ httpx==0.28.1
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   openai
-idna==3.11
+idna==3.13
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   anyio
     #   httpx
     #   requests
+    #   yarl
 inflection==0.5.1
     # via
     #   -r requirements/quality.txt
@@ -430,6 +460,12 @@ monotonic==1.6
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   analytics-python
+multidict==6.7.1
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   aiohttp
+    #   yarl
 mysqlclient==2.2.8
     # via
     #   -r requirements/quality.txt
@@ -451,7 +487,7 @@ openai==1.13.3
     #   -c requirements/constraints.txt
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-packaging==26.0
+packaging==26.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -459,7 +495,7 @@ packaging==26.0
     #   pyproject-api
     #   pytest
     #   tox
-platformdirs==4.9.4
+platformdirs==4.9.6
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -483,6 +519,12 @@ prompt-toolkit==3.0.52
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   click-repl
+propcache==0.4.1
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   aiohttp
+    #   yarl
 psutil==7.2.2
     # via
     #   -r requirements/quality.txt
@@ -495,12 +537,13 @@ pycparser==3.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   cffi
-pydantic==2.12.5
+pydantic==2.13.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
+    #   algoliasearch
     #   openai
-pydantic-core==2.41.5
+pydantic-core==2.46.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -548,7 +591,7 @@ pymemcache==4.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-pymongo==4.16.0
+pymongo==4.17.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -575,6 +618,7 @@ python-dateutil==2.9.0.post0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
+    #   algoliasearch
     #   analytics-python
     #   celery
 python-discovery==1.2.2
@@ -656,7 +700,7 @@ semantic-version==2.10.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-drf-extensions
-simplejson==3.20.2
+simplejson==4.1.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -679,12 +723,12 @@ snowballstemmer==3.0.1
     # via
     #   -r requirements/quality.txt
     #   pydocstyle
-social-auth-app-django==5.7.0
+social-auth-app-django==5.9.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-auth-backends
-social-auth-core==4.8.5
+social-auth-core==4.9.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -725,8 +769,9 @@ tomlkit==0.14.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
+    #   edx-lint
     #   pylint
-tox==4.52.0
+tox==4.53.0
     # via -r requirements/test.txt
 tqdm==4.67.3
     # via
@@ -737,6 +782,7 @@ typing-extensions==4.15.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
+    #   aiosignal
     #   anyio
     #   django-modeltranslation
     #   edx-opaque-keys
@@ -750,7 +796,7 @@ typing-inspection==0.4.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pydantic
-tzdata==2026.1
+tzdata==2026.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -769,6 +815,7 @@ urllib3==2.6.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
+    #   algoliasearch
     #   requests
     #   responses
 vine==5.1.0
@@ -778,7 +825,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.2.0
+virtualenv==21.3.0
     # via
     #   -r requirements/test.txt
     #   tox
@@ -791,7 +838,12 @@ xlsxwriter==3.2.9
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-zipp==3.23.0
+yarl==1.23.0
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   aiohttp
+zipp==3.23.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

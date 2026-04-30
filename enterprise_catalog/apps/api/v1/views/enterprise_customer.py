@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from algoliasearch.exceptions import AlgoliaException
+from algoliasearch.http.exceptions import AlgoliaException
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.decorators import method_decorator
 from drf_spectacular.utils import OpenApiExample, extend_schema

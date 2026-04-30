@@ -5,8 +5,8 @@ Algolia api client code.
 import logging
 from datetime import timedelta
 
-from algoliasearch.exceptions import AlgoliaException
-from algoliasearch.search_client import SearchClient
+from algoliasearch.http.exceptions import AlgoliaException
+from algoliasearch.search.client import SearchClientSync
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
@@ -16,6 +16,34 @@ from enterprise_catalog.apps.catalog.utils import localized_utcnow
 logger = logging.getLogger(__name__)
 
 
+class _AlgoliaIndexProxy:
+    """
+    Thin compatibility proxy that mimics the v3 ``index.search`` /
+    ``index.search_for_facet_values`` shape on top of the v4 client.
+
+    v4 collapsed per-index objects into client methods that take ``index_name``
+    as a parameter and return Pydantic models. Several callsites in this repo
+    (CSV/workbook exports, AI curation, academy facet lookups) still expect the
+    v3 dict-shaped responses, so this proxy preserves that interface.
+    """
+
+    def __init__(self, client, index_name):
+        self._client = client
+        self._index_name = index_name
+
+    def search(self, query, request_options=None):
+        params = dict(request_options or {})
+        params['query'] = query
+        response = self._client.search_single_index(self._index_name, search_params=params)
+        return response.to_dict()
+
+    def search_for_facet_values(self, facet_name, query, request_options=None):
+        body = dict(request_options or {})
+        body.setdefault('facetQuery', query)
+        response = self._client.search_for_facet_values(self._index_name, facet_name, body)
+        return response.to_dict()
+
+
 class AlgoliaSearchClient:
     """
     Object builds an API client to make calls to an Algolia index.
@@ -23,8 +51,17 @@ class AlgoliaSearchClient:
 
     def __init__(self):
         self._client = None
-        self.algolia_index = None
-        self.replica_index = None
+
+    @property
+    def algolia_index(self):
+        """
+        Compatibility shim for callers that still use the v3-style
+        ``algolia_client.algolia_index.search(...)`` pattern. Returns ``None``
+        if the client has not been initialized via ``init_index()``.
+        """
+        if not self._client or not self.algolia_index_name:
+            return None
+        return _AlgoliaIndexProxy(self._client, self.algolia_index_name)
 
     @property
     def algolia_application_id(self):
@@ -48,10 +85,12 @@ class AlgoliaSearchClient:
 
     def init_index(self):
         """
-        Initializes an index within Algolia. Initializing an index will create it if it doesn't exist.
+        Initializes the Algolia client. In v4 of the Python SDK there is no
+        per-index object; the client is constructed once and operations take
+        the index name as a parameter.
         """
         if not self.algolia_index_name or not self.algolia_replica_index_name:
-            logger.error('Could not initialize Algolia index due to missing index name.')
+            logger.error('Could not initialize Algolia client due to missing index name.')
             return
 
         if not self.algolia_application_id or not self.algolia_api_key:
@@ -62,28 +101,7 @@ class AlgoliaSearchClient:
             )
             return
 
-        # Create SearchClient
-        self._client = SearchClient.create(self.algolia_application_id, self.algolia_api_key)
-
-        # Initialize Algolia indices
-        if self.algolia_index_name:
-            try:
-                self.algolia_index = self._client.init_index(self.algolia_index_name)
-            except AlgoliaException as exc:
-                logger.exception(
-                    'Could not initialize %s index in Algolia due to an exception.',
-                    self.algolia_index_name,
-                )
-                raise exc
-        if self.algolia_replica_index_name:
-            try:
-                self.replica_index = self._client.init_index(self.algolia_replica_index_name)
-            except AlgoliaException as exc:
-                logger.exception(
-                    'Could not initialize %s index in Algolia due to an exception.',
-                    self.algolia_replica_index_name,
-                )
-                raise exc
+        self._client = SearchClientSync(self.algolia_application_id, self.algolia_api_key)
 
     def set_index_settings(self, index_settings, primary_index=True):
         """
@@ -93,34 +111,34 @@ class AlgoliaSearchClient:
         Algolia dashboard but ensures consistent settings (configuration as code).
 
         Arguments:
-            settings (dict): A dictionary of Algolia settings.
+            index_settings (dict): A dictionary of Algolia settings.
+            primary_index (bool): If True, settings target the primary index;
+                otherwise the replica index.
         """
-        if not self.algolia_index:
-            logger.error('Algolia index does not exist. Did you initialize it?')
+        if not self._client:
+            logger.error('Algolia client does not exist. Did you initialize it?')
             return
 
+        index_name = self.algolia_index_name if primary_index else self.algolia_replica_index_name
         try:
-            if primary_index:
-                self.algolia_index.set_settings(index_settings)
-            else:
-                self.replica_index.set_settings(index_settings)
+            self._client.set_settings(index_name, index_settings)
         except AlgoliaException as exc:
             logger.exception(
                 'Unable to set settings for Algolia\'s %s index due to an exception.',
-                self.algolia_index_name,
+                index_name,
             )
             raise exc
 
     def index_exists(self):
         """
-        Returns whether the index exists in Algolia.
+        Returns whether the primary and replica indices both exist in Algolia.
         """
-        if not self.algolia_index or not self.replica_index:
-            logger.error('Algolia index does not exist. Did you initialize it?')
+        if not self._client:
+            logger.error('Algolia client does not exist. Did you initialize it?')
             return False
 
-        primary_exists = self.algolia_index.exists()
-        replica_exists = self.replica_index.exists()
+        primary_exists = self._client.index_exists(self.algolia_index_name)
+        replica_exists = self._client.index_exists(self.algolia_replica_index_name)
         if not primary_exists:
             logger.warning(
                 'Index with name %s does not exist in Algolia.',
@@ -139,21 +157,19 @@ class AlgoliaSearchClient:
         Clears all objects from the index and replaces them with a new set of objects. The records are
         replaced in the index without any downtime due to an atomic reindex.
 
-        See https://www.algolia.com/doc/api-reference/api-methods/replace-all-objects/ for more detials.
+        See https://www.algolia.com/doc/api-reference/api-methods/replace-all-objects/ for more details.
 
         Arguments:
-            algolia_objects (list): List of objects to include in the Algolia index
+            algolia_objects (list): List of objects to include in the Algolia index.
         """
         if not self.index_exists():
-            # index must exist to continue, nothing left to do
             return
 
-        # The 'safe' field makes the client wait for asynchronous indexing operations to complete
-        use_safe = getattr(settings, 'USE_REPLACE_ALL_OBJECTS_SAFE', True)
+        # v4 of the Algolia client manages the copy/reindex/swap sequencing
+        # internally and no longer accepts the v3 `safe` flag. The legacy
+        # USE_REPLACE_ALL_OBJECTS_SAFE setting is intentionally ignored.
         try:
-            self.algolia_index.replace_all_objects(algolia_objects, {
-                'safe': use_safe,
-            })
+            self._client.replace_all_objects(self.algolia_index_name, list(algolia_objects))
             logger.info('The %s Algolia index was successfully indexed.', self.algolia_index_name)
         except AlgoliaException as exc:
             logger.exception(
@@ -168,15 +184,21 @@ class AlgoliaSearchClient:
         """
         objects = []
         if not self.index_exists():
-            # index must exist to continue, nothing left to do
             return objects
+
+        def _collect(response):
+            for hit in response.hits:
+                objects.append(hit.object_id)
+
         try:
-            index_browse_iterator = self.algolia_index.browse_objects({
-                "attributesToRetrieve": ["objectID"],
-                "filters": f"aggregation_key:'{aggregation_key}'",
-            })
-            for hit in index_browse_iterator:
-                objects.append(hit['objectID'])
+            self._client.browse_objects(
+                self.algolia_index_name,
+                aggregator=_collect,
+                browse_params={
+                    'attributesToRetrieve': ['objectID'],
+                    'filters': f"aggregation_key:'{aggregation_key}'",
+                },
+            )
         except AlgoliaException as exc:
             logger.exception(
                 'Could not retrieve objects associated with aggregation key %s due to an exception.',
@@ -190,11 +212,10 @@ class AlgoliaSearchClient:
         Removes objects from the Algolia index.
         """
         if not self.index_exists():
-            # index must exist to continue, nothing left to do
             return
 
         try:
-            self.algolia_index.delete_objects(object_ids)
+            self._client.delete_objects(self.algolia_index_name, object_ids)
             logger.info(
                 'The following objects were successfully removed from the %s Algolia index: %s',
                 self.algolia_index_name,
@@ -229,6 +250,14 @@ class AlgoliaSearchClient:
                 'Cannot generate secured Algolia API key without the ALGOLIA.SEARCH_API_KEY in settings.'
             )
 
+        if not self._client:
+            if not self.algolia_application_id or not self.algolia_api_key:
+                raise ImproperlyConfigured(
+                    'Cannot generate secured Algolia API key without '
+                    'ALGOLIA.APPLICATION_ID and ALGOLIA.API_KEY in settings.'
+                )
+            self._client = SearchClientSync(self.algolia_application_id, self.algolia_api_key)
+
         expiration_time = getattr(settings, 'SECURED_ALGOLIA_API_KEY_EXPIRATION', 3600)  # Default to 1 hour
         valid_until_dt = localized_utcnow() + timedelta(seconds=expiration_time)
         valid_until_unix = int(valid_until_dt.timestamp())
@@ -252,10 +281,10 @@ class AlgoliaSearchClient:
         if indices:
             restrictions |= {'restrictIndices': indices}
 
-        # Generate secured api key
+        # Generate secured api key. In v4 this is an instance method on the client.
         logger.info('[AlgoliaSearchClient.generate_secured_api_key] restrictions: %s', restrictions)
         try:
-            secured_api_key = SearchClient.generate_secured_api_key(
+            secured_api_key = self._client.generate_secured_api_key(
                 self.algolia_search_api_key,
                 restrictions,
             )

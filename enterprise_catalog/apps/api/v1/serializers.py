@@ -445,6 +445,21 @@ class HighlightSetSerializer(serializers.ModelSerializer):
         return HighlightedContentSerializer(qs, many=True, context=self.context).data
 
 
+class HighlightSetReconcileResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """
+    Response shape for the `set-content` admin action on `HighlightSetViewSet`.
+
+    The endpoint reconciles a HighlightSet's membership to a requested list of
+    content keys; this serializer encapsulates the per-bucket breakdown of what
+    changed plus the final serialized HighlightSet.
+    """
+    added_content_keys = serializers.ListField(child=serializers.CharField())
+    removed_content_keys = serializers.ListField(child=serializers.CharField())
+    existing_content_keys = serializers.ListField(child=serializers.CharField())
+    ignored_content_keys = serializers.ListField(child=serializers.CharField())
+    highlight_set = HighlightSetSerializer()
+
+
 class EnterpriseCurationConfigSerializer(serializers.ModelSerializer):
     """
     Serializer for the `EnterpriseCurationConfig` model.

@@ -1,0 +1,7 @@
+# Extra dependencies for scripts/test_algolia_integration.py.
+#
+# algoliasearch is already pinned in the project's base requirements (we don't
+# want to fight that here). Inside the container these are already available;
+# install this only if you want to run the runner from a host venv.
+
+python-dotenv>=0.20.0

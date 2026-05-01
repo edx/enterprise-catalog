@@ -1,12 +1,15 @@
 import logging
+from collections.abc import Mapping
 from uuid import UUID
 
+from django.db import transaction
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_cookie
 from edx_django_utils.cache import RequestCache
 from edx_rbac.decorators import permission_required
 from edx_rbac.mixins import PermissionRequiredForListingMixin
+from rest_framework import serializers as drf_serializers
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError
@@ -62,6 +65,129 @@ class LimitExceeded(Exception):
     highlight set.
     """
     pass
+
+
+class HighlightSetPartialUpdateSerializer(drf_serializers.Serializer):  # pylint: disable=abstract-method
+    """
+    Request serializer for PATCH /api/v1/highlight-sets-admin/<uuid>/.
+
+    Validates all input fields and persists all changes atomically inside update().
+    Validation errors are always returned in the ``{'Error': '...'}`` format used
+    throughout the rest of this API surface.
+    """
+    title = drf_serializers.CharField(required=False, allow_null=True, default=None)
+    add_content_keys = drf_serializers.ListField(
+        child=drf_serializers.CharField(), required=False, default=list
+    )
+    remove_content_keys = drf_serializers.ListField(
+        child=drf_serializers.CharField(), required=False, default=list
+    )
+
+    def to_internal_value(self, data):
+        """
+        Pre-validate raw input types before DRF's field-level conversion runs so that
+        all error messages are surfaced in the standard ``{'Error': '...'}`` format.
+        """
+        if not isinstance(data, Mapping):
+            raise drf_serializers.ValidationError(
+                {'Error': 'Request body must be a JSON object.'}
+            )
+        raw_title = data.get('title')
+        if raw_title is not None and not isinstance(raw_title, str):
+            raise drf_serializers.ValidationError({'Error': 'title must be a string'})
+        raw_add = data.get('add_content_keys')
+        if raw_add is not None and (
+            not isinstance(raw_add, list) or not all(isinstance(k, str) for k in raw_add)
+        ):
+            raise drf_serializers.ValidationError({'Error': 'add_content_keys must be a list of strings'})
+        raw_remove = data.get('remove_content_keys')
+        if raw_remove is not None and (
+            not isinstance(raw_remove, list) or not all(isinstance(k, str) for k in raw_remove)
+        ):
+            raise drf_serializers.ValidationError({'Error': 'remove_content_keys must be a list of strings'})
+        return super().to_internal_value(data)
+
+    def validate(self, data):  # pylint: disable=arguments-renamed
+        """
+        Cross-field validation: strip/validate title and ensure at least one field is provided.
+        """
+        title = data.get('title')
+        if title is not None:
+            title = title.strip()
+            if not title:
+                raise drf_serializers.ValidationError({'Error': 'title cannot be empty'})
+            if len(title) > 60:
+                raise drf_serializers.ValidationError({'Error': 'title cannot exceed 60 characters'})
+            data['title'] = title
+        add_content_keys = data.get('add_content_keys', [])
+        remove_content_keys = data.get('remove_content_keys', [])
+        if title is None and not add_content_keys and not remove_content_keys:
+            raise drf_serializers.ValidationError(
+                {'Error': 'At least one of title, add_content_keys, or remove_content_keys must be provided.'}
+            )
+        return data
+
+    def update(self, instance, validated_data):
+        """
+        Atomically persist all validated updates to the HighlightSet instance.
+
+        Mutation results are stored as instance attributes
+        (``self.added_content_keys``, ``self.ignored_content_keys``,
+        ``self.removed_content_keys``) for the view to include in its response.
+
+        Raises:
+            LimitExceeded: If adding the requested content would exceed the per-highlight-set limit.
+        """
+        title = validated_data.get('title')
+        add_keys = validated_data.get('add_content_keys', [])
+        remove_keys = validated_data.get('remove_content_keys', [])
+        request = self.context.get('request')
+        user_id = request.user.id if request else None
+        # Access the viewset so we can reuse its _add_requested_content helper.
+        view = self.context.get('view')
+        if view is None:
+            raise ValueError(
+                "HighlightSetPartialUpdateSerializer requires 'view' in serializer context."
+            )
+
+        self.added_content_keys = []
+        self.ignored_content_keys = []
+        self.removed_content_keys = []
+
+        with transaction.atomic():
+            if title is not None:
+                instance.title = title
+                instance.save()
+                logger.info(
+                    'HighlightSet %s title updated to "%s" by user %s',
+                    instance.uuid, title, user_id,
+                )
+
+            # remove_keys is filtered through instance.highlighted_content so it
+            # is already scoped to this highlight set only — no cross-set leakage.
+            if remove_keys:
+                content_to_remove = instance.highlighted_content.filter(
+                    content_metadata__content_key__in=remove_keys
+                )
+                self.removed_content_keys = [
+                    item.content_metadata.content_key for item in content_to_remove
+                ]
+                content_to_remove.delete()
+                logger.info(
+                    'HighlightSet %s: removed %d content keys by user %s',
+                    instance.uuid, len(self.removed_content_keys), user_id,
+                )
+
+            if add_keys:
+                self.added_content_keys, self.ignored_content_keys, _ = view._add_requested_content(  # pylint: disable=protected-access
+                    instance, content_keys=add_keys
+                )
+                logger.info(
+                    'HighlightSet %s: added %d content keys by user %s',
+                    instance.uuid, len(self.added_content_keys), user_id,
+                )
+
+        return instance
 
 
 class EnterpriseCurationConfigBaseViewSet(PermissionRequiredForListingMixin, BaseViewSet):
@@ -224,7 +350,23 @@ class HighlightSetBaseViewSet(PermissionRequiredForListingMixin, BaseViewSet):
 
     @property
     def requested_highlight_set_uuid(self):
-        return self.kwargs.get('uuid')
+        """
+        Returns the highlight set UUID from the URL kwargs as a ``UUID`` object,
+        validating and caching the result on first access.
+
+        Raises:
+            rest_framework.exceptions.ParseError: If the value is present but not a valid UUID.
+        """
+        if not hasattr(self, '_requested_highlight_set_uuid_object'):
+            uuid_value = self.kwargs.get('uuid')
+            if uuid_value is None:
+                self._requested_highlight_set_uuid_object = None  # pylint: disable=attribute-defined-outside-init
+            else:
+                try:
+                    self._requested_highlight_set_uuid_object = UUID(uuid_value)  # pylint: disable=attribute-defined-outside-init
+                except (ValueError, AttributeError) as exc:
+                    raise ParseError({'Error': f'Invalid UUID: {uuid_value}'}) from exc
+        return self._requested_highlight_set_uuid_object
 
     @property
     def requested_content_keys(self):
@@ -258,6 +400,7 @@ class HighlightSetBaseViewSet(PermissionRequiredForListingMixin, BaseViewSet):
         if self.requested_enterprise_uuid:
             return str(self.requested_enterprise_uuid)
 
+        # Accessing the property validates and caches the UUID (raises ParseError if invalid).
         try:
             highlight_set = HighlightSet.objects.get(uuid=self.requested_highlight_set_uuid)
             return str(highlight_set.enterprise_curation.enterprise_uuid)
@@ -275,6 +418,8 @@ class HighlightSetBaseViewSet(PermissionRequiredForListingMixin, BaseViewSet):
         if self.requested_enterprise_uuid:
             kwargs.update({'enterprise_curation__enterprise_uuid': self.requested_enterprise_uuid})
         if self.requested_highlight_set_uuid:
+            # Accessing the property validates the UUID; use the UUID object directly so
+            # Django's ORM receives a typed value rather than a raw string.
             kwargs.update({'uuid': self.requested_highlight_set_uuid})
         return HighlightSet.objects.filter(**kwargs).prefetch_related(
             'enterprise_curation',
@@ -329,12 +474,14 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
 
         return existing_curation_config_for_enterprise
 
-    def _add_requested_content(self, highlight_set):
+    def _add_requested_content(self, highlight_set, content_keys=None):
         """
         Helper function to add requested content to the given highlight set.
 
         Arguments:
             highlight_set (HighlightSet model instance): The highlight set to attempt to add content to.
+            content_keys (list of str, optional): Explicit list of content keys to add.  When omitted,
+                falls back to ``self.requested_content_keys`` (i.e. reads from the request body).
 
         Returns:
             3-tuple of lists of str: Each tuple element represents "added", "ignored", and "existing" content_keys.
@@ -347,6 +494,8 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                 If the requested content keys would cause the resulting highlight set to contain more than the maximum
                 allowed content.
         """
+        effective_content_keys = content_keys if content_keys is not None else self.requested_content_keys
+
         # Prepare the 3 output lists that collectively bucket all elements in the requested `content_keys` argument.
         added_content_keys = []  # requested content_keys that are successfully added as part of handling this request.
         ignored_content_keys = []  # requested content_keys that do not exist in the catalog.
@@ -354,15 +503,21 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
 
         # Determine `valid_requested_content_keys_to_add`.  Eventually equivalent to the union of `added_content_keys`
         # and `existing_content_keys`.  I.e. These are content_keys which are valid options to add to a highlight set.
+        # Precompute index map for O(n) sorting while preserving first-occurrence order
+        # for duplicate request keys (last-wins dict comprehension would break ordering).
+        key_index_map = {}
+        for i, key in enumerate(effective_content_keys):
+            if key not in key_index_map:
+                key_index_map[key] = i
         valid_requested_content_to_add = sorted(
-            ContentMetadata.objects.filter(content_key__in=self.requested_content_keys),
-            key=lambda cm: self.requested_content_keys.index(cm.content_key)
+            ContentMetadata.objects.filter(content_key__in=effective_content_keys),
+            key=lambda cm: key_index_map.get(cm.content_key, 0)
         )
         valid_requested_content_keys_to_add = [cm.content_key for cm in valid_requested_content_to_add]
 
         # Store the remainder in `ignored_content_keys`, representing content_keys that we will not even attempt to add.
         # Use a comprehension instead of set logic so that order is preserved.
-        ignored_content_keys = [k for k in self.requested_content_keys if k not in valid_requested_content_keys_to_add]
+        ignored_content_keys = [k for k in effective_content_keys if k not in valid_requested_content_keys_to_add]
         if ignored_content_keys:
             logger.warning('The following content_keys were not found: %s', ignored_content_keys)
 
@@ -379,7 +534,7 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
         proposed_final_count = len(set(all_prior_content_keys).union(valid_requested_content_keys_to_add))
         if proposed_final_count > CONTENT_PER_HIGHLIGHTSET_LIMIT:
             raise LimitExceeded(
-                'Request exceeds the backend maximum content count per highlight set'
+                'Request exceeds the backend maximum content count per highlight set '
                 f'({CONTENT_PER_HIGHLIGHTSET_LIMIT}).'
             )
 
@@ -411,7 +566,7 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                 403: If the requester does not have delete permission, or the object UUID wasn't found.
                 204: Indicates success, and response body will be empty.
         """
-        highlight_set = HighlightSet.objects.get(uuid=kwargs['uuid'])
+        highlight_set = HighlightSet.objects.get(uuid=self.requested_highlight_set_uuid)
         deletion_response = super().destroy(request, *args, **kwargs)
         if status.is_success(deletion_response.status_code):
             track_highlight_set_changes(request, highlight_set, SegmentEvents.HIGHLIGHT_SET_DELETED)
@@ -539,23 +694,136 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
             rest_framework.response.Response:
                 400: If there are missing or otherwise invalid input parameters.  Response body is JSON with a single
                      `Error` key.
-                403: If the requester has insufficient write permissions or enters title greater than 60 character.
+                403: If the requester has insufficient write permissions.
                     Response body is JSON with a single `Error` key.
-                201: If highlight set name was successfully updated.  Response body is JSON with a single `title` key.
+                404: If no HighlightSet exists for the given UUID.
+                200: If highlight set name was successfully updated.  Response body is a serialized HighlightSet
+                     containing uuid, title, is_published, enterprise_curation, card_image_url, and highlighted_content.
         """
-        highlight_set = HighlightSet.objects.get(uuid=uuid)
-        title = request.data.get('title')
+        # UUID validation is handled by the requested_highlight_set_uuid property (raises
+        # ParseError → 400 if the UUID is malformed); no manual try/except needed here.
+        try:
+            highlight_set = self.get_queryset().get(uuid=self.requested_highlight_set_uuid)
+        except HighlightSet.DoesNotExist:
+            return Response(
+                {'Error': f'No HighlightSet found with uuid {uuid}'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        raw_title = request.data.get('title')
+        if raw_title is not None and not isinstance(raw_title, str):
+            return Response({'Error': 'title must be a string'}, status=status.HTTP_400_BAD_REQUEST)
+        title = (raw_title or '').strip()
         if not title:
             return Response({'Error': 'Missing title parameter'}, status=status.HTTP_400_BAD_REQUEST)
         if len(title) > 60:
-            return Response({'Error': 'title cannot exceed 60 characters'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'Error': 'title cannot exceed 60 characters'}, status=status.HTTP_400_BAD_REQUEST)
         highlight_set.title = title
         highlight_set.save()
+        logger.info(
+            'HighlightSet %s title updated to "%s" by user %s',
+            uuid, title, request.user.id,
+        )
+        track_highlight_set_changes(request, highlight_set, SegmentEvents.HIGHLIGHT_SET_UPDATED)
+        serializer = self.get_serializer(highlight_set)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def partial_update(self, request, *args, **kwargs):
+        """
+        Atomically update a HighlightSet's title and/or associated course content in a single request.
+
+        PATCH /api/v1/highlight-sets-admin/<uuid>/
+
+        Request URL Arguments:
+            uuid (str): UUID of the HighlightSet to update.
+
+        Request JSON Arguments:
+            title (str, optional): New title for the HighlightSet.
+            add_content_keys (list of str, optional): Content keys to add to the highlight set.
+            remove_content_keys (list of str, optional): Content keys to remove from the highlight set.
+
+        Returns:
+            rest_framework.response.Response:
+                400: If validation fails (empty title, title > 60 chars, or neither title nor content keys given).
+                     Response body is JSON with a single `Error` key.
+                403: If the requester has insufficient write permissions, or if adding content would exceed limits.
+                     Response body is JSON with a single `Error` key.
+                404: If no HighlightSet exists for the given UUID.
+                200: Update successful.  Response body contains:
+                     {
+                         "highlight_set": <serialized HighlightSet with uuid, title, highlighted_content, ...>,
+                         "added_content_keys": <list of content keys successfully added>,
+                         "removed_content_keys": <list of content keys successfully removed>,
+                         "ignored_content_keys": <list of requested add keys that were not found in the catalog>,
+                     }
+        """
+        # UUID validation is handled by the requested_highlight_set_uuid property (raises
+        # ParseError → 400 if the UUID is malformed); no manual try/except needed here.
+        # Use get_queryset() (backed by base_queryset) so the lookup is automatically scoped
+        # to the caller's enterprise — prevents a caller from targeting a HighlightSet that
+        # belongs to a different enterprise even if they hold a valid enterprise role.
+        try:
+            highlight_set = self.get_queryset().get(uuid=self.requested_highlight_set_uuid)
+        except HighlightSet.DoesNotExist:
+            return Response(
+                {'Error': f'No HighlightSet found with uuid {kwargs["uuid"]}'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Delegate input validation to the request serializer.
+        req_serializer = HighlightSetPartialUpdateSerializer(
+            highlight_set,
+            data=request.data,
+            context=self.get_serializer_context(),
+        )
+        if not req_serializer.is_valid():
+            # DRF wraps ValidationError values in lists; unwrap to keep the
+            # ``{'Error': '<message>'}`` format used across this API surface.
+            errors = req_serializer.errors
+            first_key = next(iter(errors))
+            first_val = errors[first_key]
+            msg = first_val[0] if isinstance(first_val, list) else first_val
+            # If the nested value is itself a dict (e.g. raised as {'Error': '...'}),
+            # surface it directly so the response key is still 'Error'.
+            if isinstance(msg, dict):
+                return Response(msg, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'Error': str(msg)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Persist changes atomically via the serializer's update() method.
+        try:
+            req_serializer.save()
+        except LimitExceeded:
+            logger.warning(
+                'HighlightSet %s update exceeded content limit for user %s',
+                kwargs['uuid'],
+                request.user.id,
+                exc_info=True,
+            )
+            return Response(
+                {'Error': 'Unable to update highlight set because the content limit was exceeded.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Refresh to clear prefetch cache so the response serializer reflects the
+        # actual post-mutation state (added/removed highlighted_content).
+        highlight_set.refresh_from_db()
+
+        track_highlight_set_changes(
+            request, highlight_set, SegmentEvents.HIGHLIGHT_SET_UPDATED,
+            additional_properties={
+                'added_content_keys': req_serializer.added_content_keys,
+                'removed_content_keys': req_serializer.removed_content_keys,
+            },
+        )
+
+        response_serializer = self.get_serializer(highlight_set)
         return Response(
             {
-                'title': title
+                'highlight_set': response_serializer.data,
+                'added_content_keys': req_serializer.added_content_keys,
+                'removed_content_keys': req_serializer.removed_content_keys,
+                'ignored_content_keys': req_serializer.ignored_content_keys,
             },
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=['post'], url_path='toggle-favorite-highlight')
@@ -580,7 +848,7 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                     `Error` key.
                 201: If highlighted content favorite state was successfully updated.
         """
-        highlight_set = HighlightSet.objects.get(uuid=uuid)
+        highlight_set = HighlightSet.objects.get(uuid=self.requested_highlight_set_uuid)
         content_uuid = request.data.get('content_uuid')
         favorite_param = request.data.get('favorite')
         if not favorite_param:
@@ -631,7 +899,7 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
                          "highlight_set": <a serialized HighlightSet representing the final state>,
                      }
         """
-        highlight_set = HighlightSet.objects.get(uuid=uuid)
+        highlight_set = HighlightSet.objects.get(uuid=self.requested_highlight_set_uuid)
         try:
             added_content_keys, ignored_content_keys, existing_content_keys = self._add_requested_content(highlight_set)
         except LimitExceeded as e:
@@ -680,7 +948,7 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
         content_keys = self.requested_content_keys
         removed_content_keys = set()
 
-        highlight_set = HighlightSet.objects.get(uuid=uuid)
+        highlight_set = HighlightSet.objects.get(uuid=self.requested_highlight_set_uuid)
         existing_content = highlight_set.highlighted_content
         existing_content_to_remove = existing_content.filter(content_metadata__content_key__in=content_keys)
         if existing_content_to_remove:

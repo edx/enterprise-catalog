@@ -280,9 +280,9 @@ class HighlightedContent(TimeStampedModel):
         content_type = self.content_type
         owners = []
         if content_type == COURSE:
-            owners = self.content_metadata.json_metadata.get('owners')
+            owners = self.content_metadata.json_metadata.get('owners') or []
         elif content_type == PROGRAM:
-            owners = self.content_metadata.json_metadata.get('authoring_organizations')
+            owners = self.content_metadata.json_metadata.get('authoring_organizations') or []
 
         return [
             {

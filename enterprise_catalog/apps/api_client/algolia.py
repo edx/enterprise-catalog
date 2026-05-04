@@ -134,6 +134,138 @@ class AlgoliaSearchClient:
 
         return primary_exists and replica_exists
 
+    def _get_index(self, index_name=None):
+        """
+        Return the Algolia index for ``index_name``, defaulting to the primary index.
+
+        ``index_name`` lets callers target an alternate index (e.g. the v2 index during
+        cutover validation) without re-initializing the client.
+
+        Raises:
+            ImproperlyConfigured: if the requested index is unavailable. This is a setup
+            error: callers (e.g. the incremental indexing batch tasks) should let it
+            propagate so the failure surfaces loudly rather than being silently treated
+            as success.
+        """
+        if index_name is None or index_name == self.algolia_index_name:
+            if self.algolia_index is None:
+                raise ImproperlyConfigured(
+                    'Algolia primary index is not initialized; call init_index() first.'
+                )
+            return self.algolia_index
+        if not self._client:
+            raise ImproperlyConfigured(
+                'Algolia client is not initialized; call init_index() first.'
+            )
+        return self._client.init_index(index_name)
+
+    def save_objects_batch(self, algolia_objects, index_name=None):
+        """
+        Upsert a batch of objects into the given index without affecting other records.
+
+        Arguments:
+            algolia_objects (list): Objects to save. Each must include an ``objectID``.
+            index_name (str): Optional index name; defaults to the primary index.
+        """
+        index = self._get_index(index_name)
+        try:
+            return index.save_objects(algolia_objects)
+        except AlgoliaException as exc:
+            logger.exception(
+                'Could not save objects batch in the %s Algolia index due to an exception.',
+                index_name or self.algolia_index_name,
+            )
+            raise exc
+
+    def delete_objects_batch(self, object_ids, index_name=None):
+        """
+        Delete a batch of objects by objectID from the given index.
+
+        Arguments:
+            object_ids (list): Algolia objectIDs to delete.
+            index_name (str): Optional index name; defaults to the primary index.
+        """
+        if not object_ids:
+            return None
+        index = self._get_index(index_name)
+        try:
+            return index.delete_objects(object_ids)
+        except AlgoliaException as exc:
+            logger.exception(
+                'Could not delete objects batch from the %s Algolia index due to an exception.',
+                index_name or self.algolia_index_name,
+            )
+            raise exc
+
+    def get_object_ids_for_content_key(self, content_key, index_name=None):
+        """
+        Return all Algolia objectIDs (shards) for the given content_key.
+
+        Algolia object IDs for a content record are sharded as
+        ``{content_type}-{uuid}-catalog-query-uuids-{batch_index}`` and all share the
+        same ``aggregation_key`` (the content_key). The incremental indexing tasks use
+        this to discover existing shards so orphaned ones can be deleted.
+        """
+        index = self._get_index(index_name)
+        object_ids = []
+        try:
+            # content_key values come from ContentMetadata.content_key (course/program/
+            # pathway keys); they don't contain single quotes, so direct interpolation
+            # into the Algolia filter DSL is safe.
+            iterator = index.browse_objects({
+                'attributesToRetrieve': ['objectID'],
+                'filters': f"aggregation_key:'{content_key}'",
+            })
+            for hit in iterator:
+                object_ids.append(hit['objectID'])
+        except AlgoliaException as exc:
+            logger.exception(
+                'Could not list objectIDs for content_key %s in the %s Algolia index due to an exception.',
+                content_key,
+                index_name or self.algolia_index_name,
+            )
+            raise exc
+        return object_ids
+
+    def get_content_keys_for_catalog_query(self, catalog_query_uuid, index_name=None):
+        """
+        Return the set of content keys currently indexed with the given catalog query's facet.
+
+        Used by the per-catalog dispatcher to detect membership removals: any content key
+        present in Algolia under this catalog query but no longer in the database
+        membership needs to be reindexed so its facets reflect the removal.
+
+        Arguments:
+            catalog_query_uuid (str|UUID): The CatalogQuery uuid to filter by.
+            index_name (str): Optional index name; defaults to the primary index.
+
+        Returns:
+            set: aggregation_keys (content keys) currently indexed under this catalog query.
+        """
+        index = self._get_index(index_name)
+        content_keys = set()
+        try:
+            # browse_objects returns an ObjectIterator that auto-paginates via cursor;
+            # safe for catalog queries with 10k+ records.
+            # catalog_query_uuid is a UUID string with no facet-DSL metacharacters,
+            # so direct interpolation into the facetFilter is safe.
+            iterator = index.browse_objects({
+                'attributesToRetrieve': ['aggregation_key'],
+                'facetFilters': [f'enterprise_catalog_query_uuids:{catalog_query_uuid}'],
+            })
+            for hit in iterator:
+                aggregation_key = hit.get('aggregation_key')
+                if aggregation_key:
+                    content_keys.add(aggregation_key)
+        except AlgoliaException as exc:
+            logger.exception(
+                'Could not list content keys for catalog query %s in the %s Algolia index due to an exception.',
+                catalog_query_uuid,
+                index_name or self.algolia_index_name,
+            )
+            raise exc
+        return content_keys
+
     def replace_all_objects(self, algolia_objects):  # pragma: no cover
         """
         Clears all objects from the index and replaces them with a new set of objects. The records are

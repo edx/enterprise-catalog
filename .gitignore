@@ -113,4 +113,5 @@ prompts.db
 # devstack
 .dev/
 
+# scripts env vars
 *.env

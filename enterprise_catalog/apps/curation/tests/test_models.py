@@ -49,6 +49,22 @@ class TestModels(TestCase):
         assert authoring_organizations_under_test[0]['logo_image_url'].endswith('.jpg')
 
     @ddt.data(
+        {'content_type': COURSE, 'metadata_key': 'owners'},
+        {'content_type': PROGRAM, 'metadata_key': 'authoring_organizations'},
+    )
+    @ddt.unpack
+    def test_authoring_organizations_missing_returns_empty_list(self, content_type, metadata_key):
+        """
+        Ensure missing owner metadata does not raise and instead returns an empty list.
+        """
+        content_metadata = ContentMetadataFactory(content_type=content_type)
+        content_metadata.json_metadata[metadata_key] = None
+        content_metadata.save(update_fields=['_json_metadata'])
+
+        highlighted_content = HighlightedContentFactory(content_metadata=content_metadata)
+        assert highlighted_content.authoring_organizations == []
+
+    @ddt.data(
         {'content_type': COURSE, 'content_title': 'Test Course Title'},
         {'content_type': COURSE_RUN, 'content_title': 'Test Courserun Title'},
         {'content_type': PROGRAM, 'content_title': 'Test Program Title'},

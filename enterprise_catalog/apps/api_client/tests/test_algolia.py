@@ -15,7 +15,7 @@ from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 class TestAlgoliaSearchClientBatchMethods(TestCase):
     """
     Tests for ``save_objects_batch``, ``delete_objects_batch``,
-    ``get_object_ids_for_content_key``, ``get_content_keys_for_catalog_query``,
+    ``get_object_ids_for_aggregation_key``, ``get_content_keys_for_catalog_query``,
     and the ``_get_index`` helper.
     """
     # pylint: disable=protected-access
@@ -177,7 +177,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         with self.assertRaises(AlgoliaException):
             client.delete_objects_batch(['course-abc-catalog-query-uuids-0'])
 
-    def test_get_object_ids_for_content_key_returns_object_ids(self):
+    def test_get_object_ids_for_aggregation_key_returns_object_ids(self):
         """
         Browses the index filtered by aggregation_key and collects objectIDs.
         """
@@ -187,7 +187,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
             {'objectID': 'course-abc-catalog-query-uuids-1'},
         ])
 
-        result = client.get_object_ids_for_content_key('course-abc')
+        result = client.get_object_ids_for_aggregation_key('course-abc')
 
         self.assertEqual(result, [
             'course-abc-catalog-query-uuids-0',
@@ -198,16 +198,16 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
             'filters': "aggregation_key:'course-abc'",
         })
 
-    def test_get_object_ids_for_content_key_empty_when_no_matches(self):
+    def test_get_object_ids_for_aggregation_key_empty_when_no_matches(self):
         """
         No matching shards yields an empty list.
         """
         client = self._build_client()
         client.algolia_index.browse_objects.return_value = iter([])
 
-        self.assertEqual(client.get_object_ids_for_content_key('course-missing'), [])
+        self.assertEqual(client.get_object_ids_for_aggregation_key('course-missing'), [])
 
-    def test_get_object_ids_for_content_key_targets_alternate_index(self):
+    def test_get_object_ids_for_aggregation_key_targets_alternate_index(self):
         """
         Browses the alternate index when ``index_name`` is provided.
         """
@@ -216,13 +216,13 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         alt_index.browse_objects.return_value = iter([{'objectID': 'course-abc-x-0'}])
         client._client.init_index.return_value = alt_index
 
-        result = client.get_object_ids_for_content_key('course-abc', index_name=self.ALT_INDEX_NAME)
+        result = client.get_object_ids_for_aggregation_key('course-abc', index_name=self.ALT_INDEX_NAME)
 
         self.assertEqual(result, ['course-abc-x-0'])
         alt_index.browse_objects.assert_called_once()
         client.algolia_index.browse_objects.assert_not_called()
 
-    def test_get_object_ids_for_content_key_reraises_algolia_exception(self):
+    def test_get_object_ids_for_aggregation_key_reraises_algolia_exception(self):
         """
         Algolia errors are re-raised.
         """
@@ -230,7 +230,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         client.algolia_index.browse_objects.side_effect = AlgoliaException('boom')
 
         with self.assertRaises(AlgoliaException):
-            client.get_object_ids_for_content_key('course-abc')
+            client.get_object_ids_for_aggregation_key('course-abc')
 
     def test_get_content_keys_for_catalog_query_dedupes_across_shards(self):
         """
@@ -300,10 +300,10 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         with self.assertRaises(ImproperlyConfigured):
             client.get_content_keys_for_catalog_query('cq-uuid-1')
 
-    def test_get_object_ids_for_content_key_raises_when_index_unavailable(self):
+    def test_get_object_ids_for_aggregation_key_raises_when_index_unavailable(self):
         """
         With no initialized index, raises ImproperlyConfigured.
         """
         client = AlgoliaSearchClient()
         with self.assertRaises(ImproperlyConfigured):
-            client.get_object_ids_for_content_key('course-abc')
+            client.get_object_ids_for_aggregation_key('course-abc')

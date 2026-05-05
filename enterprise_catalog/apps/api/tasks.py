@@ -778,29 +778,37 @@ def _precalculate_content_mappings():
 
     Returns:
         2-tuple(dict):
-            - First element: Mapping of program content_key to list of course run and course ContentMetadata objects.
-            - Second element: Mapping of learner pathway content_key to list of program and course ContentMetadata
-              objects.
+            - First element: Mapping of program content_key to a set of course run and course content keys
+            - Second element: Mapping of learner pathway content_key to a set of program and course content keys
     """
     program_to_courses_mapping = defaultdict(set)
     pathway_to_programs_courses_mapping = defaultdict(set)
     courses_programs = ContentMetadata.objects.filter(
         content_type__in=[COURSE, PROGRAM],
     ).prefetch_related(
-        'associated_content_metadata'
+        Prefetch(
+            'associated_content_metadata',
+            queryset=ContentMetadata.objects.only(
+                'content_key',
+                'content_type',
+            ),
+        ),
+    ).only(
+        'content_key',
+        'content_type',
     )
     for metadata in courses_programs:
         if metadata.content_type == COURSE:
             for associated_content in metadata.associated_content_metadata.all():
                 if associated_content.content_type == PROGRAM:
-                    program_to_courses_mapping[associated_content.content_key].add(metadata)
+                    program_to_courses_mapping[associated_content.content_key].add(metadata.content_key)
                 elif associated_content.content_type == LEARNER_PATHWAY:
-                    pathway_to_programs_courses_mapping[associated_content.content_key].add(metadata)
+                    pathway_to_programs_courses_mapping[associated_content.content_key].add(metadata.content_key)
         # This else block represents metadata.content_type == PROGRAM
         else:
             for associated_content in metadata.associated_content_metadata.all():
                 if associated_content.content_type == LEARNER_PATHWAY:
-                    pathway_to_programs_courses_mapping[associated_content.content_key].add(metadata)
+                    pathway_to_programs_courses_mapping[associated_content.content_key].add(metadata.content_key)
 
     return program_to_courses_mapping, pathway_to_programs_courses_mapping
 
@@ -1243,8 +1251,8 @@ def _get_algolia_products_for_batch(
         # course; for these courses, we will not find any catalogs and contribute an empty sub-list. The end result
         # is that if a program contains any non-indexable content, no common catalogs will be found.
         catalog_uuids_for_all_courses_of_program = [
-            catalog_uuids_by_key[course_metadata.content_key]
-            for course_metadata in program_to_courses_mapping[program_content_key]
+            catalog_uuids_by_key[course_content_key]
+            for course_content_key in program_to_courses_mapping[program_content_key]
         ]
         common_catalogs = set()
         if catalog_uuids_for_all_courses_of_program:
@@ -1273,12 +1281,12 @@ def _get_algolia_products_for_batch(
             continue
         pathway_content_key = metadata.content_key
 
-        for metadata in pathway_to_programs_courses_mapping[pathway_content_key]:
-            catalog_queries_by_key[pathway_content_key].update(catalog_queries_by_key[metadata.content_key])
-            catalog_uuids_by_key[pathway_content_key].update(catalog_uuids_by_key[metadata.content_key])
-            customer_uuids_by_key[pathway_content_key].update(customer_uuids_by_key[metadata.content_key])
-            academy_uuids_by_key[pathway_content_key].update(academy_uuids_by_key[metadata.content_key])
-            academy_tags_by_key[pathway_content_key].update(academy_tags_by_key[metadata.content_key])
+        for member_content_key in pathway_to_programs_courses_mapping[pathway_content_key]:
+            catalog_queries_by_key[pathway_content_key].update(catalog_queries_by_key[member_content_key])
+            catalog_uuids_by_key[pathway_content_key].update(catalog_uuids_by_key[member_content_key])
+            customer_uuids_by_key[pathway_content_key].update(customer_uuids_by_key[member_content_key])
+            academy_uuids_by_key[pathway_content_key].update(academy_uuids_by_key[member_content_key])
+            academy_tags_by_key[pathway_content_key].update(academy_tags_by_key[member_content_key])
 
             # Extra disabled logic to additionally absorb UUIDs from courses linked to this pathway indirectly via a
             # program (chain of association is course -> program -> pathway).  This doesn't work because

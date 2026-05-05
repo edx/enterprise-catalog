@@ -63,11 +63,11 @@ shell: ## run Django shell
 	python3 manage.py shell
 
 test: clean ## run tests and generate coverage report
-	$(TOX)python3 -Wd -m pytest
+	DJANGO_SETTINGS_MODULE=enterprise_catalog.settings.test $(TOX)python3 -Wd -m pytest
 
 # To be run from CI context
 coverage: clean
-	pytest --cov-report html
+	DJANGO_SETTINGS_MODULE=enterprise_catalog.settings.test pytest --cov-report html
 	$(BROWSER) htmlcov/index.html
 
 isort_check: ## check that isort has been run

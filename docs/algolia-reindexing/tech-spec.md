@@ -696,6 +696,17 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
   - Save new objects, delete orphaned shards
   - Update `ContentMetadataIndexingState` (be intentional and descriptive about use of `transaction.atomic()`.
   - Handle failures per-record with `mark_as_failed()`
+- Add a Redis-cached `IndexingMappings` layer wrapping the legacy
+  `_precalculate_content_mappings` helper, plus the indexable-content-key set
+  from `partition_*_keys_for_indexing`. The cache amortizes the
+  O(catalog-size) precompute across tasks in a dispatcher fan-out: first
+  task warms it, the rest reuse it. Default TTL 30 minutes via
+  `ALGOLIA_INDEXING_MAPPINGS_CACHE_TIMEOUT`. Expose
+  `invalidate_indexing_mappings_cache()` for the Phase 4 dispatcher to call
+  after `update_content_metadata`.
+- Tasks fire-and-forget the Algolia writes: the `IndexingResponse` from
+  `save_objects` / `delete_objects` is discarded and `.wait()` is not
+  called. See ADR 0012 in this repo.
 
 **File Changes**:
 | File | Change |
@@ -735,6 +746,13 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
 - Dispatch tasks in dependency order: courses → programs → pathways
 - Support `dry_run` mode for testing
 - Add `ALGOLIA_INDEXING_BATCH_SIZE` setting
+- Pre-warm `IndexingMappings` before fan-out: call
+  `invalidate_indexing_mappings_cache()` (after `update_content_metadata`
+  has settled), then `get_indexing_mappings()` synchronously so the cache
+  is warm before workers pick up batch tasks. Without this, N concurrent
+  workers would each compute the mappings on cache miss (a thundering
+  herd). Correctness is unaffected, but the dispatcher is the natural
+  serialization point.
 
 **File Changes**:
 | File | Change |

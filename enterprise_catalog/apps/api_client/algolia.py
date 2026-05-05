@@ -162,6 +162,8 @@ class AlgoliaSearchClient:
     def save_objects_batch(self, algolia_objects, index_name=None):
         """
         Upsert a batch of objects into the given index without affecting other records.
+        This intentionally does *not* wait for the asynchronous Algolia index job to complete.
+        See ADR 0012 for details.
 
         Arguments:
             algolia_objects (list): Objects to save. Each must include an ``objectID``.
@@ -197,31 +199,36 @@ class AlgoliaSearchClient:
             )
             raise exc
 
-    def get_object_ids_for_content_key(self, content_key, index_name=None):
+    def get_object_ids_for_aggregation_key(self, aggregation_key, index_name=None):
         """
-        Return all Algolia objectIDs (shards) for the given content_key.
+        Return all Algolia objectIDs (shards) for the given ``aggregation_key``.
 
         Algolia object IDs for a content record are sharded as
-        ``{content_type}-{uuid}-catalog-query-uuids-{batch_index}`` and all share the
-        same ``aggregation_key`` (the content_key). The incremental indexing tasks use
-        this to discover existing shards so orphaned ones can be deleted.
+        ``{content_type}-{uuid}-{shard_kind}-{batch_index}`` and all shards for the
+        same content record share the same ``aggregation_key``, which is the
+        ``{content_type}:{content_key}`` form (e.g. ``"course:edX+DemoX"``) emitted by
+        the legacy object generator. Callers that have a content_key + content_type
+        should construct the aggregation_key themselves before calling this.
+
+        Used by the incremental indexing tasks to discover existing shards so
+        orphaned ones can be deleted.
         """
         index = self._get_index(index_name)
         object_ids = []
         try:
-            # content_key values come from ContentMetadata.content_key (course/program/
-            # pathway keys); they don't contain single quotes, so direct interpolation
-            # into the Algolia filter DSL is safe.
+            # aggregation_key values come from ContentMetadata-derived data
+            # (``{content_type}:{content_key}``) and don't contain single quotes,
+            # so direct interpolation into the Algolia filter DSL is safe.
             iterator = index.browse_objects({
                 'attributesToRetrieve': ['objectID'],
-                'filters': f"aggregation_key:'{content_key}'",
+                'filters': f"aggregation_key:'{aggregation_key}'",
             })
             for hit in iterator:
                 object_ids.append(hit['objectID'])
         except AlgoliaException as exc:
             logger.exception(
-                'Could not list objectIDs for content_key %s in the %s Algolia index due to an exception.',
-                content_key,
+                'Could not list objectIDs for aggregation_key %s in the %s Algolia index due to an exception.',
+                aggregation_key,
                 index_name or self.algolia_index_name,
             )
             raise exc

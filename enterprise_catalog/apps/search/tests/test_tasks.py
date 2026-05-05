@@ -1,6 +1,7 @@
 """
 Tests for the Phase 3 incremental Algolia indexing batch tasks.
 """
+from dataclasses import asdict
 from datetime import timedelta
 from unittest import mock
 
@@ -21,6 +22,8 @@ from enterprise_catalog.apps.search import tasks as search_tasks
 from enterprise_catalog.apps.search.indexing_mappings import IndexingMappings
 from enterprise_catalog.apps.search.models import ContentMetadataIndexingState
 from enterprise_catalog.apps.search.tasks import (
+    BatchOutcome,
+    BatchResults,
     _index_content_batch,
     index_courses_batch_in_algolia,
     index_pathways_batch_in_algolia,
@@ -31,15 +34,16 @@ from enterprise_catalog.apps.search.tests.factories import (
 )
 
 
-def _algolia_object(content_key, shard_index=0):
+def _algolia_object(content_key, content_type=COURSE, shard_index=0):
     """
     Build a minimal Algolia object payload — enough fields for the batch task
     to do its work (objectID, aggregation_key) without pulling in the legacy
-    generator's full output schema.
+    generator's full output schema. ``aggregation_key`` is set to the
+    ``"{content_type}:{content_key}"`` form the legacy generator actually emits.
     """
     return {
         'objectID': f'{content_key}-catalog-query-uuids-{shard_index}',
-        'aggregation_key': content_key,
+        'aggregation_key': f'{content_type}:{content_key}',
     }
 
 
@@ -55,7 +59,7 @@ class TestIndexContentBatch(TestCase):
         # mappings at the module-import seam used by ``search.tasks``. Tests
         # configure return values per scenario.
         self.algolia_client = mock.MagicMock(name='algolia_client')
-        self.algolia_client.get_object_ids_for_content_key.return_value = []
+        self.algolia_client.get_object_ids_for_aggregation_key.return_value = []
         client_patcher = mock.patch.object(
             search_tasks, 'get_initialized_algolia_client', return_value=self.algolia_client,
         )
@@ -107,10 +111,10 @@ class TestIndexContentBatch(TestCase):
             [c1.content_key, c2.content_key, c3.content_key], COURSE,
         )
 
-        self.assertEqual(result['indexed'], 3)
-        self.assertEqual(result['skipped'], 0)
-        self.assertEqual(result['removed'], 0)
-        self.assertEqual(result['failed'], 0)
+        self.assertEqual(result.indexed, 3)
+        self.assertEqual(result.skipped, 0)
+        self.assertEqual(result.removed, 0)
+        self.assertEqual(result.failed, 0)
         self.assertEqual(self.algolia_client.save_objects_batch.call_count, 3)
         for content in (c1, c2, c3):
             state = ContentMetadataIndexingState.objects.get(content_metadata=content)
@@ -138,8 +142,8 @@ class TestIndexContentBatch(TestCase):
 
         result = _index_content_batch([content.content_key], COURSE, force=False)
 
-        self.assertEqual(result['skipped'], 1)
-        self.assertEqual(result['indexed'], 0)
+        self.assertEqual(result.skipped, 1)
+        self.assertEqual(result.indexed, 0)
         self.algolia_client.save_objects_batch.assert_not_called()
 
     def test_force_true_bypasses_skip(self):
@@ -156,7 +160,7 @@ class TestIndexContentBatch(TestCase):
 
         result = _index_content_batch([content.content_key], COURSE, force=True)
 
-        self.assertEqual(result['indexed'], 1)
+        self.assertEqual(result.indexed, 1)
         self.algolia_client.save_objects_batch.assert_called_once()
 
     # --- Remove path ---------------------------------------------------
@@ -178,7 +182,7 @@ class TestIndexContentBatch(TestCase):
 
         result = _index_content_batch([content.content_key], COURSE)
 
-        self.assertEqual(result['removed'], 1)
+        self.assertEqual(result.removed, 1)
         self.algolia_client.delete_objects_batch.assert_called_once_with(
             ['course-gone-catalog-query-uuids-0'], index_name=None,
         )
@@ -200,7 +204,56 @@ class TestIndexContentBatch(TestCase):
 
         result = _index_content_batch([content.content_key], COURSE)
 
-        self.assertEqual(result['removed'], 1)
+        self.assertEqual(result.removed, 1)
+        self.algolia_client.delete_objects_batch.assert_not_called()
+        state = ContentMetadataIndexingState.objects.get(content_metadata=content)
+        self.assertIsNotNone(state.removed_from_index_at)
+
+    def test_indexable_with_zero_objects_routes_to_removed(self):
+        """
+        Drift case: ``content_key`` is in ``all_indexable_content_keys`` per
+        the partition fn, but the legacy generator emits zero shards (e.g.
+        every catalog membership was dropped without ContentMetadata.modified
+        advancing). The task treats this as REMOVED — it deletes any stale
+        shards from Algolia and stamps ``removed_from_index_at`` rather than
+        marking INDEXED with an empty shard list (which would mis-report the
+        row as currently indexed).
+        """
+        content = ContentMetadataFactory(content_type=COURSE, content_key='course-membership-dropped')
+        ContentMetadataIndexingStateFactory(
+            content_metadata=content,
+            last_indexed_at=localized_utcnow() - timedelta(hours=1),
+            algolia_object_ids=[f'{content.content_key}-catalog-query-uuids-0'],
+        )
+        self._set_indexable(content.content_key)
+        self.mock_get_products.return_value = []  # generator emits nothing
+
+        result = _index_content_batch([content.content_key], COURSE)
+
+        self.assertEqual(result.removed, 1)
+        self.assertEqual(result.indexed, 0)
+        self.algolia_client.save_objects_batch.assert_not_called()
+        # State row tracks the existing shard, so no browse is needed.
+        self.algolia_client.get_object_ids_for_aggregation_key.assert_not_called()
+        self.algolia_client.delete_objects_batch.assert_called_once_with(
+            [f'{content.content_key}-catalog-query-uuids-0'], index_name=None,
+        )
+        state = ContentMetadataIndexingState.objects.get(content_metadata=content)
+        self.assertIsNotNone(state.removed_from_index_at)
+
+    def test_indexable_with_zero_objects_and_no_existing_shards_skips_delete(self):
+        """
+        Same drift case as above but Algolia has no existing shards either —
+        still routes to REMOVED, but does not call ``delete_objects_batch``.
+        """
+        content = ContentMetadataFactory(content_type=COURSE, content_key='course-never-indexed')
+        self._set_indexable(content.content_key)
+        self.algolia_client.get_object_ids_for_aggregation_key.return_value = []
+        self.mock_get_products.return_value = []
+
+        result = _index_content_batch([content.content_key], COURSE)
+
+        self.assertEqual(result.removed, 1)
         self.algolia_client.delete_objects_batch.assert_not_called()
         state = ContentMetadataIndexingState.objects.get(content_metadata=content)
         self.assertIsNotNone(state.removed_from_index_at)
@@ -209,27 +262,61 @@ class TestIndexContentBatch(TestCase):
 
     def test_orphan_shards_get_deleted(self):
         """
-        Existing index has 3 shards; new generation produces 2 → the 1 orphan
-        is deleted via ``delete_objects_batch``.
+        Existing shard IDs are read from the state row; new generation has
+        fewer shards → the missing one is deleted as an orphan. Pins that
+        the INDEXED path does NOT issue a browse call when the state row
+        already tracks the shard IDs.
         """
         content = ContentMetadataFactory(content_type=COURSE, content_key='course-shrink')
+        ContentMetadataIndexingStateFactory(
+            content_metadata=content,
+            last_indexed_at=localized_utcnow() - timedelta(hours=1),
+            algolia_object_ids=[
+                f'{content.content_key}-catalog-query-uuids-0',
+                f'{content.content_key}-catalog-query-uuids-1',
+                f'{content.content_key}-catalog-query-uuids-2',
+            ],
+        )
         self._set_indexable(content.content_key)
-        self.algolia_client.get_object_ids_for_content_key.return_value = [
-            f'{content.content_key}-catalog-query-uuids-0',
-            f'{content.content_key}-catalog-query-uuids-1',
-            f'{content.content_key}-catalog-query-uuids-2',
-        ]
         self.mock_get_products.return_value = [
-            _algolia_object(content.content_key, 0),
-            _algolia_object(content.content_key, 1),
+            _algolia_object(content.content_key, shard_index=0),
+            _algolia_object(content.content_key, shard_index=1),
         ]
 
         result = _index_content_batch([content.content_key], COURSE)
 
-        self.assertEqual(result['indexed'], 1)
+        self.assertEqual(result.indexed, 1)
+        self.algolia_client.get_object_ids_for_aggregation_key.assert_not_called()
         self.algolia_client.delete_objects_batch.assert_called_once()
         deleted = self.algolia_client.delete_objects_batch.call_args.args[0]
         self.assertEqual(set(deleted), {f'{content.content_key}-catalog-query-uuids-2'})
+
+    def test_indexed_path_browses_when_state_has_no_object_ids(self):
+        """
+        First-time index for a content (state row exists but
+        ``algolia_object_ids`` is empty) → the INDEXED path falls back to a
+        browse so any pre-existing shards (e.g. from the legacy reindexer)
+        are still detected and orphaned correctly.
+        """
+        content = ContentMetadataFactory(content_type=COURSE, content_key='course-virgin-index')
+        # State row exists with no recorded shards (default for a fresh row).
+        self._set_indexable(content.content_key)
+        self.algolia_client.get_object_ids_for_aggregation_key.return_value = [
+            f'{content.content_key}-legacy-shard-0',
+        ]
+        self.mock_get_products.return_value = [
+            _algolia_object(content.content_key, shard_index=0),
+        ]
+
+        result = _index_content_batch([content.content_key], COURSE)
+
+        self.assertEqual(result.indexed, 1)
+        self.algolia_client.get_object_ids_for_aggregation_key.assert_called_once()
+        # The legacy shard should be deleted as an orphan since it isn't in
+        # the new generation.
+        self.algolia_client.delete_objects_batch.assert_called_once()
+        deleted = self.algolia_client.delete_objects_batch.call_args.args[0]
+        self.assertEqual(set(deleted), {f'{content.content_key}-legacy-shard-0'})
 
     # --- Failure handling ----------------------------------------------
 
@@ -250,7 +337,7 @@ class TestIndexContentBatch(TestCase):
 
         # Fail on the bad key only.
         def save_side_effect(objects, index_name=None):  # pylint: disable=unused-argument
-            if objects[0]['aggregation_key'] == c2.content_key:
+            if objects[0]['aggregation_key'] == f'course:{c2.content_key}':
                 raise AlgoliaException('boom')
         self.algolia_client.save_objects_batch.side_effect = save_side_effect
 
@@ -258,9 +345,9 @@ class TestIndexContentBatch(TestCase):
             [c1.content_key, c2.content_key, c3.content_key], COURSE,
         )
 
-        self.assertEqual(result['indexed'], 2)
-        self.assertEqual(result['failed'], 1)
-        self.assertEqual(result['failed_keys'], [c2.content_key])
+        self.assertEqual(result.indexed, 2)
+        self.assertEqual(result.failed, 1)
+        self.assertEqual(result.failed_keys, [c2.content_key])
         bad_state = ContentMetadataIndexingState.objects.get(content_metadata=c2)
         self.assertIsNotNone(bad_state.last_failure_at)
         self.assertIn('boom', bad_state.failure_reason)
@@ -272,8 +359,8 @@ class TestIndexContentBatch(TestCase):
         no exception bubbles up.
         """
         result = _index_content_batch(['course-missing'], COURSE)
-        self.assertEqual(result['failed'], 1)
-        self.assertEqual(result['failed_keys'], ['course-missing'])
+        self.assertEqual(result.failed, 1)
+        self.assertEqual(result.failed_keys, ['course-missing'])
 
     # --- Plumbing ------------------------------------------------------
 
@@ -287,8 +374,8 @@ class TestIndexContentBatch(TestCase):
 
         _index_content_batch([content.content_key], COURSE, index_name='enterprise_catalog_v2')
 
-        self.algolia_client.get_object_ids_for_content_key.assert_called_with(
-            content.content_key, index_name='enterprise_catalog_v2',
+        self.algolia_client.get_object_ids_for_aggregation_key.assert_called_with(
+            f'course:{content.content_key}', index_name='enterprise_catalog_v2',
         )
         self.algolia_client.save_objects_batch.assert_called_with(
             mock.ANY, index_name='enterprise_catalog_v2',
@@ -299,9 +386,9 @@ class TestIndexContentBatch(TestCase):
         No content_keys → no DB or Algolia work; result is all zeroes.
         """
         result = _index_content_batch([], COURSE)
-        self.assertEqual(result['indexed'], 0)
-        self.assertEqual(result['skipped'], 0)
-        self.assertEqual(result['failed'], 0)
+        self.assertEqual(result.indexed, 0)
+        self.assertEqual(result.skipped, 0)
+        self.assertEqual(result.failed, 0)
         self.mock_get_products.assert_not_called()
         self.algolia_client.save_objects_batch.assert_not_called()
 
@@ -320,12 +407,77 @@ class TestIndexContentBatch(TestCase):
         """
         content = ContentMetadataFactory(content_type=content_type, content_key=f'{_label}-key')
         self._set_indexable(content.content_key)
-        self.mock_get_products.return_value = [_algolia_object(content.content_key)]
+        self.mock_get_products.return_value = [
+            _algolia_object(content.content_key, content_type=content_type),
+        ]
 
         result = task([content.content_key])
 
         self.assertEqual(result['content_type'], content_type)
         self.assertEqual(result['indexed'], 1)
+
+
+class TestBatchOutcome(TestCase):
+    """
+    Pinning tests for the ``BatchOutcome`` StrEnum.
+    """
+
+    def test_members_compare_equal_to_their_string_value(self):
+        self.assertEqual(BatchOutcome.INDEXED, 'indexed')
+        self.assertEqual(BatchOutcome.SKIPPED, 'skipped')
+        self.assertEqual(BatchOutcome.REMOVED, 'removed')
+        self.assertEqual(BatchOutcome.FAILED, 'failed')
+
+
+class TestBatchResults(TestCase):
+    """
+    Pinning tests for the ``BatchResults`` dataclass — the dispatch
+    helpers (``increment``, ``record_failure``) and the ``asdict()``
+    conversion that the task wrappers rely on.
+    """
+
+    def test_increment_dispatches_via_outcome_member(self):
+        """
+        ``BatchOutcome`` member values must match ``BatchResults`` attribute
+        names so ``setattr(results, outcome, ...)`` lands on the right field.
+        """
+        results = BatchResults(content_type='course')
+        results.increment(BatchOutcome.INDEXED)
+        results.increment(BatchOutcome.INDEXED)
+        results.increment(BatchOutcome.SKIPPED)
+        results.increment(BatchOutcome.REMOVED)
+
+        self.assertEqual(results.indexed, 2)
+        self.assertEqual(results.skipped, 1)
+        self.assertEqual(results.removed, 1)
+        self.assertEqual(results.failed, 0)
+
+    def test_record_failure_increments_counter_and_tracks_key(self):
+        results = BatchResults(content_type='course')
+        results.record_failure('course-bad-1')
+        results.record_failure('course-bad-2')
+
+        self.assertEqual(results.failed, 2)
+        self.assertEqual(results.failed_keys, ['course-bad-1', 'course-bad-2'])
+
+    def test_asdict_produces_celery_safe_dict(self):
+        """
+        Task wrappers convert ``BatchResults`` to a dict so the on-the-wire
+        Celery payload stays JSON-serializable.
+        """
+        results = BatchResults(content_type='course')
+        results.increment(BatchOutcome.INDEXED)
+        results.record_failure('course-bad')
+
+        as_dict = asdict(results)
+        self.assertEqual(as_dict, {
+            'content_type': 'course',
+            'indexed': 1,
+            'skipped': 0,
+            'removed': 0,
+            'failed': 1,
+            'failed_keys': ['course-bad'],
+        })
 
 
 class TestSafelyMarkFailed(TestCase):

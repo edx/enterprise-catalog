@@ -1,7 +1,7 @@
 """
 Smoke test for the new AlgoliaSearchClient batch methods.
 
-Exercises ``save_objects_batch``, ``get_object_ids_for_content_key``,
+Exercises ``save_objects_batch``, ``get_object_ids_for_aggregation_key``,
 ``get_content_keys_for_catalog_query``, and ``delete_objects_batch`` against
 a sandbox Algolia index. Reads sandbox credentials from ``scripts/.env``.
 
@@ -126,8 +126,8 @@ try:
     save_response.wait()
 
     found_ids = _step(
-        'get_object_ids_for_content_key',
-        lambda: client.get_object_ids_for_content_key(AGGREGATION_KEY),
+        'get_object_ids_for_aggregation_key',
+        lambda: client.get_object_ids_for_aggregation_key(AGGREGATION_KEY),
     )
     assert set(found_ids) == set(object_ids), \
         f'expected {sorted(object_ids)}, got {sorted(found_ids)}'
@@ -144,8 +144,8 @@ try:
     # v2-targeting plumbing: pass the same index as alternate; should behave
     # identically and exercise the _get_index init_index() branch.
     alt_found = _step(
-        f'get_object_ids_for_content_key (index_name={settings.ALGOLIA["INDEX_NAME"]!r})',
-        lambda: client.get_object_ids_for_content_key(
+        f'get_object_ids_for_aggregation_key (index_name={settings.ALGOLIA["INDEX_NAME"]!r})',
+        lambda: client.get_object_ids_for_aggregation_key(
             AGGREGATION_KEY, index_name=settings.ALGOLIA['INDEX_NAME'],
         ),
     )
@@ -159,7 +159,7 @@ finally:
     if cleanup_response is not None:
         cleanup_response.wait()
 
-    leftover = client.get_object_ids_for_content_key(AGGREGATION_KEY)
+    leftover = client.get_object_ids_for_aggregation_key(AGGREGATION_KEY)
     if leftover:
         print(f'  WARNING: {len(leftover)} objects remain after cleanup: {leftover}')
     else:

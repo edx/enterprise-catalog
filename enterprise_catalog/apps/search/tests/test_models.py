@@ -99,6 +99,21 @@ class TestContentMetadataIndexingState(TestCase):
         self.assertIsNone(state.last_failure_at)
         self.assertIsNone(state.failure_reason)
 
+    def test_mark_as_indexed_clears_prior_removal_timestamp(self):
+        """
+        A REMOVED→INDEXED resurrection clears ``removed_from_index_at`` so the
+        row reflects the current state instead of carrying both stamps.
+        """
+        state = ContentMetadataIndexingStateFactory(
+            removed_from_index_at=localized_utcnow() - timedelta(hours=1),
+        )
+
+        state.mark_as_indexed(algolia_object_ids=['shard-0'])
+
+        state.refresh_from_db()
+        self.assertIsNone(state.removed_from_index_at)
+        self.assertIsNotNone(state.last_indexed_at)
+
     def test_mark_as_indexed_without_object_ids_preserves_existing(self):
         """
         Omitting ``algolia_object_ids`` leaves the stored IDs untouched.

@@ -1,0 +1,22 @@
+docs/decisions/0012-incremental-indexing-state-authority-and-outcome-contract.rst
+  s_13011905dc7920::t_3c5bdac59c7fcb 85-94
+docs/algolia-reindexing/tech-spec.md
+  s_13011905dc7920::t_5591a54334fb86 746-752
+  s_13011905dc7920::t_b702fe044867f6 699-706
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "32219269d64da4bdec5ad9d88d8d322837dd21aa",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

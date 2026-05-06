@@ -35,6 +35,9 @@ CELERY_RESULT_BACKEND = f'file://{results_dir.name}'
 # test runtimes compared with the more secure PBKDF2-based hasher used in production.
 PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
+# Use a small limit to keep test_create_too_many_sets fast.
+HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT = 3
+
 # Disable API throttling by default in tests; individual tests can re-enable
 # specific rates via ``override_settings``. DRF treats a ``None`` rate as no limit.
 REST_FRAMEWORK = {

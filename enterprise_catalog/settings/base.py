@@ -463,6 +463,15 @@ SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS = False
 # Whether to enable v2 of the APIs that surface restricted course (+ runs) content
 ENABLE_V2_API = False
 
+# Maximum number of HighlightSets allowed per enterprise customer.
+# Overridable via env var; falls back to 26 if the value is missing, non-integer, or non-positive.
+_HIGHLIGHTSETS_LIMIT_DEFAULT = 26
+try:
+    _parsed = int(os.environ.get('HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT', _HIGHLIGHTSETS_LIMIT_DEFAULT))
+    HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT = _parsed if _parsed > 0 else _HIGHLIGHTSETS_LIMIT_DEFAULT
+except ValueError:
+    HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT = _HIGHLIGHTSETS_LIMIT_DEFAULT
+
 # Set up system-to-feature roles mapping for edx-rbac
 SYSTEM_TO_FEATURE_ROLE_MAPPING = {
     # The enterprise catalog admin role is for users who need to perform state altering requests on catalogs

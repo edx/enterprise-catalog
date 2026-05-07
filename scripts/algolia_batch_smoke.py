@@ -2,7 +2,7 @@
 Smoke test for the new AlgoliaSearchClient batch methods.
 
 Exercises ``save_objects_batch``, ``get_object_ids_for_aggregation_key``,
-``get_content_keys_for_catalog_query``, and ``delete_objects_batch`` against
+``get_aggregation_keys_for_catalog_query``, and ``delete_objects_batch`` against
 a sandbox Algolia index. Reads sandbox credentials from ``scripts/.env``.
 
 Usage (from the project root, inside the app container)::
@@ -20,7 +20,7 @@ via every new method, and deletes them. Safe to re-run — each invocation uses
 a fresh aggregation_key and cleans up after itself.
 
 Assumes the sandbox index has ``enterprise_catalog_query_uuids`` declared as
-an attribute for faceting (required for the ``get_content_keys_for_catalog_query``
+an attribute for faceting (required for the ``get_aggregation_keys_for_catalog_query``
 scenario). If you've been running the existing legacy reindex against this
 sandbox, that's already configured.
 """
@@ -134,8 +134,8 @@ try:
     print(f'    -> {len(found_ids)} objectIDs returned')
 
     found_keys = _step(
-        'get_content_keys_for_catalog_query',
-        lambda: client.get_content_keys_for_catalog_query(CATALOG_QUERY_UUID),
+        'get_aggregation_keys_for_catalog_query',
+        lambda: client.get_aggregation_keys_for_catalog_query(CATALOG_QUERY_UUID),
     )
     assert AGGREGATION_KEY in found_keys, \
         f'{AGGREGATION_KEY} not in {sorted(found_keys)}'

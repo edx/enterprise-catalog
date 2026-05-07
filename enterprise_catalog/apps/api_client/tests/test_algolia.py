@@ -15,7 +15,7 @@ from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 class TestAlgoliaSearchClientBatchMethods(TestCase):
     """
     Tests for ``save_objects_batch``, ``delete_objects_batch``,
-    ``get_object_ids_for_aggregation_key``, ``get_content_keys_for_catalog_query``,
+    ``get_object_ids_for_aggregation_key``, ``get_aggregation_keys_for_catalog_query``,
     and the ``_get_index`` helper.
     """
     # pylint: disable=protected-access
@@ -230,59 +230,59 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         client.algolia_index.browse_objects.side_effect = AlgoliaException('boom')
 
         with self.assertRaises(AlgoliaException):
-            client.get_object_ids_for_aggregation_key('course-abc')
+            client.get_object_ids_for_aggregation_key('course:edx-abc')
 
-    def test_get_content_keys_for_catalog_query_dedupes_across_shards(self):
+    def test_get_aggregation_keys_for_catalog_query_dedupes_across_shards(self):
         """
         Multiple shards of the same content yield a single aggregation_key in the result.
         """
         client = self._build_client()
         client.algolia_index.browse_objects.return_value = iter([
-            {'aggregation_key': 'course-abc'},
-            {'aggregation_key': 'course-abc'},  # second shard, same content key
-            {'aggregation_key': 'course-def'},
+            {'aggregation_key': 'course:edx-abc'},
+            {'aggregation_key': 'course:edx-abc'},  # second shard, same content key
+            {'aggregation_key': 'course:edx-def'},
         ])
 
-        result = client.get_content_keys_for_catalog_query('cq-uuid-1')
+        result = client.get_aggregation_keys_for_catalog_query('cq-uuid-1')
 
-        self.assertEqual(result, {'course-abc', 'course-def'})
+        self.assertEqual(result, {'course:edx-abc', 'course:edx-def'})
         client.algolia_index.browse_objects.assert_called_once_with({
             'attributesToRetrieve': ['aggregation_key'],
             'facetFilters': ['enterprise_catalog_query_uuids:cq-uuid-1'],
         })
 
-    def test_get_content_keys_for_catalog_query_skips_missing_aggregation_key(self):
+    def test_get_aggregation_keys_for_catalog_query_skips_missing_aggregation_key(self):
         """
         Records without ``aggregation_key`` are ignored rather than added as None.
         """
         client = self._build_client()
         client.algolia_index.browse_objects.return_value = iter([
-            {'aggregation_key': 'course-abc'},
+            {'aggregation_key': 'course:edx-abc'},
             {},
             {'aggregation_key': None},
         ])
 
-        result = client.get_content_keys_for_catalog_query('cq-uuid-1')
-        self.assertEqual(result, {'course-abc'})
+        result = client.get_aggregation_keys_for_catalog_query('cq-uuid-1')
+        self.assertEqual(result, {'course:edx-abc'})
 
-    def test_get_content_keys_for_catalog_query_targets_alternate_index(self):
+    def test_get_aggregation_keys_for_catalog_query_targets_alternate_index(self):
         """
         Browses the alternate index when ``index_name`` is provided.
         """
         client = self._build_client()
         alt_index = mock.MagicMock(name='alt_index')
-        alt_index.browse_objects.return_value = iter([{'aggregation_key': 'course-abc'}])
+        alt_index.browse_objects.return_value = iter([{'aggregation_key': 'course:edx-abc'}])
         client._client.init_index.return_value = alt_index
 
-        result = client.get_content_keys_for_catalog_query(
+        result = client.get_aggregation_keys_for_catalog_query(
             'cq-uuid-1', index_name=self.ALT_INDEX_NAME,
         )
 
-        self.assertEqual(result, {'course-abc'})
+        self.assertEqual(result, {'course:edx-abc'})
         alt_index.browse_objects.assert_called_once()
         client.algolia_index.browse_objects.assert_not_called()
 
-    def test_get_content_keys_for_catalog_query_reraises_algolia_exception(self):
+    def test_get_aggregation_keys_for_catalog_query_reraises_algolia_exception(self):
         """
         Algolia errors are re-raised.
         """
@@ -290,15 +290,15 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         client.algolia_index.browse_objects.side_effect = AlgoliaException('boom')
 
         with self.assertRaises(AlgoliaException):
-            client.get_content_keys_for_catalog_query('cq-uuid-1')
+            client.get_aggregation_keys_for_catalog_query('cq-uuid-1')
 
-    def test_get_content_keys_for_catalog_query_raises_when_index_unavailable(self):
+    def test_get_aggregation_keys_for_catalog_query_raises_when_index_unavailable(self):
         """
         With no initialized index, raises ImproperlyConfigured.
         """
         client = AlgoliaSearchClient()
         with self.assertRaises(ImproperlyConfigured):
-            client.get_content_keys_for_catalog_query('cq-uuid-1')
+            client.get_aggregation_keys_for_catalog_query('cq-uuid-1')
 
     def test_get_object_ids_for_aggregation_key_raises_when_index_unavailable(self):
         """
@@ -306,4 +306,4 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         """
         client = AlgoliaSearchClient()
         with self.assertRaises(ImproperlyConfigured):
-            client.get_object_ids_for_aggregation_key('course-abc')
+            client.get_object_ids_for_aggregation_key('course:edx-abc')

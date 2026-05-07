@@ -2,7 +2,7 @@ import logging
 from re import findall, search
 
 from django.db import IntegrityError, models
-from django.db.models import Prefetch
+from django.db.models import Case, IntegerField, Prefetch, When
 from rest_framework import serializers, status
 
 from enterprise_catalog.apps.academy.models import Academy, Tag
@@ -431,7 +431,15 @@ class HighlightSetSerializer(serializers.ModelSerializer):
         """
         lang = self.context.get('lang')
 
-        qs = obj.highlighted_content.order_by('created').select_related('content_metadata')
+        qs = obj.highlighted_content.annotate(
+            favorite_sort_order=Case(
+                When(is_favorite=True, then=models.F('sort_order')),
+                default=0,
+                output_field=IntegerField(),
+            )
+        ).order_by(
+            '-is_favorite', 'favorite_sort_order', 'created'
+        ).select_related('content_metadata')
 
         if lang in AVAILABLE_TRANSLATION_LANGUAGES and lang != DEFAULT_TRANSLATION_LANGUAGE:
             # Only prefetches translations if a supported non-English language is requested.

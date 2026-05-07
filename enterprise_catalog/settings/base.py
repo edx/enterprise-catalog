@@ -7,12 +7,12 @@ from enterprise_catalog.apps.catalog.constants import (
     DEFAULT_COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL,
     ENTERPRISE_CATALOG_ADMIN_ROLE,
     ENTERPRISE_CATALOG_LEARNER_ROLE,
+    ENTERPRISE_CATALOG_PROVISIONING_ADMIN,
     SYSTEM_ENTERPRISE_ADMIN_ROLE,
     SYSTEM_ENTERPRISE_CATALOG_ADMIN_ROLE,
     SYSTEM_ENTERPRISE_LEARNER_ROLE,
     SYSTEM_ENTERPRISE_OPERATOR_ROLE,
     SYSTEM_ENTERPRISE_PROVISIONING_ADMIN_ROLE,
-    ENTERPRISE_CATALOG_PROVISIONING_ADMIN,
 )
 from enterprise_catalog.settings.utils import get_logger_config
 
@@ -438,6 +438,12 @@ ALGOLIA = {
     'APPLICATION_ID': '',
     'API_KEY': '',
 }
+
+# How long to cache the precomputed program/pathway membership mappings
+# used by the incremental Algolia indexing batch tasks. The mappings change
+# only when ContentMetadata associations change (effectively, after each
+# update_content_metadata run), so a 30-minute TTL is a safe default.
+ALGOLIA_INDEXING_MAPPINGS_CACHE_TIMEOUT = 60 * 30
 
 # Which fields should be plucked from the /search/all course-discovery API
 # response in `update_catalog_metadata_task` for course content metadata?

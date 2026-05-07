@@ -3,6 +3,7 @@ from collections.abc import Mapping
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import F
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_cookie
@@ -461,6 +462,41 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
     # Fields required for controlling access in the `list()` action
     allowed_roles = [ENTERPRISE_CATALOG_ADMIN_ROLE]
 
+    def _set_favorite_highlight_order(self, highlighted_content, favorite_toggle):
+        """
+        Set favorite state while keeping favorite sort order contiguous.
+
+        Favorited items are kept at the top of the serialized highlight set.  A
+        newly favorited item is inserted directly after the current lowest-ranked
+        favorite, preserving the existing favorite insertion order.  When a
+        favorite is removed, favorites below it shift up by one rank.
+        """
+        if favorite_toggle:
+            if highlighted_content.is_favorite:
+                return
+            lowest_favorite_sort_order = HighlightedContent.objects.filter(
+                catalog_highlight_set=highlighted_content.catalog_highlight_set,
+                is_favorite=True,
+            ).order_by('-sort_order').values_list('sort_order', flat=True).first()
+            highlighted_content.is_favorite = True
+            highlighted_content.sort_order = (
+                0 if lowest_favorite_sort_order is None else lowest_favorite_sort_order + 1
+            )
+            highlighted_content.save(update_fields=['is_favorite', 'sort_order', 'modified'])
+            return
+
+        if not highlighted_content.is_favorite:
+            return
+        removed_sort_order = highlighted_content.sort_order
+        highlighted_content.is_favorite = False
+        highlighted_content.sort_order = 0
+        highlighted_content.save(update_fields=['is_favorite', 'sort_order', 'modified'])
+        HighlightedContent.objects.filter(
+            catalog_highlight_set=highlighted_content.catalog_highlight_set,
+            is_favorite=True,
+            sort_order__gt=removed_sort_order,
+        ).update(sort_order=F('sort_order') - 1)
+
     def _validate_existing_enterprise_curation_config(self):
         """
         Validates whether there is an existing EnterpriseCurationConfig object associated with
@@ -852,18 +888,18 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
         highlight_set = HighlightSet.objects.get(uuid=self.requested_highlight_set_uuid)
         content_uuid = request.data.get('content_uuid')
         favorite_param = request.data.get('favorite')
-        if not favorite_param:
+        if favorite_param is None:
             return Response({'Error': 'Missing favorite parameter'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             favorite_toggle = str_to_bool(favorite_param)
             if not content_uuid:
                 return Response({'Error': 'Missing content_uuid parameter'}, status=status.HTTP_400_BAD_REQUEST)
-            highlighted_content = HighlightedContent.objects.get(uuid=content_uuid)
-            if highlighted_content.catalog_highlight_set.uuid != highlight_set.uuid:
-                return Response({'Error': 'Highlighted content not part of the given highlight set'},
-                                status=status.HTTP_400_BAD_REQUEST)
-            highlighted_content.is_favorite = favorite_toggle
-            highlighted_content.save()
+            with transaction.atomic():
+                highlighted_content = HighlightedContent.objects.select_for_update().get(uuid=content_uuid)
+                if highlighted_content.catalog_highlight_set.uuid != highlight_set.uuid:
+                    return Response({'Error': 'Highlighted content not part of the given highlight set'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                self._set_favorite_highlight_order(highlighted_content, favorite_toggle)
             return Response({}, status=status.HTTP_201_CREATED)
         except TypeError:
             return Response({'Error': f'favorite parameter "{favorite_param}" is not a valid true/false value'},

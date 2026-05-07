@@ -1784,3 +1784,176 @@ class HighlightSetViewSetTests(CurationAPITestBase):
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.json()['Error'] == 'Highlighted content not part of the given highlight set'
+
+    def test_toggle_favorite_highlight_moves_to_top_when_no_existing_favorites(self):
+        """
+        Favoriting an item with no existing favorites moves it to the top of the serialized sort order.
+        """
+        self.highlighted_content_list_one[0].sort_order = 10
+        self.highlighted_content_list_one[0].save()
+
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-toggle-favorite-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        detail_url = reverse(
+            'api:v1:highlight-sets-admin-detail',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+
+        response = self.client.post(
+            edit_url, {
+                'content_uuid': str(self.highlighted_content_list_one[2].uuid),
+                'favorite': True,
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+        self.highlighted_content_list_one[2].refresh_from_db()
+        assert self.highlighted_content_list_one[2].is_favorite is True
+        assert self.highlighted_content_list_one[2].sort_order == 0
+
+        response = self.client.get(detail_url)
+        assert response.status_code == status.HTTP_200_OK
+        highlighted_content_uuids = [item['uuid'] for item in response.json()['highlighted_content']]
+        assert highlighted_content_uuids == [
+            str(self.highlighted_content_list_one[2].uuid),
+            str(self.highlighted_content_list_one[0].uuid),
+            str(self.highlighted_content_list_one[1].uuid),
+            str(self.highlighted_content_list_one[3].uuid),
+            str(self.highlighted_content_list_one[4].uuid),
+        ]
+
+    def test_toggle_favorite_highlight_inserts_below_lowest_ranked_favorite(self):
+        """
+        Favoriting an item appends it directly after the lowest-ranked favorite, preserving favorite order.
+        """
+        self.highlighted_content_list_one[1].is_favorite = True
+        self.highlighted_content_list_one[1].sort_order = 0
+        self.highlighted_content_list_one[1].save()
+        self.highlighted_content_list_one[3].is_favorite = True
+        self.highlighted_content_list_one[3].sort_order = 1
+        self.highlighted_content_list_one[3].save()
+
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-toggle-favorite-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        detail_url = reverse(
+            'api:v1:highlight-sets-admin-detail',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+
+        response = self.client.post(
+            edit_url, {
+                'content_uuid': str(self.highlighted_content_list_one[4].uuid),
+                'favorite': 'true',
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+        self.highlighted_content_list_one[4].refresh_from_db()
+        assert self.highlighted_content_list_one[4].is_favorite is True
+        assert self.highlighted_content_list_one[4].sort_order == 2
+
+        response = self.client.get(detail_url)
+        assert response.status_code == status.HTTP_200_OK
+        highlighted_content_uuids = [item['uuid'] for item in response.json()['highlighted_content']]
+        assert highlighted_content_uuids == [
+            str(self.highlighted_content_list_one[1].uuid),
+            str(self.highlighted_content_list_one[3].uuid),
+            str(self.highlighted_content_list_one[4].uuid),
+            str(self.highlighted_content_list_one[0].uuid),
+            str(self.highlighted_content_list_one[2].uuid),
+        ]
+
+    def test_toggle_favorite_highlight_unfavorite_adjusts_following_favorite_sort_order(self):
+        """
+        Unfavoriting an item shifts later favorites up while keeping non-favorites in insertion order.
+        """
+        favorite_indices = [0, 2, 4]
+        for sort_order, idx in enumerate(favorite_indices):
+            self.highlighted_content_list_one[idx].is_favorite = True
+            self.highlighted_content_list_one[idx].sort_order = sort_order
+            self.highlighted_content_list_one[idx].save()
+
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-toggle-favorite-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        detail_url = reverse(
+            'api:v1:highlight-sets-admin-detail',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+
+        response = self.client.post(
+            edit_url, {
+                'content_uuid': str(self.highlighted_content_list_one[2].uuid),
+                'favorite': False,
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+        self.highlighted_content_list_one[0].refresh_from_db()
+        self.highlighted_content_list_one[2].refresh_from_db()
+        self.highlighted_content_list_one[4].refresh_from_db()
+        assert self.highlighted_content_list_one[0].sort_order == 0
+        assert self.highlighted_content_list_one[2].is_favorite is False
+        assert self.highlighted_content_list_one[2].sort_order == 0
+        assert self.highlighted_content_list_one[4].sort_order == 1
+
+        response = self.client.get(detail_url)
+        assert response.status_code == status.HTTP_200_OK
+        highlighted_content_uuids = [item['uuid'] for item in response.json()['highlighted_content']]
+        assert highlighted_content_uuids == [
+            str(self.highlighted_content_list_one[0].uuid),
+            str(self.highlighted_content_list_one[4].uuid),
+            str(self.highlighted_content_list_one[1].uuid),
+            str(self.highlighted_content_list_one[2].uuid),
+            str(self.highlighted_content_list_one[3].uuid),
+        ]
+
+    def test_toggle_favorite_highlight_noops_when_state_is_unchanged(self):
+        """
+        Toggling to the current favorite state leaves sort order unchanged.
+        """
+        self.highlighted_content_list_one[0].is_favorite = True
+        self.highlighted_content_list_one[0].sort_order = 0
+        self.highlighted_content_list_one[0].save()
+        self.highlighted_content_list_one[1].is_favorite = True
+        self.highlighted_content_list_one[1].sort_order = 1
+        self.highlighted_content_list_one[1].save()
+
+        edit_url = reverse(
+            'api:v1:highlight-sets-admin-toggle-favorite-highlight',
+            kwargs={'uuid': str(self.highlight_set_one.uuid)}
+        )
+        self.set_up_staff()
+
+        response = self.client.post(
+            edit_url, {
+                'content_uuid': str(self.highlighted_content_list_one[0].uuid),
+                'favorite': True,
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = self.client.post(
+            edit_url, {
+                'content_uuid': str(self.highlighted_content_list_one[2].uuid),
+                'favorite': False,
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+        for content in self.highlighted_content_list_one[:3]:
+            content.refresh_from_db()
+        assert self.highlighted_content_list_one[0].is_favorite is True
+        assert self.highlighted_content_list_one[0].sort_order == 0
+        assert self.highlighted_content_list_one[1].is_favorite is True
+        assert self.highlighted_content_list_one[1].sort_order == 1
+        assert self.highlighted_content_list_one[2].is_favorite is False
+        assert self.highlighted_content_list_one[2].sort_order == 0

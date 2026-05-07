@@ -7,7 +7,8 @@ Enterprise Catalog is a Django-based microservice within the Open edX ecosystem 
 ## Test and Quality Instructions
 
 - To run unit tests or generate coverage reports, invoke the `unit-tests` skill.
-- To run quality checks (linting, style), invoke the `quality-tests` skill.
+- Prefer to use docker with explicit test settings: `docker exec -e DJANGO_SETTINGS_MODULE=enterprise_catalog.settings.test enterprise.catalog.app pytest...`
+- To run quality checks (linting, style), invoke the `quality-checks` skill.
 
 ## Key Principles
 

@@ -83,19 +83,23 @@ class ContentMetadataIndexingState(TimeStampedModel):
         """
         Record a successful index operation.
 
-        Clears any prior failure state, stores the Algolia object IDs produced,
-        and stamps ``last_indexed_at``.
+        Clears any prior failure state and any prior ``removed_from_index_at``
+        timestamp (so REMOVED→INDEXED transitions don't leave a stale removal
+        timestamp on the row), stores the Algolia object IDs produced, and
+        stamps ``last_indexed_at``.
         """
         self.last_indexed_at = indexed_at or localized_utcnow()
         if algolia_object_ids is not None:
             self.algolia_object_ids = list(algolia_object_ids)
         self.last_failure_at = None
         self.failure_reason = None
+        self.removed_from_index_at = None
         self.save(update_fields=[
             'last_indexed_at',
             'algolia_object_ids',
             'last_failure_at',
             'failure_reason',
+            'removed_from_index_at',
             'modified',
         ])
 

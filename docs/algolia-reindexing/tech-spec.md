@@ -303,7 +303,7 @@ We determine what needs reindexing differently per content type:
 | Component | Purpose |
 |-----------|---------|
 | `ContentMetadataIndexingState` model | Tracks per-record indexing state, failure history |
-| `AlgoliaSearchClient` batch methods | `save_objects_batch()`, `delete_objects_batch()`, `get_object_ids_by_prefix()`, `get_content_keys_for_catalog_query()` |
+| `AlgoliaSearchClient` batch methods | `save_objects_batch()`, `delete_objects_batch()`, `get_object_ids_by_prefix()`, `get_aggregation_keys_for_catalog_query()` |
 | Content-type batch tasks | `index_courses_batch_in_algolia`, `index_programs_batch_in_algolia`, `index_pathways_batch_in_algolia` |
 | Dispatcher tasks | `dispatch_algolia_indexing` (all stale), `dispatch_algolia_indexing_for_catalog_query` (single catalog) |
 | Management command | `incremental_reindex_algolia` — manual runs, testing against v2 index |
@@ -487,17 +487,22 @@ When content is *removed* from a catalog's membership, that content's Algolia re
 def dispatch_algolia_indexing_for_catalog_query(catalog_query_id):
     catalog_query = CatalogQuery.objects.get(id=catalog_query_id)
 
-    # Query Algolia for records with this catalog_query's facets
-    algolia_content_keys = algolia_client.get_content_keys_for_catalog_query(catalog_query_id)
+    # Query Algolia for aggregation_keys ("{content_type}:{content_key}") currently
+    # indexed under this catalog query's facet.
+    algolia_aggregation_keys = algolia_client.get_aggregation_keys_for_catalog_query(catalog_query_id)
 
-    # Query database for current membership
-    db_content_keys = set(catalog_query.content_metadata.values_list('content_key', flat=True))
+    # Query database for current membership; convert to aggregation_keys so the
+    # set diff is apples-to-apples.
+    db_aggregation_keys = {
+        f'{cm.content_type}:{cm.content_key}'
+        for cm in catalog_query.content_metadata.all()
+    }
 
-    # Content removed from membership needs reindexing to update facets
-    removed_keys = algolia_content_keys - db_content_keys
-    all_keys_to_index = db_content_keys | removed_keys
+    # Content removed from membership needs reindexing to update facets.
+    removed_aggregation_keys = algolia_aggregation_keys - db_aggregation_keys
+    all_aggregation_keys_to_index = db_aggregation_keys | removed_aggregation_keys
 
-    # Batch and dispatch...
+    # Group by content_type, batch, and dispatch...
 ```
 
 **Why this works**: When we reindex a removed course, we generate fresh Algolia objects based on its *current* membership (which no longer includes the old catalog). The Algolia `save_objects_batch()` replaces the record, removing the stale catalog facet.
@@ -656,7 +661,7 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
 - Add `save_objects_batch(objects, index_name=None)` method
 - Add `delete_objects_batch(object_ids, index_name=None)` method
 - Add `get_object_ids_by_prefix(prefix, index_name=None)` method for shard discovery
-- Add `get_content_keys_for_catalog_query(catalog_query_id, index_name=None)` method for membership removal detection
+- Add `get_aggregation_keys_for_catalog_query(catalog_query_id, index_name=None)` method for membership removal detection
 - Add `_get_index(index_name=None)` helper to support custom index names
 
 **File Changes**:
@@ -669,7 +674,7 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
 - [ ] `save_objects_batch()` upserts objects without affecting other records
 - [ ] `delete_objects_batch()` removes specified objects by ID
 - [ ] `get_object_ids_by_prefix()` returns all object IDs matching a content key prefix
-- [ ] `get_content_keys_for_catalog_query()` returns content keys currently indexed with the given catalog query's facets (uses Algolia's browse/search API with facet filter)
+- [ ] `get_aggregation_keys_for_catalog_query()` returns content keys currently indexed with the given catalog query's facets (uses Algolia's browse/search API with facet filter)
 - [ ] All methods support optional `index_name` param for targeting v2 index
 - [ ] All methods have appropriate error handling and logging
 

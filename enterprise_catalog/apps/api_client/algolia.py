@@ -234,23 +234,31 @@ class AlgoliaSearchClient:
             raise exc
         return object_ids
 
-    def get_content_keys_for_catalog_query(self, catalog_query_uuid, index_name=None):
+    def get_aggregation_keys_for_catalog_query(self, catalog_query_uuid, index_name=None):
         """
-        Return the set of content keys currently indexed with the given catalog query's facet.
+        Return the set of ``aggregation_key`` values currently indexed with the given
+        catalog query's facet.
 
-        Used by the per-catalog dispatcher to detect membership removals: any content key
-        present in Algolia under this catalog query but no longer in the database
-        membership needs to be reindexed so its facets reflect the removal.
+        Each returned value is a ``"{content_type}:{content_key}"`` string (e.g.
+        ``"course:edX+DemoX"``); shards belonging to the same content collapse to a
+        single entry because they share the same ``aggregation_key``. Callers that
+        want bare ``content_key``s (or just the ``content_type``) should split the
+        returned strings on ``:``.
+
+        Used by the per-catalog dispatcher to detect membership removals: any
+        aggregation_key present in Algolia under this catalog query but no longer
+        in the database membership needs to be reindexed so its facets reflect the
+        removal.
 
         Arguments:
             catalog_query_uuid (str|UUID): The CatalogQuery uuid to filter by.
             index_name (str): Optional index name; defaults to the primary index.
 
         Returns:
-            set: aggregation_keys (content keys) currently indexed under this catalog query.
+            set[str]: aggregation_keys currently indexed under this catalog query.
         """
         index = self._get_index(index_name)
-        content_keys = set()
+        aggregation_keys = set()
         try:
             # browse_objects returns an ObjectIterator that auto-paginates via cursor;
             # safe for catalog queries with 10k+ records.
@@ -263,15 +271,15 @@ class AlgoliaSearchClient:
             for hit in iterator:
                 aggregation_key = hit.get('aggregation_key')
                 if aggregation_key:
-                    content_keys.add(aggregation_key)
+                    aggregation_keys.add(aggregation_key)
         except AlgoliaException as exc:
             logger.exception(
-                'Could not list content keys for catalog query %s in the %s Algolia index due to an exception.',
+                'Could not list aggregation keys for catalog query %s in the %s Algolia index due to an exception.',
                 catalog_query_uuid,
                 index_name or self.algolia_index_name,
             )
             raise exc
-        return content_keys
+        return aggregation_keys
 
     def replace_all_objects(self, algolia_objects):  # pragma: no cover
         """

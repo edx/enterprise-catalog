@@ -98,6 +98,49 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
 
         client.algolia_index.save_objects.assert_called_once_with(objects)
 
+    def test_save_objects_batch_chunks_into_multiple_calls(self):
+        """
+        With ``chunk_size`` smaller than the input length, the call is split
+        across multiple ``save_objects`` invocations on the index — each one
+        independently raises on its own failure, which is the property that
+        makes the bulk-with-fallback path in the search tasks work.
+        """
+        client = self._build_client()
+        objects = [{'objectID': f'shard-{i}'} for i in range(5)]
+
+        client.save_objects_batch(objects, chunk_size=2)
+
+        self.assertEqual(client.algolia_index.save_objects.call_count, 3)
+        chunks = [call.args[0] for call in client.algolia_index.save_objects.call_args_list]
+        # All input objects accounted for, in order, across 2-2-1 chunks.
+        self.assertEqual(
+            [obj['objectID'] for chunk in chunks for obj in chunk],
+            [obj['objectID'] for obj in objects],
+        )
+        self.assertEqual([len(chunk) for chunk in chunks], [2, 2, 1])
+
+    def test_save_objects_batch_noop_when_no_objects(self):
+        """
+        Empty input returns early without calling Algolia.
+        """
+        client = self._build_client()
+        client.save_objects_batch([])
+        client.algolia_index.save_objects.assert_not_called()
+
+    def test_save_objects_batch_uses_setting_default_chunk_size(self):
+        """
+        ``chunk_size=None`` (the default) reads from the Django setting; the
+        request fits in one chunk at the configured size.
+        """
+        client = self._build_client()
+        objects = [{'objectID': f'shard-{i}'} for i in range(50)]
+
+        with self.settings(ALGOLIA_INDEXING_CHUNK_SIZE=100):
+            client.save_objects_batch(objects)
+
+        client.algolia_index.save_objects.assert_called_once()
+        self.assertEqual(len(client.algolia_index.save_objects.call_args.args[0]), 50)
+
     def test_save_objects_batch_targets_alternate_index(self):
         """
         With ``index_name`` set, ``save_objects_batch`` writes to that index instead.
@@ -143,6 +186,21 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
 
         client.algolia_index.delete_objects.assert_called_once_with(ids)
 
+    def test_delete_objects_batch_chunks_into_multiple_calls(self):
+        """
+        With ``chunk_size`` smaller than the input length, the call is split
+        across multiple ``delete_objects`` invocations.
+        """
+        client = self._build_client()
+        ids = [f'shard-{i}' for i in range(5)]
+
+        client.delete_objects_batch(ids, chunk_size=2)
+
+        self.assertEqual(client.algolia_index.delete_objects.call_count, 3)
+        chunks = [call.args[0] for call in client.algolia_index.delete_objects.call_args_list]
+        self.assertEqual([oid for chunk in chunks for oid in chunk], ids)
+        self.assertEqual([len(chunk) for chunk in chunks], [2, 2, 1])
+
     def test_delete_objects_batch_targets_alternate_index(self):
         """
         With ``index_name`` set, ``delete_objects_batch`` deletes from that index.
@@ -163,8 +221,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         Empty/None object_ids returns early without calling Algolia.
         """
         client = self._build_client()
-        result = client.delete_objects_batch(ids)
-        self.assertIsNone(result)
+        client.delete_objects_batch(ids)
         client.algolia_index.delete_objects.assert_not_called()
 
     def test_delete_objects_batch_reraises_algolia_exception(self):

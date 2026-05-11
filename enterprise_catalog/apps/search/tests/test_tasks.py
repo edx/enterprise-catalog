@@ -553,10 +553,14 @@ class TestIndexContentBatch(TestCase):
     def test_finalize_step_failure_isolated_to_offending_record(self):
         """
         If pass 3's state-row update raises (e.g. DB hiccup in
-        ``mark_as_indexed``), the failure is recorded against that one record
+        ``mark_as_indexed``), the failure is recorded in the batch summary
         and the rest of the batch still finalizes. Pinned because pass 3 is
         the only loop where a single record's exception can fan out and abort
         siblings if it's not wrapped per-iteration.
+
+        We do NOT try to recover by also calling ``mark_as_failed`` here —
+        that path could itself raise. The next run sees ``last_indexed_at``
+        unchanged on the offending record and re-indexes idempotently.
         """
         c_ok = ContentMetadataFactory(content_type=COURSE, content_key='course-ok')
         c_explode = ContentMetadataFactory(content_type=COURSE, content_key='course-explode')
@@ -589,10 +593,10 @@ class TestIndexContentBatch(TestCase):
         # Sibling still finalized cleanly.
         ok_state = ContentMetadataIndexingState.objects.get(content_metadata=c_ok)
         self.assertIsNotNone(ok_state.last_indexed_at)
-        # Offending record carries the failure stamp.
+        # Offending record's state row stays in its pre-finalize state — the
+        # next run re-indexes idempotently.
         explode_state = ContentMetadataIndexingState.objects.get(content_metadata=c_explode)
-        self.assertIsNotNone(explode_state.last_failure_at)
-        self.assertIn('db boom', explode_state.failure_reason)
+        self.assertIsNone(explode_state.last_indexed_at)
 
     # --- Plumbing ------------------------------------------------------
 
@@ -723,6 +727,7 @@ class TestIndexingDecisionConstructors(TestCase):
         decision = IndexingDecision.skipped(
             content_key='c-1', content=mock.sentinel.content, state=mock.sentinel.state,
         )
+        self.assertEqual(decision.desired_outcome, RecordOutcome.SKIPPED)
         self.assertEqual(decision.outcome, RecordOutcome.SKIPPED)
         self.assertEqual(decision.new_objects, [])
         self.assertEqual(decision.new_object_ids, [])
@@ -734,6 +739,7 @@ class TestIndexingDecisionConstructors(TestCase):
             content_key='c-1', content=mock.sentinel.content, state=mock.sentinel.state,
             ids_to_delete=('id-0', 'id-1'),
         )
+        self.assertEqual(decision.desired_outcome, RecordOutcome.REMOVED)
         self.assertEqual(decision.outcome, RecordOutcome.REMOVED)
         self.assertEqual(decision.ids_to_delete, ['id-0', 'id-1'])
         self.assertEqual(decision.new_objects, [])
@@ -746,6 +752,7 @@ class TestIndexingDecisionConstructors(TestCase):
             new_object_ids=['id-0', 'id-1'],
             ids_to_delete=['orphan-0'],
         )
+        self.assertEqual(decision.desired_outcome, RecordOutcome.INDEXED)
         self.assertEqual(decision.outcome, RecordOutcome.INDEXED)
         self.assertEqual(decision.new_objects, new_objects)
         self.assertEqual(decision.new_object_ids, ['id-0', 'id-1'])
@@ -754,28 +761,25 @@ class TestIndexingDecisionConstructors(TestCase):
     def test_failed_allows_missing_content_and_state(self):
         exc = ValueError('boom')
         decision = IndexingDecision.failed(content_key='c-1', failure_reason=exc)
+        self.assertEqual(decision.desired_outcome, RecordOutcome.FAILED)
         self.assertEqual(decision.outcome, RecordOutcome.FAILED)
         self.assertIsNone(decision.content)
         self.assertIsNone(decision.state)
         self.assertIs(decision.failure_reason, exc)
 
-
-class TestSafelyMarkFailed(TestCase):
-    """
-    The state-update path must not itself blow up the batch.
-    """
-    # pylint: disable=protected-access
-
-    def test_swallows_exceptions_from_mark_as_failed(self):
+    def test_per_record_save_failure_mutates_outcome_only_not_desired(self):
         """
-        If ``mark_as_failed`` raises, the helper logs and returns rather than
-        propagating — callers shouldn't have their batch failed by the
-        failure-recording path.
+        Pass 2's per-record save fallback updates ``outcome`` to FAILED but
+        leaves ``desired_outcome`` as INDEXED so the original plan stays
+        readable for debugging.
         """
-        content = ContentMetadataFactory(content_type=COURSE, content_key='course-explode')
-        with mock.patch.object(
-            ContentMetadataIndexingState, 'mark_as_failed',
-            side_effect=RuntimeError('db down'),
-        ):
-            # Should not raise.
-            search_tasks._safely_mark_failed(content, ValueError('original'))
+        decision = IndexingDecision.indexed(
+            content_key='c-1', content=mock.sentinel.content, state=mock.sentinel.state,
+            new_objects=[{'objectID': 'id-0'}],
+            new_object_ids=['id-0'],
+            ids_to_delete=[],
+        )
+        # Simulate the fallback mutation.
+        decision.outcome = RecordOutcome.FAILED
+        self.assertEqual(decision.desired_outcome, RecordOutcome.INDEXED)
+        self.assertEqual(decision.outcome, RecordOutcome.FAILED)

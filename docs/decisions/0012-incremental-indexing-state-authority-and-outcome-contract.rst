@@ -41,7 +41,10 @@ without a corresponding state row.
 
 **``_index_content_batch`` resolves each ``content_key`` to exactly one of
 four outcomes**, formalized as ``RecordOutcome`` (a ``StrEnum``) with these
-semantics:
+semantics. Each ``IndexingDecision`` carries both a ``desired_outcome`` (set
+during pass 1, immutable) and an ``outcome`` (mutable, mirrors
+``desired_outcome`` until pass 2's per-record fallback flips it to FAILED on
+write failure). Pass 3 dispatches on ``outcome``:
 
 * **INDEXED** — content is indexable per the partition functions AND the
   legacy generator emits ≥1 shard. New objects are upserted, orphans

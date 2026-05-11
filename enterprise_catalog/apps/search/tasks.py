@@ -184,17 +184,23 @@ class IndexingDecision:
     ``_execute_saves`` / ``_execute_deletes`` in pass 2, then applied to the
     state row + counters in pass 3 by ``_finalize_decision``.
 
-    A decision is mutable in exactly one way: if a per-record fallback in
-    pass 2 raises, the fallback sets ``outcome = RecordOutcome.FAILED`` and
-    populates ``failure_reason`` on this same instance. That makes
-    ``decision.outcome`` the single source of truth in pass 3 — no separate
-    failure-set parameters need to be threaded through.
+    Each decision carries two outcome fields:
+
+    * ``desired_outcome`` (immutable) — what pass 1's resolution determined
+      *should* happen for this record (INDEXED / SKIPPED / REMOVED / FAILED).
+    * ``outcome`` (mutable, mirrors ``desired_outcome`` until pass 2 runs) —
+      what *actually* happened after the Algolia writes. The per-record
+      fallback paths set ``outcome = FAILED`` and populate ``failure_reason``
+      when a save or delete retry raises. Pass 3 dispatches on ``outcome``.
+
+    The split keeps pass 1's plan auditable after pass 2 has rewritten the
+    fate of some records.
 
     Always construct via the ``skipped`` / ``removed`` / ``indexed`` /
     ``failed`` classmethods rather than the raw constructor; each enforces
-    the field invariants for its outcome.
+    the field invariants for its desired outcome.
 
-    Invariants by outcome:
+    Invariants by desired_outcome:
 
     * INDEXED — ``new_objects`` non-empty, ``new_object_ids`` matches their
       ``objectID`` (in order), ``ids_to_delete`` is the set of orphans (may
@@ -203,12 +209,13 @@ class IndexingDecision:
       is the set of shards Algolia is hosting for this content (may be
       empty).
     * SKIPPED — nothing to do; all lists empty.
-    * FAILED — planning failed, OR a per-record fallback in pass 2 raised.
-      ``content`` and ``state`` may be ``None`` (e.g. when ``ContentMetadata``
-      is missing); ``failure_reason`` carries the exception.
+    * FAILED — planning failed (e.g. missing ``ContentMetadata``).
+      ``content`` and ``state`` may be ``None``; ``failure_reason`` carries
+      the exception.
     """
     content_key: str
-    outcome: RecordOutcome
+    desired_outcome: RecordOutcome
+    outcome: RecordOutcome = None
     content: ContentMetadata = None
     state: ContentMetadataIndexingState = None
     new_objects: list = field(default_factory=list)
@@ -216,11 +223,16 @@ class IndexingDecision:
     ids_to_delete: list = field(default_factory=list)
     failure_reason: Exception = None
 
+    def __post_init__(self):
+        # ``outcome`` mirrors ``desired_outcome`` until pass 2 overrides it.
+        if self.outcome is None:
+            self.outcome = self.desired_outcome
+
     @classmethod
     def skipped(cls, *, content_key, content, state):
         """``state.last_indexed_at`` is current and ``force=False``."""
         return cls(
-            content_key=content_key, outcome=RecordOutcome.SKIPPED,
+            content_key=content_key, desired_outcome=RecordOutcome.SKIPPED,
             content=content, state=state,
         )
 
@@ -232,7 +244,7 @@ class IndexingDecision:
         ``ids_to_delete`` is whatever Algolia is currently hosting for it.
         """
         return cls(
-            content_key=content_key, outcome=RecordOutcome.REMOVED,
+            content_key=content_key, desired_outcome=RecordOutcome.REMOVED,
             content=content, state=state, ids_to_delete=list(ids_to_delete),
         )
 
@@ -243,7 +255,7 @@ class IndexingDecision:
         previous run wrote but this run no longer needs.
         """
         return cls(
-            content_key=content_key, outcome=RecordOutcome.INDEXED,
+            content_key=content_key, desired_outcome=RecordOutcome.INDEXED,
             content=content, state=state,
             new_objects=new_objects, new_object_ids=new_object_ids,
             ids_to_delete=list(ids_to_delete),
@@ -252,13 +264,12 @@ class IndexingDecision:
     @classmethod
     def failed(cls, *, content_key, content=None, state=None, failure_reason):
         """
-        Pass 1 couldn't produce a real plan (e.g. missing ``ContentMetadata``)
-        or pass 2's per-record fallback raised. Pass 3 will best-effort stamp
-        the state row via ``mark_as_failed`` if both ``content`` and ``state``
-        are available.
+        Pass 1 couldn't produce a real plan (e.g. missing ``ContentMetadata``).
+        Pass 3 will best-effort stamp the state row via ``mark_as_failed`` if
+        ``content`` is available.
         """
         return cls(
-            content_key=content_key, outcome=RecordOutcome.FAILED,
+            content_key=content_key, desired_outcome=RecordOutcome.FAILED,
             content=content, state=state, failure_reason=failure_reason,
         )
 
@@ -275,11 +286,11 @@ def _index_content_batch(content_keys, content_type, index_name=None, force=Fals
        ``_existing_shard_ids``'s per-record browse fallback for records the
        state row hasn't seen yet.
     2. **Execute** (bulk-with-fallback): one ``save_objects_batch`` call across
-       every INDEXED decision's objects, then one ``delete_objects_batch`` for
-       every orphan + REMOVED shard. If either bulk call raises, we fall back
-       to per-record retries; per-record failures mutate the decision's
-       outcome to FAILED in place.
-    3. **Finalize** (state row updates): each decision's final outcome drives
+       every decision with ``desired_outcome=INDEXED``, then one
+       ``delete_objects_batch`` for every orphan + REMOVED shard. If either
+       bulk call raises, we fall back to per-record retries; per-record
+       failures mutate the decision's ``outcome`` to FAILED in place.
+    3. **Finalize** (state row updates): each decision's actual outcome drives
        the state-row stamp (``mark_as_indexed``, ``mark_as_removed``,
        ``mark_as_failed``) and the counter increment.
 
@@ -329,15 +340,18 @@ def _index_content_batch(content_keys, content_type, index_name=None, force=Fals
     _execute_deletes(decisions, algolia_client, index_name)
 
     # --- Pass 3: finalize state rows + counters -----------------------------
+    # Wrap per-decision so a DB hiccup in one record's ``mark_as_*`` doesn't
+    # abort the rest of the batch. The failure is recorded in the summary; we
+    # don't attempt a recovery ``mark_as_failed`` write here since that path
+    # could itself raise — the next run sees ``last_indexed_at`` unchanged and
+    # re-indexes idempotently.
     for decision in decisions:
         try:
             _finalize_decision(decision, results)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except
             logger.exception(
                 'Finalize step raised for content_key=%s', decision.content_key,
             )
-            if decision.content is not None:
-                _safely_mark_failed(decision.content, exc)
             results.record_failure(decision.content_key)
 
     logger.info(
@@ -507,13 +521,13 @@ def _resolve_indexing_decision(
 
 def _execute_saves(decisions, algolia_client, index_name):
     """
-    Issue one bulk ``save_objects_batch`` for every INDEXED decision's
-    objects. On ``AlgoliaException``, fall back to per-record save —
-    per-record failures mutate the decision's outcome to FAILED in place.
+    Issue one bulk ``save_objects_batch`` for every decision whose
+    desired_outcome is INDEXED. On ``AlgoliaException``, fall back to per-record
+    save — per-record failures mutate the decision's actual outcome to FAILED.
     """
     indexed_decisions = [
         d for d in decisions
-        if d.outcome == RecordOutcome.INDEXED
+        if d.desired_outcome == RecordOutcome.INDEXED
     ]
     if not indexed_decisions:
         return
@@ -594,13 +608,19 @@ def _per_record_delete_fallback(decisions, algolia_client, index_name):
 def _finalize_decision(decision, results):
     """
     Apply the decision's final outcome to the state row and bump the matching
-    counter. ``decision.outcome`` already accounts for any per-record fallback
-    failures (the fallback paths mutate it to FAILED), so this is a pure
-    dispatch on the outcome.
+    counter. ``decision.outcome`` reflects what actually happened after pass 2
+    (a save or delete fallback may have moved a desired-INDEXED record to
+    FAILED), so this is a pure dispatch on the actual outcome.
+
+    Any exception raised here (e.g. a DB error from ``mark_as_*``) propagates
+    to the caller, which catches it per-record so siblings still finalize.
     """
     if decision.outcome == RecordOutcome.FAILED:
         if decision.content is not None:
-            _safely_mark_failed(decision.content, decision.failure_reason)
+            state = decision.state or ContentMetadataIndexingState.get_or_create_for_content(
+                decision.content,
+            )[0]
+            state.mark_as_failed(reason=decision.failure_reason)
         results.record_failure(decision.content_key)
     elif decision.outcome == RecordOutcome.SKIPPED:
         results.increment(RecordOutcome.SKIPPED)
@@ -610,19 +630,3 @@ def _finalize_decision(decision, results):
     elif decision.outcome == RecordOutcome.INDEXED:
         decision.state.mark_as_indexed(algolia_object_ids=decision.new_object_ids)
         results.increment(RecordOutcome.INDEXED)
-
-
-def _safely_mark_failed(content, exc):
-    """
-    Record a per-record failure on the state row, swallowing any exception
-    raised by ``mark_as_failed`` itself — we never want the failure-recording
-    path to take down the whole batch.
-    """
-    try:
-        state, _ = ContentMetadataIndexingState.get_or_create_for_content(content)
-        state.mark_as_failed(reason=exc)
-    except Exception:  # pylint: disable=broad-except
-        logger.exception(
-            'mark_as_failed itself raised for content_key=%s; original error was %r',
-            content.content_key, exc,
-        )

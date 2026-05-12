@@ -2,6 +2,7 @@ import logging
 from collections.abc import Mapping
 from uuid import UUID
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 from django.utils.decorators import method_decorator
@@ -57,7 +58,6 @@ from enterprise_catalog.apps.curation.models import (
 
 REQUEST_CACHE_NAMESPACE = 'CURATION_REQUEST_CACHE'
 CONTENT_PER_HIGHLIGHTSET_LIMIT = 24
-HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT = 16
 logger = logging.getLogger(__name__)
 
 
@@ -660,13 +660,14 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
 
         # Validate that creating this HighlightSet would not cause the maximum number of highlight sets per enterprise
         # customer to be exceeded.
-        existing_highlightset_count = len(HighlightSet.objects.filter(enterprise_curation=curation_config))
-        if existing_highlightset_count == HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT:
+        existing_highlightset_count = HighlightSet.objects.filter(enterprise_curation=curation_config).count()
+        highlightsets_limit = settings.HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT
+        if existing_highlightset_count >= highlightsets_limit:
             return Response(
                 {
                     'Error': (
                         'Request exceeds the backend maximum highlight set per enterprise customer '
-                        f'({HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT}).'
+                        f'({highlightsets_limit}).'
                     ),
                 },
                 status=status.HTTP_403_FORBIDDEN

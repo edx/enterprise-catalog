@@ -28,6 +28,7 @@ sandbox, that's already configured.
 
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -118,12 +119,13 @@ objects = [_make_obj(i) for i in range(3)]
 object_ids = [obj['objectID'] for obj in objects]
 
 try:
-    save_response = _step(
+    _step(
         'save_objects_batch (3 records)',
         lambda: client.save_objects_batch(objects),
     )
-    # Block until the records are committed and searchable.
-    save_response.wait()
+    # save_objects_batch is fire-and-forget per ADR 0012; sleep briefly to let
+    # Algolia publish before asserting searchability.
+    time.sleep(2)
 
     found_ids = _step(
         'get_object_ids_for_aggregation_key',
@@ -152,12 +154,11 @@ try:
     assert set(alt_found) == set(object_ids)
 
 finally:
-    cleanup_response = _step(
+    _step(
         'delete_objects_batch (cleanup)',
         lambda: client.delete_objects_batch(object_ids),
     )
-    if cleanup_response is not None:
-        cleanup_response.wait()
+    time.sleep(2)
 
     leftover = client.get_object_ids_for_aggregation_key(AGGREGATION_KEY)
     if leftover:

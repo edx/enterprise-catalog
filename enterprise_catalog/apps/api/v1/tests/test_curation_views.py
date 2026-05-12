@@ -7,6 +7,7 @@ import uuid
 from unittest import mock
 
 import ddt
+from django.conf import settings
 from django.core.cache import cache as django_cache
 from faker import Faker
 from rest_framework import status
@@ -19,7 +20,6 @@ from enterprise_catalog.apps.api.v1.tests.mixins import (
 )
 from enterprise_catalog.apps.api.v1.views.curation.highlights import (
     CONTENT_PER_HIGHLIGHTSET_LIMIT,
-    HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT,
     HighlightSetPartialUpdateSerializer,
 )
 from enterprise_catalog.apps.catalog.constants import COURSE, PROGRAM
@@ -809,7 +809,7 @@ class HighlightSetViewSetTests(CurationAPITestBase):
             'is_published': True,
         }
         # Create so many HighlightSet objects such that the final count is just at the limit, but not exceeding it.
-        for _ in range(HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT - 1):
+        for _ in range(settings.HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT - 1):
             response = self.client.post(url, post_data)
             assert response.status_code == status.HTTP_201_CREATED
         # Create one more HighlightSet that should trigger an error.

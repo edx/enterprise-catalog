@@ -712,6 +712,18 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
 - Tasks fire-and-forget the Algolia writes: the `IndexingResponse` from
   `save_objects` / `delete_objects` is discarded and `.wait()` is not
   called. See ADR 0012 in this repo.
+- Bulk Algolia writes with per-record fallback. `_index_content_batch`
+  splits work across three passes: (1) per-record planning with no
+  Algolia writes (just diff math against `state.algolia_object_ids`),
+  (2) one bulk `save_objects_batch` and one bulk `delete_objects_batch`
+  call across the entire task batch, falling back to per-record retries
+  on `AlgoliaException` to isolate which content_keys actually failed,
+  (3) per-record state-row updates keyed off the per-record failure
+  sets. The client chunks each bulk call at
+  `ALGOLIA_INDEXING_CHUNK_SIZE` (default 100) to bound the blast
+  radius of a partial failure; Algolia upserts/deletes are idempotent,
+  so chunks the SDK already flushed before a failure are safely
+  re-written by the per-record fallback.
 
 **File Changes**:
 | File | Change |

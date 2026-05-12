@@ -445,6 +445,15 @@ ALGOLIA = {
 # update_content_metadata run), so a 30-minute TTL is a safe default.
 ALGOLIA_INDEXING_MAPPINGS_CACHE_TIMEOUT = 60 * 30
 
+# How many Algolia objects we send per HTTP request when the incremental
+# indexing batch tasks call ``save_objects_batch`` / ``delete_objects_batch``.
+# The Algolia SDK auto-chunks at 1000; we chunk smaller to limit the blast
+# radius when a request fails (each chunk is an independently-failing unit
+# of work). 100 keeps requests small enough that a typical task batch
+# fits in 1-2 HTTP calls but a partial failure only loses one chunk's
+# worth of work to the per-record fallback path.
+ALGOLIA_INDEXING_CHUNK_SIZE = 100
+
 # Which fields should be plucked from the /search/all course-discovery API
 # response in `update_catalog_metadata_task` for course content metadata?
 COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL = os.environ.get(
@@ -462,6 +471,15 @@ SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS = False
 
 # Whether to enable v2 of the APIs that surface restricted course (+ runs) content
 ENABLE_V2_API = False
+
+# Maximum number of HighlightSets allowed per enterprise customer.
+# Overridable via env var; falls back to 26 if the value is missing, non-integer, or non-positive.
+_HIGHLIGHTSETS_LIMIT_DEFAULT = 26
+try:
+    _parsed = int(os.environ.get('HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT', _HIGHLIGHTSETS_LIMIT_DEFAULT))
+    HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT = _parsed if _parsed > 0 else _HIGHLIGHTSETS_LIMIT_DEFAULT
+except ValueError:
+    HIGHLIGHTSETS_PER_ENTERPRISE_LIMIT = _HIGHLIGHTSETS_LIMIT_DEFAULT
 
 # Set up system-to-feature roles mapping for edx-rbac
 SYSTEM_TO_FEATURE_ROLE_MAPPING = {

@@ -29,7 +29,7 @@ Decision
 --------
 
 **The state row is the system of record for shard ownership; Algolia browse
-is a fallback.** ``_process_content_key`` reads
+is a fallback.** ``_resolve_indexing_decision`` reads
 ``state.algolia_object_ids`` first to compute orphan diffs and to drive the
 REMOVE path; it falls back to
 ``AlgoliaSearchClient.get_object_ids_for_aggregation_key`` only when the
@@ -40,8 +40,11 @@ correctness during the transition window when legacy shards may exist
 without a corresponding state row.
 
 **``_index_content_batch`` resolves each ``content_key`` to exactly one of
-four outcomes**, formalized as ``BatchOutcome`` (a ``StrEnum``) with these
-semantics:
+four outcomes**, formalized as ``RecordOutcome`` (a ``StrEnum``) with these
+semantics. Each ``IndexingDecision`` carries both a ``desired_outcome`` (set
+during pass 1, immutable) and an ``outcome`` (mutable, mirrors
+``desired_outcome`` until pass 2's per-record fallback flips it to FAILED on
+write failure). Pass 3 dispatches on ``outcome``:
 
 * **INDEXED** — content is indexable per the partition functions AND the
   legacy generator emits ≥1 shard. New objects are upserted, orphans
@@ -58,7 +61,7 @@ semantics:
   ``mark_as_failed(reason)`` is called best-effort. The batch continues
   processing the remaining records.
 
-Counters and the per-key failure list roll up into a ``BatchResults``
+Counters and the per-key failure list roll up into a ``BatchSummary``
 dataclass; task wrappers convert it via ``dataclasses.asdict()`` so the
 on-the-wire Celery payload stays JSON-serializable.
 
@@ -74,7 +77,7 @@ Consequences
   reindex job is decommissioned and we're confident no shards exist
   without a corresponding state row. Until then, the cost is one search
   op per first-time-indexed content.
-* The ``BatchOutcome`` set and its state-row effects are a public contract
+* The ``RecordOutcome`` set and its state-row effects are a public contract
   for the Phase 4 dispatcher and any downstream tooling. Adding a fifth
   outcome or changing what an existing one does to the state row is an
   ADR-worthy change.

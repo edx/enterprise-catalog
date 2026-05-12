@@ -445,6 +445,15 @@ ALGOLIA = {
 # update_content_metadata run), so a 30-minute TTL is a safe default.
 ALGOLIA_INDEXING_MAPPINGS_CACHE_TIMEOUT = 60 * 30
 
+# How many Algolia objects we send per HTTP request when the incremental
+# indexing batch tasks call ``save_objects_batch`` / ``delete_objects_batch``.
+# The Algolia SDK auto-chunks at 1000; we chunk smaller to limit the blast
+# radius when a request fails (each chunk is an independently-failing unit
+# of work). 100 keeps requests small enough that a typical task batch
+# fits in 1-2 HTTP calls but a partial failure only loses one chunk's
+# worth of work to the per-record fallback path.
+ALGOLIA_INDEXING_CHUNK_SIZE = 100
+
 # Which fields should be plucked from the /search/all course-discovery API
 # response in `update_catalog_metadata_task` for course content metadata?
 COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL = os.environ.get(

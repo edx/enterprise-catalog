@@ -10,7 +10,7 @@ from algoliasearch.search_client import SearchClient
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
-from enterprise_catalog.apps.catalog.utils import localized_utcnow
+from enterprise_catalog.apps.catalog.utils import batch, localized_utcnow
 
 
 logger = logging.getLogger(__name__)
@@ -159,45 +159,67 @@ class AlgoliaSearchClient:
             )
         return self._client.init_index(index_name)
 
-    def save_objects_batch(self, algolia_objects, index_name=None):
+    def save_objects_batch(self, algolia_objects, index_name=None, chunk_size=None):
         """
         Upsert a batch of objects into the given index without affecting other records.
         This intentionally does *not* wait for the asynchronous Algolia index job to complete.
         See ADR 0012 for details.
 
+        Chunking: the input list is split into ``chunk_size``-sized HTTP requests
+        (defaulting to ``settings.ALGOLIA_INDEXING_CHUNK_SIZE``). The Algolia SDK
+        also auto-chunks at 1000; we chunk smaller to limit blast radius on
+        failure. If a chunk raises ``AlgoliaException``, earlier chunks have
+        already been accepted by Algolia — Algolia upserts by ``objectID``, so a
+        retry of the full input is idempotent (callers running through the
+        per-record fallback path rely on this).
+
         Arguments:
             algolia_objects (list): Objects to save. Each must include an ``objectID``.
             index_name (str): Optional index name; defaults to the primary index.
+            chunk_size (int): Optional override for the per-request chunk size.
         """
+        if not algolia_objects:
+            return None
         index = self._get_index(index_name)
+        effective_chunk_size = chunk_size or getattr(settings, 'ALGOLIA_INDEXING_CHUNK_SIZE', 100)
         try:
-            return index.save_objects(algolia_objects)
+            for chunk in batch(list(algolia_objects), batch_size=effective_chunk_size):
+                index.save_objects(chunk)
         except AlgoliaException as exc:
             logger.exception(
                 'Could not save objects batch in the %s Algolia index due to an exception.',
                 index_name or self.algolia_index_name,
             )
             raise exc
+        return None
 
-    def delete_objects_batch(self, object_ids, index_name=None):
+    def delete_objects_batch(self, object_ids, index_name=None, chunk_size=None):
         """
         Delete a batch of objects by objectID from the given index.
+
+        Chunking: same behavior as ``save_objects_batch`` — split into
+        ``chunk_size``-sized HTTP requests, raising on the first chunk to fail.
+        Deletes are idempotent so retrying the full list is safe.
 
         Arguments:
             object_ids (list): Algolia objectIDs to delete.
             index_name (str): Optional index name; defaults to the primary index.
+            chunk_size (int): Optional override for the per-request chunk size.
         """
         if not object_ids:
             return None
         index = self._get_index(index_name)
+        effective_chunk_size = chunk_size or getattr(settings, 'ALGOLIA_INDEXING_CHUNK_SIZE', 100)
         try:
-            return index.delete_objects(object_ids)
+            for chunk in batch(list(object_ids), batch_size=effective_chunk_size):
+                index.delete_objects(chunk)
         except AlgoliaException as exc:
             logger.exception(
                 'Could not delete objects batch from the %s Algolia index due to an exception.',
                 index_name or self.algolia_index_name,
             )
             raise exc
+        return None
 
     def get_object_ids_for_aggregation_key(self, aggregation_key, index_name=None):
         """

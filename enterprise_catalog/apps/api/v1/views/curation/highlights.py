@@ -471,31 +471,40 @@ class HighlightSetViewSet(HighlightSetBaseViewSet, viewsets.ModelViewSet):
         favorite, preserving the existing favorite insertion order.  When a
         favorite is removed, favorites below it shift up by one rank.
         """
+
+        from django.db import transaction
+
         if favorite_toggle:
-            if highlighted_content.is_favorite:
+            with transaction.atomic():
+                # Lock all favorites in this set to prevent concurrent updates
+                favorites_qs = HighlightedContent.objects.select_for_update().filter(
+                    catalog_highlight_set=highlighted_content.catalog_highlight_set,
+                    is_favorite=True,
+                )
+                if highlighted_content.is_favorite:
+                    return
+                lowest_favorite_sort_order = favorites_qs.order_by('-sort_order').values_list('sort_order', flat=True).first()
+                highlighted_content.is_favorite = True
+                highlighted_content.sort_order = (
+                    0 if lowest_favorite_sort_order is None else lowest_favorite_sort_order + 1
+                )
+                highlighted_content.save(update_fields=['is_favorite', 'sort_order', 'modified'])
                 return
-            lowest_favorite_sort_order = HighlightedContent.objects.filter(
-                catalog_highlight_set=highlighted_content.catalog_highlight_set,
-                is_favorite=True,
-            ).order_by('-sort_order').values_list('sort_order', flat=True).first()
-            highlighted_content.is_favorite = True
-            highlighted_content.sort_order = (
-                0 if lowest_favorite_sort_order is None else lowest_favorite_sort_order + 1
-            )
-            highlighted_content.save(update_fields=['is_favorite', 'sort_order', 'modified'])
-            return
 
         if not highlighted_content.is_favorite:
             return
         removed_sort_order = highlighted_content.sort_order
-        highlighted_content.is_favorite = False
-        highlighted_content.sort_order = 0
-        highlighted_content.save(update_fields=['is_favorite', 'sort_order', 'modified'])
-        HighlightedContent.objects.filter(
-            catalog_highlight_set=highlighted_content.catalog_highlight_set,
-            is_favorite=True,
-            sort_order__gt=removed_sort_order,
-        ).update(sort_order=F('sort_order') - 1)
+        with transaction.atomic():
+            # Lock all favorites in this set to prevent concurrent updates
+            favorites_qs = HighlightedContent.objects.select_for_update().filter(
+                catalog_highlight_set=highlighted_content.catalog_highlight_set,
+                is_favorite=True,
+            )
+            highlighted_content.is_favorite = False
+            # sort_order is only meaningful when is_favorite is True
+            highlighted_content.sort_order = 0
+            highlighted_content.save(update_fields=['is_favorite', 'sort_order', 'modified'])
+            favorites_qs.filter(sort_order__gt=removed_sort_order).update(sort_order=F('sort_order') - 1)
 
     def _validate_existing_enterprise_curation_config(self):
         """

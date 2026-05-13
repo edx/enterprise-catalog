@@ -173,7 +173,7 @@ class HighlightedContent(TimeStampedModel):
     sort_order = models.PositiveIntegerField(
         default=0,
         help_text=_(
-            "Sort order for favorited items, in ascending order (0=first)"
+            "Sort order for favorited items (only used when is_favorite=True), in ascending order (0=first)"
         )
     )
     history = HistoricalRecords()

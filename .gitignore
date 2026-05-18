@@ -115,3 +115,7 @@ prompts.db
 
 # scripts env vars
 *.env
+
+# algolia investigation stuff
+docs/security
+scripts/scoped_algolia_api_key.py

@@ -41,12 +41,18 @@ Design notes worth keeping in mind:
 """
 import logging
 from collections import defaultdict
+from collections.abc import Generator, Iterable
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from enum import StrEnum
+from itertools import islice
+from typing import Any, TypedDict, TypeVar
+from uuid import UUID
 
 from algoliasearch.exceptions import AlgoliaException
-from celery import shared_task
+from celery import chain, group, shared_task
 from celery_utils.logged_task import LoggedTask
+from django.conf import settings
 from django.db import IntegrityError
 from django.db.utils import OperationalError
 from requests.exceptions import ConnectionError as RequestsConnectionError
@@ -65,11 +71,23 @@ from enterprise_catalog.apps.catalog.models import ContentMetadata
 from enterprise_catalog.apps.search.indexing_mappings import (
     IndexingMappings,
     get_indexing_mappings,
+    invalidate_indexing_mappings_cache,
 )
 from enterprise_catalog.apps.search.models import ContentMetadataIndexingState
 
 
 logger = logging.getLogger(__name__)
+
+# TypeVar for the generic _chunked helper.
+_T = TypeVar('_T')
+
+
+class _ContentState(TypedDict):
+    """
+    Type alias for the per-record state dict returned by _get_indexing_state_by_key.
+    """
+    last_indexed_at: datetime | None
+    last_failure_at: datetime | None
 
 
 UNREADY_TASK_RETRY_COUNTDOWN_SECONDS = 60 * 5
@@ -141,7 +159,9 @@ class _LoggedTaskWithRetry(LoggedTask):  # pylint: disable=abstract-method
 
 
 @shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
-def index_courses_batch_in_algolia(self, content_keys, index_name=None, force=False):  # pylint: disable=unused-argument
+def index_courses_batch_in_algolia(
+    self, content_keys, index_name=None, force=False,  # pylint: disable=unused-argument
+):
     """
     Index a small batch of course ContentMetadata records into Algolia.
 
@@ -152,7 +172,9 @@ def index_courses_batch_in_algolia(self, content_keys, index_name=None, force=Fa
 
 
 @shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
-def index_programs_batch_in_algolia(self, content_keys, index_name=None, force=False):  # pylint: disable=unused-argument
+def index_programs_batch_in_algolia(
+    self, content_keys, index_name=None, force=False,  # pylint: disable=unused-argument
+):
     """
     Index a small batch of program ContentMetadata records into Algolia.
 
@@ -163,7 +185,9 @@ def index_programs_batch_in_algolia(self, content_keys, index_name=None, force=F
 
 
 @shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
-def index_pathways_batch_in_algolia(self, content_keys, index_name=None, force=False):  # pylint: disable=unused-argument
+def index_pathways_batch_in_algolia(
+    self, content_keys, index_name=None, force=False,  # pylint: disable=unused-argument
+):
     """
     Index a small batch of learner pathway ContentMetadata records into Algolia.
 
@@ -171,6 +195,114 @@ def index_pathways_batch_in_algolia(self, content_keys, index_name=None, force=F
     Celery payload stays JSON-serializable.
     """
     return asdict(_index_content_batch(content_keys, LEARNER_PATHWAY, index_name=index_name, force=force))
+
+
+@shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
+def dispatch_algolia_indexing(
+    self,  # pylint: disable=unused-argument
+    force=False,
+    dry_run=False,
+    include_failed=True,
+    index_name=None,
+):
+    """
+    Dispatch Phase 4a incremental Algolia indexing batch tasks.
+
+    When ``force=True``, dispatch every currently-indexable record. Otherwise,
+    dispatch only records that have never been indexed, are stale, or have a
+    recorded failure that should be retried.
+
+    **Dispatch ordering matters for child-staleness propagation.**
+
+    Programs and pathways use ``last_indexed_at`` timestamps on their *child*
+    content to decide whether they are stale: a program is stale when any of
+    its child courses was indexed more recently than the program itself, and a
+    pathway is stale when any of its child programs is newer.
+
+    Because those timestamps are only advanced *after* the child batch tasks
+    complete, we must guarantee that all course batches finish before any
+    program batches start, and all program batches finish before any pathway
+    batches start.  This is achieved by assembling the batches into a
+    ``chain`` of Celery ``group``\\s (courses → programs → pathways).  Each
+    group runs in parallel internally; Celery does not start the next group
+    until every task in the current group has completed.  Empty groups are
+    omitted from the chain.
+    """
+    if force:
+        invalidate_indexing_mappings_cache()
+
+    mappings = get_indexing_mappings()
+    batch_size = getattr(settings, 'ALGOLIA_INDEXING_BATCH_SIZE', 10)
+    indexable_keys_by_type = _get_indexable_keys_by_content_type(
+        mappings.all_indexable_content_keys,
+    )
+
+    content_keys_to_dispatch: dict[str, list[str]] = {
+        COURSE: _get_course_keys_for_dispatch(
+            content_keys=indexable_keys_by_type[COURSE],
+            force=force,
+            include_failed=include_failed,
+        ),
+        PROGRAM: _get_program_keys_for_dispatch(
+            content_keys=indexable_keys_by_type[PROGRAM],
+            program_to_course_keys=mappings.program_to_course_keys,
+            force=force,
+            include_failed=include_failed,
+        ),
+        LEARNER_PATHWAY: _get_pathway_keys_for_dispatch(
+            content_keys=indexable_keys_by_type[LEARNER_PATHWAY],
+            pathway_to_program_course_keys=mappings.pathway_to_program_course_keys,
+            force=force,
+            include_failed=include_failed,
+        ),
+    }
+
+    task_by_content_type = {
+        COURSE: index_courses_batch_in_algolia,
+        PROGRAM: index_programs_batch_in_algolia,
+        LEARNER_PATHWAY: index_pathways_batch_in_algolia,
+    }
+    summary = {
+        'force': force,
+        'dry_run': dry_run,
+        'batch_size': batch_size,
+        'index_name': index_name,
+        'dispatched': {},
+    }
+
+    # Build per-type batches and record summary counts before dispatching.
+    batches_by_type = {}
+    for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY):
+        content_keys = content_keys_to_dispatch[content_type]
+        batches = _chunked(content_keys, batch_size)
+        batches_by_type[content_type] = batches
+        summary['dispatched'][content_type] = {'records': 0, 'batches': 0}
+
+    # Build a chain of groups: courses -> programs -> pathways.
+    # Tasks use .si() (immutable signatures) so each task's kwargs are
+    # fixed at dispatch time and Celery does not forward the previous
+    # group's return values as positional arguments.
+    ordered_groups = []
+    for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY):
+        content_type_group_tasks = []
+        for batch in batches_by_type[content_type]:
+            summary['dispatched'][content_type]['batches'] += 1
+            summary['dispatched'][content_type]['records'] += len(batch)
+            if dry_run:
+                continue
+            content_type_group_tasks.append(
+                task_by_content_type[content_type].si(
+                    content_keys=batch, force=force, index_name=index_name,
+                ),
+            )
+        if content_type_group_tasks:
+            ordered_groups.append(group(content_type_group_tasks))
+
+    if not dry_run and len(ordered_groups) >= 1:
+        chain(*ordered_groups).apply_async()
+
+    logger.info('dispatch_algolia_indexing summary=%s', summary)
+    return summary
 
 
 @dataclass
@@ -274,7 +406,12 @@ class IndexingDecision:
         )
 
 
-def _index_content_batch(content_keys, content_type, index_name=None, force=False):
+def _index_content_batch(
+    content_keys: list[str],
+    content_type: str,
+    index_name: str | None = None,
+    force: bool = False,
+) -> BatchSummary:
     """
     Drive the per-record indexing loop for a batch of content_keys via three
     coordinated passes:
@@ -365,6 +502,251 @@ def _index_content_batch(content_keys, content_type, index_name=None, force=Fals
     return results
 
 
+def _chunked(iterable: Iterable[_T], size: int) -> Generator[list[_T], None, None]:
+    """
+    Yield successive ``list`` batches from ``iterable`` with at most ``size``
+    items per batch.
+    """
+    iterator = iter(iterable)
+    while True:
+        batch = list(islice(iterator, size))
+        if not batch:
+            return
+        yield batch
+
+
+def _get_indexable_keys_by_content_type(
+    all_indexable_content_keys: Iterable[str],
+) -> dict[str, list[str]]:
+    """
+    Return a deterministic list of indexable content_keys for each supported
+    content type.
+    """
+    indexable_keys_by_type = {
+        COURSE: [],
+        PROGRAM: [],
+        LEARNER_PATHWAY: [],
+    }
+    if not all_indexable_content_keys:
+        return indexable_keys_by_type
+
+    queryset = ContentMetadata.objects.filter(
+        content_key__in=all_indexable_content_keys,
+        content_type__in=(COURSE, PROGRAM, LEARNER_PATHWAY),
+    ).values_list(
+        'content_type', 'content_key',
+    ).order_by(
+        'content_type', 'content_key',
+    )
+
+    for content_type, content_key in queryset:
+        indexable_keys_by_type[content_type].append(content_key)
+    return indexable_keys_by_type
+
+
+def _get_content_modified_by_key(
+    content_keys: Iterable[str],
+    content_type: str,
+) -> dict[str, datetime]:
+    """
+    Return ``content_key -> modified`` for the requested content type.
+    """
+    if not content_keys:
+        return {}
+    return dict(
+        ContentMetadata.objects.filter(
+            content_key__in=content_keys,
+            content_type=content_type,
+        ).values_list('content_key', 'modified')
+    )
+
+
+def _get_indexing_state_by_key(
+    content_keys: Iterable[str],
+) -> dict[str, _ContentState]:
+    """
+    Return ``content_key -> {'last_indexed_at', 'last_failure_at'}``.
+    """
+    if not content_keys:
+        return {}
+
+    queryset = ContentMetadataIndexingState.objects.filter(
+        content_metadata__content_key__in=content_keys,
+    ).values_list(
+        'content_metadata__content_key',
+        'last_indexed_at',
+        'last_failure_at',
+    )
+
+    return {
+        content_key: {
+            'last_indexed_at': last_indexed_at,
+            'last_failure_at': last_failure_at,
+        }
+        for content_key, last_indexed_at, last_failure_at in queryset
+    }
+
+
+def _should_retry_failed_record(
+    state_by_key: dict[str, _ContentState],
+    content_key: str,
+    include_failed: bool,
+) -> bool:
+    """
+    Return whether a recorded failure should be retried for ``content_key``.
+    """
+    if not include_failed:
+        return False
+    state = state_by_key.get(content_key)
+    return bool(state and state['last_failure_at'])
+
+
+def _get_course_keys_for_dispatch(
+    content_keys: list[str],
+    force: bool,
+    include_failed: bool,
+) -> list[str]:
+    """
+    Return the course content_keys that the dispatcher should enqueue.
+    """
+    if force:
+        return list(content_keys)
+
+    content_modified_by_key = _get_content_modified_by_key(content_keys, COURSE)
+    state_by_key = _get_indexing_state_by_key(content_keys)
+    keys_to_dispatch = []
+    for content_key in content_keys:
+        state = state_by_key.get(content_key)
+        if state is None or state['last_indexed_at'] is None:
+            keys_to_dispatch.append(content_key)
+            continue
+        if content_modified_by_key[content_key] > state['last_indexed_at']:
+            keys_to_dispatch.append(content_key)
+            continue
+        if _should_retry_failed_record(state_by_key, content_key, include_failed):
+            keys_to_dispatch.append(content_key)
+    return keys_to_dispatch
+
+
+def _get_program_keys_for_dispatch(
+    content_keys: list[str],
+    program_to_course_keys: dict[str, set[str]],
+    force: bool,
+    include_failed: bool,
+) -> list[str]:
+    """
+    Return the program content_keys that the dispatcher should enqueue.
+    """
+    if force:
+        return list(content_keys)
+
+    state_by_key = _get_indexing_state_by_key(content_keys)
+    all_child_course_keys = {
+        child_key
+        for program_key in content_keys
+        for child_key in program_to_course_keys.get(program_key, ())
+    }
+    child_state_by_key = _get_indexing_state_by_key(all_child_course_keys)
+
+    keys_to_dispatch = []
+    for content_key in content_keys:
+        state = state_by_key.get(content_key)
+        if state is None or state['last_indexed_at'] is None:
+            keys_to_dispatch.append(content_key)
+            continue
+        if _should_retry_failed_record(state_by_key, content_key, include_failed):
+            keys_to_dispatch.append(content_key)
+            continue
+        if _has_newer_child_index(
+            program_to_course_keys.get(content_key, ()),
+            child_state_by_key,
+            state['last_indexed_at'],
+        ):
+            keys_to_dispatch.append(content_key)
+    return keys_to_dispatch
+
+
+def _get_pathway_keys_for_dispatch(
+    content_keys: list[str],
+    pathway_to_program_course_keys: dict[str, set[str]],
+    force: bool,
+    include_failed: bool,
+) -> list[str]:
+    """
+    Return the learner pathway content_keys that the dispatcher should enqueue.
+    """
+    if force:
+        return list(content_keys)
+
+    state_by_key = _get_indexing_state_by_key(content_keys)
+    child_program_keys_by_pathway = {
+        pathway_key: _extract_program_keys(
+            pathway_to_program_course_keys.get(pathway_key, ())
+        )
+        for pathway_key in content_keys
+    }
+    all_child_program_keys = {
+        child_key
+        for child_program_keys in child_program_keys_by_pathway.values()
+        for child_key in child_program_keys
+    }
+    child_state_by_key = _get_indexing_state_by_key(all_child_program_keys)
+
+    keys_to_dispatch = []
+    for content_key in content_keys:
+        state = state_by_key.get(content_key)
+        if state is None or state['last_indexed_at'] is None:
+            keys_to_dispatch.append(content_key)
+            continue
+        if _should_retry_failed_record(state_by_key, content_key, include_failed):
+            keys_to_dispatch.append(content_key)
+            continue
+        if _has_newer_child_index(
+            child_program_keys_by_pathway[content_key],
+            child_state_by_key,
+            state['last_indexed_at'],
+        ):
+            keys_to_dispatch.append(content_key)
+    return keys_to_dispatch
+
+
+def _has_newer_child_index(
+    child_keys: Iterable[str],
+    child_state_by_key: dict[str, _ContentState],
+    parent_last_indexed_at: datetime,
+) -> bool:
+    """
+    Return whether any child was indexed more recently than its parent.
+    """
+    for child_key in child_keys:
+        child_state = child_state_by_key.get(child_key)
+        if child_state and child_state['last_indexed_at'] and child_state['last_indexed_at'] > parent_last_indexed_at:
+            return True
+    return False
+
+
+def _extract_program_keys(content_keys: Iterable[str]) -> list[str]:
+    """
+    Return only UUID-shaped keys from a mixed course/program iterable.
+    """
+    return [
+        content_key
+        for content_key in content_keys
+        if _is_uuid_string(content_key)
+    ]
+
+
+def _is_uuid_string(value: Any) -> bool:
+    """
+    Return whether ``value`` parses cleanly as a UUID after string coercion.
+    """
+    try:
+        UUID(str(value))
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def _build_objects_by_content_key(
     content_keys: list[str],
     content_type: str,
@@ -404,7 +786,7 @@ def _build_objects_by_content_key(
     return objects_by_content_key
 
 
-def _aggregation_key_for(content_type, content_key):
+def _aggregation_key_for(content_type: str, content_key: str) -> str:
     """
     The legacy Algolia object generator emits ``aggregation_key`` as
     ``"{content_type}:{content_key}"`` (e.g. ``"course:edX+DemoX"``). The
@@ -414,7 +796,12 @@ def _aggregation_key_for(content_type, content_key):
     return f'{content_type}:{content_key}'
 
 
-def _existing_shard_ids(state, aggregation_key, algolia_client, index_name):
+def _existing_shard_ids(
+    state: ContentMetadataIndexingState,
+    aggregation_key: str,
+    algolia_client: AlgoliaSearchClient,
+    index_name: str | None,
+) -> list[str]:
     """
     Return the Algolia shard objectIDs Algolia is hosting for a content
     record.
@@ -519,7 +906,11 @@ def _resolve_indexing_decision(
         )
 
 
-def _execute_saves(decisions, algolia_client, index_name):
+def _execute_saves(
+    decisions: list[IndexingDecision],
+    algolia_client: AlgoliaSearchClient,
+    index_name: str | None,
+) -> None:
     """
     Issue one bulk ``save_objects_batch`` for every decision whose
     desired_outcome is INDEXED. On ``AlgoliaException``, fall back to per-record
@@ -543,7 +934,11 @@ def _execute_saves(decisions, algolia_client, index_name):
         _per_record_save_fallback(indexed_decisions, algolia_client, index_name)
 
 
-def _per_record_save_fallback(decisions, algolia_client, index_name):
+def _per_record_save_fallback(
+    decisions: list[IndexingDecision],
+    algolia_client: AlgoliaSearchClient,
+    index_name: str | None,
+) -> None:
     """
     Retry each decision's save individually. On per-record failure, mutate
     the decision's outcome to FAILED so pass 3 dispatches via the FAILED
@@ -560,7 +955,11 @@ def _per_record_save_fallback(decisions, algolia_client, index_name):
             decision.failure_reason = exc
 
 
-def _execute_deletes(decisions, algolia_client, index_name):
+def _execute_deletes(
+    decisions: list[IndexingDecision],
+    algolia_client: AlgoliaSearchClient,
+    index_name: str | None,
+) -> None:
     """
     Issue one bulk ``delete_objects_batch`` for every orphan + REMOVED shard
     across the batch. Decisions whose save fallback failed have already been
@@ -589,7 +988,11 @@ def _execute_deletes(decisions, algolia_client, index_name):
         _per_record_delete_fallback(delete_decisions, algolia_client, index_name)
 
 
-def _per_record_delete_fallback(decisions, algolia_client, index_name):
+def _per_record_delete_fallback(
+    decisions: list[IndexingDecision],
+    algolia_client: AlgoliaSearchClient,
+    index_name: str | None,
+) -> None:
     """
     Retry each decision's delete individually. On per-record failure, mutate
     the decision's outcome to FAILED.
@@ -605,7 +1008,7 @@ def _per_record_delete_fallback(decisions, algolia_client, index_name):
             decision.failure_reason = exc
 
 
-def _finalize_decision(decision, results):
+def _finalize_decision(decision: IndexingDecision, results: BatchSummary) -> None:
     """
     Apply the decision's final outcome to the state row and bump the matching
     counter. ``decision.outcome`` reflects what actually happened after pass 2

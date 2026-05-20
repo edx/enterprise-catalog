@@ -749,6 +749,10 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
 
 ### Phase 4: Dispatcher Tasks
 
+**Design Clarification**
+* Dependency order does actually matter for child->parent content staleness checking.
+* Having one Celery task per content type is helpful from a resource-consumption (celery queue design) standpoint.
+
 **Summary**: Create two dispatcher tasks
 
 * one that queries for stale/failed records and dispatches batch indexing tasks. We'll run this one on a schedule.
@@ -760,7 +764,7 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
 - Implement `_get_stale_content_keys(content_type, force, include_failed)` helper
 - Create `dispatch_algolia_indexing_for_catalog_query` task
 - Implement batching logic (default batch size 10, configurable)
-- Dispatch tasks in dependency order: courses → programs → pathways
+- Dispatch tasks in this order: courses -> programs -> pathways
 - Support `dry_run` mode for testing
 - Add `ALGOLIA_INDEXING_BATCH_SIZE` setting
 - Pre-warm `IndexingMappings` before fan-out: call

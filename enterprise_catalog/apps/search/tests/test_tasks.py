@@ -4,10 +4,12 @@ Tests for the Phase 3 incremental Algolia indexing batch tasks.
 from dataclasses import asdict
 from datetime import timedelta
 from unittest import mock
+from uuid import uuid4
 
 import ddt
 from algoliasearch.exceptions import AlgoliaException
 from django.test import TestCase
+from django.test.utils import override_settings
 
 from enterprise_catalog.apps.catalog.constants import (
     COURSE,
@@ -25,7 +27,16 @@ from enterprise_catalog.apps.search.tasks import (
     BatchSummary,
     IndexingDecision,
     RecordOutcome,
+    _chunked,
+    _extract_program_keys,
+    _get_content_modified_by_key,
+    _get_indexable_keys_by_content_type,
+    _get_indexing_state_by_key,
+    _has_newer_child_index,
     _index_content_batch,
+    _is_uuid_string,
+    _should_retry_failed_record,
+    dispatch_algolia_indexing,
     index_courses_batch_in_algolia,
     index_pathways_batch_in_algolia,
     index_programs_batch_in_algolia,
@@ -46,6 +57,13 @@ def _algolia_object(content_key, content_type=COURSE, shard_index=0):
         'objectID': f'{content_key}-catalog-query-uuids-{shard_index}',
         'aggregation_key': f'{content_type}:{content_key}',
     }
+
+
+def _program_content_key():
+    """
+    Build a UUID-formatted content_key for program records.
+    """
+    return str(uuid4())
 
 
 @ddt.ddt
@@ -651,6 +669,424 @@ class TestIndexContentBatch(TestCase):
 
         self.assertEqual(result['content_type'], content_type)
         self.assertEqual(result['indexed'], 1)
+
+
+@override_settings(ALGOLIA_INDEXING_BATCH_SIZE=2)
+class TestDispatchAlgoliaIndexing(TestCase):
+    """
+    Tests for the Phase 4a dispatcher task.
+    """
+    # pylint: disable=no-value-for-parameter
+
+    def setUp(self):
+        self.mock_get_mappings = mock.patch.object(
+            search_tasks, 'get_indexing_mappings',
+        ).start()
+        self.mock_invalidate_cache = mock.patch.object(
+            search_tasks, 'invalidate_indexing_mappings_cache',
+        ).start()
+        self.mock_course_si = mock.patch.object(
+            search_tasks.index_courses_batch_in_algolia, 'si',
+        ).start()
+        self.mock_program_si = mock.patch.object(
+            search_tasks.index_programs_batch_in_algolia, 'si',
+        ).start()
+        self.mock_pathway_si = mock.patch.object(
+            search_tasks.index_pathways_batch_in_algolia, 'si',
+        ).start()
+        # Prevent actual Celery chain/group dispatch
+        self.mock_group = mock.patch.object(search_tasks, 'group').start()
+        self.mock_chain = mock.patch.object(search_tasks, 'chain').start()
+        self.addCleanup(mock.patch.stopall)
+
+    def _set_mappings(
+        self,
+        *,
+        all_indexable_content_keys,
+        program_to_course_keys=None,
+        pathway_to_program_course_keys=None,
+    ):
+        self.mock_get_mappings.return_value = IndexingMappings(
+            program_to_course_keys=program_to_course_keys or {},
+            pathway_to_program_course_keys=pathway_to_program_course_keys or {},
+            all_indexable_content_keys=set(all_indexable_content_keys),
+        )
+
+    def test_dry_run_returns_summary_without_dispatching(self):
+        course = ContentMetadataFactory(content_type=COURSE, content_key='course-dry-run')
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='pathway-dry-run')
+        self._set_mappings(
+            all_indexable_content_keys=[course.content_key, program.content_key, pathway.content_key],
+        )
+
+        result = dispatch_algolia_indexing(force=True, dry_run=True, index_name='enterprise_catalog_v2')
+
+        self.assertEqual(result, {
+            'force': True,
+            'dry_run': True,
+            'batch_size': 2,
+            'index_name': 'enterprise_catalog_v2',
+            'dispatched': {
+                COURSE: {'records': 1, 'batches': 1},
+                PROGRAM: {'records': 1, 'batches': 1},
+                LEARNER_PATHWAY: {'records': 1, 'batches': 1},
+            },
+        })
+        self.mock_invalidate_cache.assert_called_once_with()
+        self.mock_course_si.assert_not_called()
+        self.mock_program_si.assert_not_called()
+        self.mock_pathway_si.assert_not_called()
+
+    def test_force_false_does_not_invalidate_cache(self):
+        course = ContentMetadataFactory(content_type=COURSE, content_key='course-no-force')
+        self._set_mappings(all_indexable_content_keys=[course.content_key])
+
+        dispatch_algolia_indexing(force=False)
+
+        self.mock_invalidate_cache.assert_not_called()
+
+    def test_courses_dispatch_never_indexed_stale_and_failed_records(self):
+        never_indexed = ContentMetadataFactory(content_type=COURSE, content_key='course-never-indexed')
+        stale = ContentMetadataFactory(content_type=COURSE, content_key='course-stale')
+        current = ContentMetadataFactory(content_type=COURSE, content_key='course-current')
+        failed = ContentMetadataFactory(content_type=COURSE, content_key='course-failed')
+        ContentMetadataIndexingStateFactory(
+            content_metadata=stale,
+            last_indexed_at=stale.modified - timedelta(hours=1),
+        )
+        ContentMetadataIndexingStateFactory(
+            content_metadata=current,
+            last_indexed_at=current.modified + timedelta(hours=1),
+        )
+        ContentMetadataIndexingStateFactory(
+            content_metadata=failed,
+            last_indexed_at=failed.modified + timedelta(hours=1),
+            last_failure_at=localized_utcnow(),
+        )
+        self._set_mappings(
+            all_indexable_content_keys=[
+                never_indexed.content_key,
+                stale.content_key,
+                current.content_key,
+                failed.content_key,
+            ],
+        )
+
+        result = dispatch_algolia_indexing(force=False, include_failed=True)
+
+        self.assertEqual(result['dispatched'][COURSE], {'records': 3, 'batches': 2})
+        self.assertEqual(self.mock_course_si.call_count, 2)
+        dispatched_batches = [
+            call.kwargs['content_keys']
+            for call in self.mock_course_si.call_args_list
+        ]
+        self.assertEqual(
+            dispatched_batches,
+            [
+                ['course-failed', 'course-never-indexed'],
+                ['course-stale'],
+            ],
+        )
+
+    def test_failed_courses_can_be_excluded_from_retry(self):
+        failed = ContentMetadataFactory(content_type=COURSE, content_key='course-failed-no-retry')
+        ContentMetadataIndexingStateFactory(
+            content_metadata=failed,
+            last_indexed_at=failed.modified + timedelta(hours=1),
+            last_failure_at=localized_utcnow(),
+        )
+        self._set_mappings(all_indexable_content_keys=[failed.content_key])
+
+        result = dispatch_algolia_indexing(force=False, include_failed=False)
+
+        self.assertEqual(result['dispatched'][COURSE], {'records': 0, 'batches': 0})
+        self.mock_course_si.assert_not_called()
+
+    def test_programs_dispatch_when_child_course_indexed_more_recently(self):
+        child_course = ContentMetadataFactory(content_type=COURSE, content_key='course-program-child')
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        program_state = ContentMetadataIndexingStateFactory(
+            content_metadata=program,
+            last_indexed_at=localized_utcnow() - timedelta(hours=2),
+        )
+        ContentMetadataIndexingStateFactory(
+            content_metadata=child_course,
+            last_indexed_at=program_state.last_indexed_at + timedelta(hours=1),
+        )
+        self._set_mappings(
+            all_indexable_content_keys=[child_course.content_key, program.content_key],
+            program_to_course_keys={program.content_key: {child_course.content_key}},
+        )
+
+        result = dispatch_algolia_indexing(force=False)
+
+        self.assertEqual(result['dispatched'][PROGRAM], {'records': 1, 'batches': 1})
+        self.mock_program_si.assert_called_once_with(
+            content_keys=[program.content_key],
+            force=False,
+            index_name=None,
+        )
+
+    def test_pathways_dispatch_when_child_program_is_newer(self):
+        child_program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='pathway-stale')
+        pathway_state = ContentMetadataIndexingStateFactory(
+            content_metadata=pathway,
+            last_indexed_at=localized_utcnow() - timedelta(hours=2),
+        )
+        ContentMetadataIndexingStateFactory(
+            content_metadata=child_program,
+            last_indexed_at=pathway_state.last_indexed_at + timedelta(hours=1),
+        )
+        self._set_mappings(
+            all_indexable_content_keys=[child_program.content_key, pathway.content_key],
+            pathway_to_program_course_keys={
+                pathway.content_key: {'course-not-a-uuid', child_program.content_key},
+            },
+        )
+
+        result = dispatch_algolia_indexing(force=False)
+
+        self.assertEqual(result['dispatched'][LEARNER_PATHWAY], {'records': 1, 'batches': 1})
+        self.mock_pathway_si.assert_called_once_with(
+            content_keys=[pathway.content_key],
+            force=False,
+            index_name=None,
+        )
+
+    def test_batching_uses_configured_batch_size(self):
+        courses = [
+            ContentMetadataFactory(content_type=COURSE, content_key=f'course-batch-{index}')
+            for index in range(5)
+        ]
+        self._set_mappings(
+            all_indexable_content_keys=[course.content_key for course in courses],
+        )
+
+        result = dispatch_algolia_indexing(force=True)
+
+        self.assertEqual(result['dispatched'][COURSE], {'records': 5, 'batches': 3})
+        self.assertEqual(self.mock_course_si.call_count, 3)
+        self.assertEqual(
+            [call.kwargs['content_keys'] for call in self.mock_course_si.call_args_list],
+            [
+                ['course-batch-0', 'course-batch-1'],
+                ['course-batch-2', 'course-batch-3'],
+                ['course-batch-4'],
+            ],
+        )
+
+    def test_empty_mappings_dispatch_no_records(self):
+        """
+        Empty indexable mappings produce zero dispatches for all content types.
+        """
+        self._set_mappings(all_indexable_content_keys=[])
+
+        result = dispatch_algolia_indexing(force=False)
+
+        self.assertEqual(result['dispatched'], {
+            COURSE: {'records': 0, 'batches': 0},
+            PROGRAM: {'records': 0, 'batches': 0},
+            LEARNER_PATHWAY: {'records': 0, 'batches': 0},
+        })
+        self.mock_course_si.assert_not_called()
+        self.mock_program_si.assert_not_called()
+        self.mock_pathway_si.assert_not_called()
+
+    def test_programs_dispatch_when_never_indexed(self):
+        """
+        Programs with no indexing state are always dispatched.
+        """
+        child_course = ContentMetadataFactory(
+            content_type=COURSE, content_key='course-program-child-never-indexed',
+        )
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        self._set_mappings(
+            all_indexable_content_keys=[child_course.content_key, program.content_key],
+            program_to_course_keys={program.content_key: {child_course.content_key}},
+        )
+
+        result = dispatch_algolia_indexing(force=False)
+
+        self.assertEqual(result['dispatched'][PROGRAM], {'records': 1, 'batches': 1})
+        self.mock_program_si.assert_called_once_with(
+            content_keys=[program.content_key],
+            force=False,
+            index_name=None,
+        )
+
+    def test_programs_dispatch_failed_records_when_include_failed_true(self):
+        """
+        Failed program records are retried when ``include_failed=True``.
+        """
+        child_course = ContentMetadataFactory(
+            content_type=COURSE, content_key='course-program-child-with-failed-parent',
+        )
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        ContentMetadataIndexingStateFactory(
+            content_metadata=program,
+            last_indexed_at=localized_utcnow(),
+            last_failure_at=localized_utcnow(),
+        )
+        self._set_mappings(
+            all_indexable_content_keys=[child_course.content_key, program.content_key],
+            program_to_course_keys={program.content_key: {child_course.content_key}},
+        )
+
+        result = dispatch_algolia_indexing(force=False, include_failed=True)
+
+        self.assertEqual(result['dispatched'][PROGRAM], {'records': 1, 'batches': 1})
+        self.mock_program_si.assert_called_once_with(
+            content_keys=[program.content_key],
+            force=False,
+            index_name=None,
+        )
+
+    def test_pathways_dispatch_when_never_indexed(self):
+        """
+        Pathways with no indexing state are always dispatched.
+        """
+        child_program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='pathway-never-indexed')
+        self._set_mappings(
+            all_indexable_content_keys=[child_program.content_key, pathway.content_key],
+            pathway_to_program_course_keys={pathway.content_key: {child_program.content_key}},
+        )
+
+        result = dispatch_algolia_indexing(force=False)
+
+        self.assertEqual(result['dispatched'][LEARNER_PATHWAY], {'records': 1, 'batches': 1})
+        self.mock_pathway_si.assert_called_once_with(
+            content_keys=[pathway.content_key],
+            force=False,
+            index_name=None,
+        )
+
+    def test_pathways_dispatch_failed_records_when_include_failed_true(self):
+        """
+        Failed pathway records are retried when ``include_failed=True``.
+        """
+        child_program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='pathway-failed')
+        ContentMetadataIndexingStateFactory(
+            content_metadata=pathway,
+            last_indexed_at=localized_utcnow(),
+            last_failure_at=localized_utcnow(),
+        )
+        self._set_mappings(
+            all_indexable_content_keys=[child_program.content_key, pathway.content_key],
+            pathway_to_program_course_keys={pathway.content_key: {child_program.content_key}},
+        )
+
+        result = dispatch_algolia_indexing(force=False, include_failed=True)
+
+        self.assertEqual(result['dispatched'][LEARNER_PATHWAY], {'records': 1, 'batches': 1})
+        self.mock_pathway_si.assert_called_once_with(
+            content_keys=[pathway.content_key],
+            force=False,
+            index_name=None,
+        )
+
+    def test_pathways_not_dispatched_when_child_keys_are_non_uuid_courses_only(self):
+        """
+        Pathways with only non-UUID child keys are not dispatched as child updates.
+        """
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='pathway-courses-only')
+        ContentMetadataIndexingStateFactory(
+            content_metadata=pathway,
+            last_indexed_at=localized_utcnow(),
+        )
+        self._set_mappings(
+            all_indexable_content_keys=[pathway.content_key],
+            pathway_to_program_course_keys={
+                pathway.content_key: {'course-v1:edX+DemoX+2024', 'course-v1:edX+TestX+2024'},
+            },
+        )
+
+        result = dispatch_algolia_indexing(force=False)
+
+        self.assertEqual(result['dispatched'][LEARNER_PATHWAY], {'records': 0, 'batches': 0})
+        self.mock_pathway_si.assert_not_called()
+
+
+@ddt.ddt
+class TestDispatchAlgoliaIndexingHelpers(TestCase):
+    """
+    Focused tests for Phase 4a helper functions.
+    """
+
+    def test_chunked_with_empty_input_yields_no_batches(self):
+        """
+        ``_chunked`` returns an empty iterator when the input is empty.
+        """
+        self.assertEqual(list(_chunked([], 2)), [])
+
+    def test_get_indexable_keys_by_content_type_returns_empty_defaults(self):
+        """
+        Empty ``all_indexable_content_keys`` returns empty lists for each type.
+        """
+        self.assertEqual(_get_indexable_keys_by_content_type(set()), {
+            COURSE: [],
+            PROGRAM: [],
+            LEARNER_PATHWAY: [],
+        })
+
+    def test_get_content_modified_by_key_empty_input(self):
+        """
+        ``_get_content_modified_by_key`` short-circuits for empty key lists.
+        """
+        self.assertEqual(_get_content_modified_by_key([], COURSE), {})
+
+    def test_get_indexing_state_by_key_empty_input(self):
+        """
+        ``_get_indexing_state_by_key`` short-circuits for empty key lists.
+        """
+        self.assertEqual(_get_indexing_state_by_key([]), {})
+
+    def test_should_retry_failed_record_when_excluded_or_missing_state(self):
+        """
+        ``_should_retry_failed_record`` is false when retries are disabled or missing state.
+        """
+        self.assertFalse(_should_retry_failed_record({}, 'missing', include_failed=True))
+        self.assertFalse(_should_retry_failed_record({
+            'course-key': {'last_failure_at': localized_utcnow()},
+        }, 'course-key', include_failed=False))
+
+    def test_has_newer_child_index_ignores_children_without_last_indexed_at(self):
+        """
+        ``_has_newer_child_index`` ignores child records with no ``last_indexed_at``.
+        """
+        self.assertFalse(_has_newer_child_index(
+            child_keys=['child-key'],
+            child_state_by_key={'child-key': {'last_indexed_at': None}},
+            parent_last_indexed_at=localized_utcnow(),
+        ))
+
+    @ddt.data(
+        ('550e8400-e29b-41d4-a716-446655440000', True),
+        ('course-v1:edX+DemoX+2024', False),
+        (1234, False),
+        (None, False),
+    )
+    @ddt.unpack
+    def test_is_uuid_string_edge_cases(self, value, expected):
+        """
+        ``_is_uuid_string`` handles both string and non-string values safely.
+        """
+        self.assertEqual(_is_uuid_string(value), expected)
+
+    def test_extract_program_keys_filters_non_uuid_values(self):
+        """
+        ``_extract_program_keys`` keeps only UUID-shaped values from mixed input.
+        """
+        program_key = '550e8400-e29b-41d4-a716-446655440000'
+        self.assertEqual(_extract_program_keys([
+            program_key,
+            'course-v1:edX+DemoX+2024',
+            1234,
+            None,
+        ]), [program_key])
 
 
 class TestRecordOutcome(TestCase):

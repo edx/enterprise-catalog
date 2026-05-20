@@ -43,9 +43,12 @@ import logging
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
+from itertools import islice
+from uuid import UUID
 
 from algoliasearch.exceptions import AlgoliaException
 from celery import shared_task
+from django.conf import settings
 from celery_utils.logged_task import LoggedTask
 from django.db import IntegrityError
 from django.db.utils import OperationalError
@@ -65,6 +68,7 @@ from enterprise_catalog.apps.catalog.models import ContentMetadata
 from enterprise_catalog.apps.search.indexing_mappings import (
     IndexingMappings,
     get_indexing_mappings,
+    invalidate_indexing_mappings_cache,
 )
 from enterprise_catalog.apps.search.models import ContentMetadataIndexingState
 
@@ -171,6 +175,83 @@ def index_pathways_batch_in_algolia(self, content_keys, index_name=None, force=F
     Celery payload stays JSON-serializable.
     """
     return asdict(_index_content_batch(content_keys, LEARNER_PATHWAY, index_name=index_name, force=force))
+
+
+@shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
+def dispatch_algolia_indexing(  # pylint: disable=unused-argument
+    self,
+    force=False,
+    dry_run=False,
+    include_failed=True,
+    index_name=None,
+):
+    """
+    Dispatch Phase 4a incremental Algolia indexing batch tasks.
+
+    When ``force=True``, dispatch every currently-indexable record. Otherwise,
+    dispatch only records that have never been indexed, are stale, or have a
+    recorded failure that should be retried.
+    """
+    if force:
+        invalidate_indexing_mappings_cache()
+
+    mappings = get_indexing_mappings()
+    batch_size = getattr(settings, 'ALGOLIA_INDEXING_BATCH_SIZE', 10)
+    indexable_keys_by_type = _get_indexable_keys_by_content_type(
+        mappings.all_indexable_content_keys,
+    )
+
+    records_to_dispatch = {
+        COURSE: _get_course_keys_for_dispatch(
+            indexable_keys_by_type[COURSE],
+            force=force,
+            include_failed=include_failed,
+        ),
+        PROGRAM: _get_program_keys_for_dispatch(
+            indexable_keys_by_type[PROGRAM],
+            mappings.program_to_course_keys,
+            force=force,
+            include_failed=include_failed,
+        ),
+        LEARNER_PATHWAY: _get_pathway_keys_for_dispatch(
+            indexable_keys_by_type[LEARNER_PATHWAY],
+            mappings.pathway_to_program_course_keys,
+            force=force,
+            include_failed=include_failed,
+        ),
+    }
+
+    task_by_content_type = {
+        COURSE: index_courses_batch_in_algolia,
+        PROGRAM: index_programs_batch_in_algolia,
+        LEARNER_PATHWAY: index_pathways_batch_in_algolia,
+    }
+    summary = {
+        'force': force,
+        'dry_run': dry_run,
+        'batch_size': batch_size,
+        'index_name': index_name,
+        'dispatched': {},
+    }
+
+    for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY):
+        content_keys = records_to_dispatch[content_type]
+        batches = list(_chunked(content_keys, batch_size))
+        summary['dispatched'][content_type] = {
+            'records': len(content_keys),
+            'batches': len(batches),
+        }
+        if dry_run:
+            continue
+        for batch in batches:
+            task_by_content_type[content_type].delay(
+                content_keys=batch,
+                force=force,
+                index_name=index_name,
+            )
+
+    logger.info('dispatch_algolia_indexing summary=%s', summary)
+    return summary
 
 
 @dataclass
@@ -363,6 +444,220 @@ def _index_content_batch(content_keys, content_type, index_name=None, force=Fals
         results.failed,
     )
     return results
+
+
+def _chunked(iterable, size):
+    """
+    Yield ``iterable`` in lists of ``size`` items.
+    """
+    iterator = iter(iterable)
+    while True:
+        batch = list(islice(iterator, size))
+        if not batch:
+            return
+        yield batch
+
+
+def _get_indexable_keys_by_content_type(all_indexable_content_keys):
+    """
+    Return a deterministic list of indexable content_keys for each supported
+    content type.
+    """
+    indexable_keys_by_type = {
+        COURSE: [],
+        PROGRAM: [],
+        LEARNER_PATHWAY: [],
+    }
+    if not all_indexable_content_keys:
+        return indexable_keys_by_type
+
+    for content_type, content_key in (
+        ContentMetadata.objects.filter(
+            content_key__in=all_indexable_content_keys,
+            content_type__in=(COURSE, PROGRAM, LEARNER_PATHWAY),
+        )
+        .values_list('content_type', 'content_key')
+        .order_by('content_type', 'content_key')
+    ):
+        indexable_keys_by_type[content_type].append(content_key)
+    return indexable_keys_by_type
+
+
+def _get_content_modified_by_key(content_keys, content_type):
+    """
+    Return ``content_key -> modified`` for the requested content type.
+    """
+    if not content_keys:
+        return {}
+    return dict(
+        ContentMetadata.objects.filter(
+            content_key__in=content_keys,
+            content_type=content_type,
+        ).values_list('content_key', 'modified')
+    )
+
+
+def _get_indexing_state_by_key(content_keys, content_type):
+    """
+    Return ``content_key -> {'last_indexed_at', 'last_failure_at'}``.
+    """
+    if not content_keys:
+        return {}
+    return {
+        content_key: {
+            'last_indexed_at': last_indexed_at,
+            'last_failure_at': last_failure_at,
+        }
+        for content_key, last_indexed_at, last_failure_at in (
+            ContentMetadataIndexingState.objects.filter(
+                content_metadata__content_key__in=content_keys,
+                content_metadata__content_type=content_type,
+            ).values_list(
+                'content_metadata__content_key',
+                'last_indexed_at',
+                'last_failure_at',
+            )
+        )
+    }
+
+
+def _should_retry_failed_record(state_by_key, content_key, include_failed):
+    """
+    Return whether a recorded failure should be retried for ``content_key``.
+    """
+    if not include_failed:
+        return False
+    state = state_by_key.get(content_key)
+    return bool(state and state['last_failure_at'])
+
+
+def _get_course_keys_for_dispatch(content_keys, force, include_failed):
+    """
+    Return the course content_keys that the dispatcher should enqueue.
+    """
+    if force:
+        return list(content_keys)
+
+    content_modified_by_key = _get_content_modified_by_key(content_keys, COURSE)
+    state_by_key = _get_indexing_state_by_key(content_keys, COURSE)
+    keys_to_dispatch = []
+    for content_key in content_keys:
+        state = state_by_key.get(content_key)
+        if state is None or state['last_indexed_at'] is None:
+            keys_to_dispatch.append(content_key)
+            continue
+        if content_modified_by_key[content_key] > state['last_indexed_at']:
+            keys_to_dispatch.append(content_key)
+            continue
+        if _should_retry_failed_record(state_by_key, content_key, include_failed):
+            keys_to_dispatch.append(content_key)
+    return keys_to_dispatch
+
+
+def _get_program_keys_for_dispatch(content_keys, program_to_course_keys, force, include_failed):
+    """
+    Return the program content_keys that the dispatcher should enqueue.
+    """
+    if force:
+        return list(content_keys)
+
+    state_by_key = _get_indexing_state_by_key(content_keys, PROGRAM)
+    all_child_course_keys = {
+        child_key
+        for program_key in content_keys
+        for child_key in program_to_course_keys.get(program_key, ())
+    }
+    child_state_by_key = _get_indexing_state_by_key(all_child_course_keys, COURSE)
+
+    keys_to_dispatch = []
+    for content_key in content_keys:
+        state = state_by_key.get(content_key)
+        if state is None or state['last_indexed_at'] is None:
+            keys_to_dispatch.append(content_key)
+            continue
+        if _should_retry_failed_record(state_by_key, content_key, include_failed):
+            keys_to_dispatch.append(content_key)
+            continue
+        if _has_newer_child_index(
+            program_to_course_keys.get(content_key, ()),
+            child_state_by_key,
+            state['last_indexed_at'],
+        ):
+            keys_to_dispatch.append(content_key)
+    return keys_to_dispatch
+
+
+def _get_pathway_keys_for_dispatch(content_keys, pathway_to_program_course_keys, force, include_failed):
+    """
+    Return the learner pathway content_keys that the dispatcher should enqueue.
+    """
+    if force:
+        return list(content_keys)
+
+    state_by_key = _get_indexing_state_by_key(content_keys, LEARNER_PATHWAY)
+    child_program_keys_by_pathway = {
+        pathway_key: _extract_program_keys(
+            pathway_to_program_course_keys.get(pathway_key, ())
+        )
+        for pathway_key in content_keys
+    }
+    all_child_program_keys = {
+        child_key
+        for child_program_keys in child_program_keys_by_pathway.values()
+        for child_key in child_program_keys
+    }
+    child_state_by_key = _get_indexing_state_by_key(all_child_program_keys, PROGRAM)
+
+    keys_to_dispatch = []
+    for content_key in content_keys:
+        state = state_by_key.get(content_key)
+        if state is None or state['last_indexed_at'] is None:
+            keys_to_dispatch.append(content_key)
+            continue
+        if _should_retry_failed_record(state_by_key, content_key, include_failed):
+            keys_to_dispatch.append(content_key)
+            continue
+        if _has_newer_child_index(
+            child_program_keys_by_pathway[content_key],
+            child_state_by_key,
+            state['last_indexed_at'],
+        ):
+            keys_to_dispatch.append(content_key)
+    return keys_to_dispatch
+
+
+def _has_newer_child_index(child_keys, child_state_by_key, parent_last_indexed_at):
+    """
+    Return whether any child was indexed more recently than its parent.
+    """
+    return any(
+        child_state_by_key.get(child_key)
+        and child_state_by_key[child_key]['last_indexed_at']
+        and child_state_by_key[child_key]['last_indexed_at'] > parent_last_indexed_at
+        for child_key in child_keys
+    )
+
+
+def _extract_program_keys(content_keys):
+    """
+    Return only UUID-shaped keys from a mixed course/program iterable.
+    """
+    return [
+        content_key
+        for content_key in content_keys
+        if _is_uuid_string(content_key)
+    ]
+
+
+def _is_uuid_string(value):
+    """
+    Return whether ``value`` parses cleanly as a UUID.
+    """
+    try:
+        UUID(str(value))
+    except (TypeError, ValueError, AttributeError):
+        return False
+    return True
 
 
 def _build_objects_by_content_key(

@@ -454,6 +454,10 @@ ALGOLIA_INDEXING_MAPPINGS_CACHE_TIMEOUT = 60 * 30
 # worth of work to the per-record fallback path.
 ALGOLIA_INDEXING_CHUNK_SIZE = 100
 
+# How many content records the dispatcher includes in each incremental
+# indexing task it fans out to Celery workers.
+ALGOLIA_INDEXING_BATCH_SIZE = 10
+
 # Which fields should be plucked from the /search/all course-discovery API
 # response in `update_catalog_metadata_task` for course content metadata?
 COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL = os.environ.get(

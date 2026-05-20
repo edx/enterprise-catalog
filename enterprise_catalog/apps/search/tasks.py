@@ -64,7 +64,7 @@ from enterprise_catalog.apps.catalog.constants import (
     LEARNER_PATHWAY,
     PROGRAM,
 )
-from enterprise_catalog.apps.catalog.models import ContentMetadata
+from enterprise_catalog.apps.catalog.models import CatalogQuery, ContentMetadata
 from enterprise_catalog.apps.search.indexing_mappings import (
     IndexingMappings,
     get_indexing_mappings,
@@ -252,6 +252,93 @@ def dispatch_algolia_indexing(
             )
 
     logger.info('dispatch_algolia_indexing summary=%s', summary)
+    return summary
+
+
+@shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
+def dispatch_algolia_indexing_for_catalog_query(
+    _self,
+    catalog_query_id,
+    dry_run=False,
+    force=False,
+    include_failed=True,
+    index_name=None,
+):
+    """
+    Dispatch incremental Algolia indexing for a single CatalogQuery.
+
+    This diffs the catalog's current membership in the database against what
+    Algolia currently has indexed, so removed content is reindexed and loses
+    stale catalog facets.
+    ``_self`` is required by Celery's ``bind=True`` but intentionally unused.
+    """
+    invalidate_indexing_mappings_cache()
+
+    catalog_query = CatalogQuery.objects.get(id=catalog_query_id)
+    algolia_client = get_initialized_algolia_client()
+    batch_size = getattr(settings, 'ALGOLIA_INDEXING_BATCH_SIZE', 10)
+
+    db_content_keys_by_type = _get_catalog_query_content_keys_by_type(catalog_query)
+    db_aggregation_keys = {
+        _aggregation_key_for(content_type, content_key)
+        for content_type, content_keys in db_content_keys_by_type.items()
+        for content_key in content_keys
+    }
+    algolia_aggregation_keys = algolia_client.get_aggregation_keys_for_catalog_query(
+        catalog_query.uuid,
+        index_name=index_name,
+    )
+    removed_aggregation_keys = algolia_aggregation_keys - db_aggregation_keys
+    removed_content_keys_by_type = _group_aggregation_keys_by_content_type(removed_aggregation_keys)
+
+    records_to_dispatch = {}
+    # Build the full per-type snapshot before dispatching anything so the
+    # summary and dry-run output describe one consistent membership view.
+    for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY):
+        db_content_keys = _get_content_keys_for_dispatch(
+            db_content_keys_by_type.get(content_type, []),
+            content_type,
+            force=force,
+            include_failed=include_failed,
+        )
+        records_to_dispatch[content_type] = sorted(
+            set(db_content_keys) | set(removed_content_keys_by_type.get(content_type, [])),
+        )
+
+    task_by_content_type = {
+        COURSE: index_courses_batch_in_algolia,
+        PROGRAM: index_programs_batch_in_algolia,
+        LEARNER_PATHWAY: index_pathways_batch_in_algolia,
+    }
+    summary = {
+        'catalog_query_id': catalog_query_id,
+        'force': force,
+        'dry_run': dry_run,
+        'batch_size': batch_size,
+        'index_name': index_name,
+        'db_membership_count': len(db_aggregation_keys),
+        'algolia_membership_count': len(algolia_aggregation_keys),
+        'removed_count': len(removed_aggregation_keys),
+        'dispatched': {},
+    }
+
+    for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY):
+        content_keys = records_to_dispatch[content_type]
+        batches = list(_chunked(content_keys, batch_size))
+        summary['dispatched'][content_type] = {
+            'records': len(content_keys),
+            'batches': len(batches),
+        }
+        if dry_run:
+            continue
+        for batch in batches:
+            task_by_content_type[content_type].delay(
+                content_keys=batch,
+                force=force,
+                index_name=index_name,
+            )
+
+    logger.info('dispatch_algolia_indexing_for_catalog_query summary=%s', summary)
     return summary
 
 
@@ -559,6 +646,79 @@ def _get_course_keys_for_dispatch(content_keys, force, include_failed):
     return keys_to_dispatch
 
 
+def _get_catalog_query_content_keys_by_type(catalog_query):
+    """
+    Return current catalog membership grouped by content type.
+    """
+    content_keys_by_type = {
+        COURSE: [],
+        PROGRAM: [],
+        LEARNER_PATHWAY: [],
+    }
+    queryset = catalog_query.contentmetadata_set.filter(
+        content_type__in=(COURSE, PROGRAM, LEARNER_PATHWAY),
+    ).values_list(
+        'content_type', 'content_key',
+    ).order_by(
+        'content_type', 'content_key',
+    )
+
+    for content_type, content_key in queryset:
+        content_keys_by_type[content_type].append(content_key)
+    return content_keys_by_type
+
+
+def _get_content_keys_for_dispatch(content_keys, content_type, force, include_failed):
+    """
+    Return the subset of catalog-query content_keys that should be enqueued.
+    """
+    if force:
+        return list(content_keys)
+
+    content_modified_by_key = _get_content_modified_by_key(content_keys, content_type)
+    state_by_key = _get_indexing_state_by_key(content_keys, content_type)
+    keys_to_dispatch = []
+    for content_key in content_keys:
+        state = state_by_key.get(content_key)
+        if state is None or state['last_indexed_at'] is None:
+            keys_to_dispatch.append(content_key)
+            continue
+        if include_failed and state['last_failure_at']:
+            keys_to_dispatch.append(content_key)
+            continue
+        if content_modified_by_key.get(content_key) > state['last_indexed_at']:
+            keys_to_dispatch.append(content_key)
+    return keys_to_dispatch
+
+
+def _group_aggregation_keys_by_content_type(aggregation_keys):
+    """
+    Split aggregation keys into content-type buckets.
+    """
+    grouped_keys = {
+        COURSE: [],
+        PROGRAM: [],
+        LEARNER_PATHWAY: [],
+    }
+    for aggregation_key in aggregation_keys:
+        try:
+            # Split only on the first colon because content keys themselves can
+            # contain colons (e.g. course-v1 keys).
+            content_type, content_key = aggregation_key.split(':', 1)
+        except ValueError:
+            logger.warning('Ignoring malformed aggregation key from Algolia: %s', aggregation_key)
+            continue
+        if content_type not in grouped_keys:
+            logger.warning(
+                'Ignoring unsupported content_type=%s for aggregation key=%s',
+                content_type,
+                aggregation_key,
+            )
+            continue
+        grouped_keys[content_type].append(content_key)
+    return grouped_keys
+
+
 def _get_program_keys_for_dispatch(content_keys, program_to_course_keys, force, include_failed):
     """
     Return the program content_keys that the dispatcher should enqueue.
@@ -776,7 +936,12 @@ def _resolve_indexing_decision(
                 ),
             )
 
-        if not force and state.last_indexed_at and state.last_indexed_at >= content.modified:
+        if (
+            not force
+            and state.last_indexed_at
+            and state.last_indexed_at >= content.modified
+            and not state.last_failure_at
+        ):
             return IndexingDecision.skipped(
                 content_key=content_key, content=content, state=state,
             )

@@ -48,8 +48,8 @@ from uuid import UUID
 
 from algoliasearch.exceptions import AlgoliaException
 from celery import shared_task
-from django.conf import settings
 from celery_utils.logged_task import LoggedTask
+from django.conf import settings
 from django.db import IntegrityError
 from django.db.utils import OperationalError
 from requests.exceptions import ConnectionError as RequestsConnectionError

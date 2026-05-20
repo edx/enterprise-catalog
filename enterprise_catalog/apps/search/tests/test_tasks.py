@@ -17,6 +17,7 @@ from enterprise_catalog.apps.catalog.constants import (
     PROGRAM,
 )
 from enterprise_catalog.apps.catalog.tests.factories import (
+    CatalogQueryFactory,
     ContentMetadataFactory,
 )
 from enterprise_catalog.apps.catalog.utils import localized_utcnow
@@ -32,6 +33,7 @@ from enterprise_catalog.apps.search.tasks import (
     _get_content_modified_by_key,
     _get_indexable_keys_by_content_type,
     _get_indexing_state_by_key,
+    _group_aggregation_keys_by_content_type,
     _has_newer_child_index,
     _index_content_batch,
     _is_uuid_string,
@@ -185,6 +187,25 @@ class TestIndexContentBatch(TestCase):
         self.mock_get_products.return_value = [_algolia_object(content.content_key)]
 
         result = _index_content_batch([content.content_key], COURSE, force=True)
+
+        self.assertEqual(result.indexed, 1)
+        self.algolia_client.save_objects_batch.assert_called_once()
+
+    def test_failed_records_are_retried_even_when_current(self):
+        """
+        A record with a fresh ``last_indexed_at`` but a recorded failure should
+        be reprocessed so catalog-query retries can unstick it.
+        """
+        content = ContentMetadataFactory(content_type=COURSE, content_key='course-retry-failed')
+        ContentMetadataIndexingStateFactory(
+            content_metadata=content,
+            last_indexed_at=content.modified + timedelta(seconds=60),
+            last_failure_at=localized_utcnow(),
+        )
+        self._set_indexable(content.content_key)
+        self.mock_get_products.return_value = [_algolia_object(content.content_key)]
+
+        result = _index_content_batch([content.content_key], COURSE, force=False)
 
         self.assertEqual(result.indexed, 1)
         self.algolia_client.save_objects_batch.assert_called_once()
@@ -526,6 +547,27 @@ class TestIndexContentBatch(TestCase):
         self.assertEqual(result.failed, 1)
         self.assertEqual(result.failed_keys, ['course-missing'])
 
+    def test_unexpected_exception_in_resolve_decision_counts_as_failed(self):
+        """
+        If an unexpected exception escapes inside ``_resolve_indexing_decision``
+        (e.g. a DB error from ``get_or_create_for_content``), the record is
+        counted as failed and the rest of the batch is unaffected. This covers
+        the broad-except guard in ``_resolve_indexing_decision``.
+        """
+        content = ContentMetadataFactory(content_type=COURSE, content_key='course-exploding-state')
+        self._set_indexable(content.content_key)
+        self.mock_get_products.return_value = [_algolia_object(content.content_key)]
+
+        with mock.patch.object(
+            ContentMetadataIndexingState,
+            'get_or_create_for_content',
+            side_effect=RuntimeError('unexpected db error'),
+        ):
+            result = _index_content_batch([content.content_key], COURSE)
+
+        self.assertEqual(result.failed, 1)
+        self.assertEqual(result.failed_keys, [content.content_key])
+
     def test_indexed_record_orphan_delete_failure_mutates_outcome_to_failed(self):
         """
         A single record's save succeeds but its orphan delete fails (both
@@ -855,6 +897,67 @@ class TestDispatchAlgoliaIndexing(TestCase):
             index_name=None,
         )
 
+    def test_programs_dispatched_on_child_staleness_when_own_metadata_current(self):
+        """
+        A program whose own metadata is current (last_indexed_at > modified) is
+        still dispatched when a child course was indexed more recently than the
+        program itself. This exercises the child-staleness branch in
+        ``_get_program_keys_for_dispatch`` that is bypassed when
+        ``modified > last_indexed_at`` fires first.
+        """
+        child_course = ContentMetadataFactory(content_type=COURSE, content_key='course-newer-child')
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        # Program's own metadata is fresh — last_indexed_at is ahead of modified.
+        program_state = ContentMetadataIndexingStateFactory(
+            content_metadata=program,
+            last_indexed_at=program.modified + timedelta(hours=1),
+        )
+        # Child course was indexed after the program.
+        ContentMetadataIndexingStateFactory(
+            content_metadata=child_course,
+            last_indexed_at=program_state.last_indexed_at + timedelta(hours=1),
+        )
+        self._set_mappings(
+            all_indexable_content_keys=[child_course.content_key, program.content_key],
+            program_to_course_keys={program.content_key: {child_course.content_key}},
+        )
+
+        result = dispatch_algolia_indexing(force=False)
+
+        self.assertEqual(result['dispatched'][PROGRAM], {'records': 1, 'batches': 1})
+        self.mock_program_si.assert_called_once()
+
+    def test_pathways_dispatched_on_child_staleness_when_own_metadata_current(self):
+        """
+        A pathway whose own metadata is current (last_indexed_at > modified) is
+        still dispatched when a child program was indexed more recently. This
+        exercises the child-staleness branch in ``_get_pathway_keys_for_dispatch``
+        that is bypassed when ``modified > last_indexed_at`` fires first.
+        """
+        child_program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='pathway-fresh-own')
+        # Pathway's own metadata is fresh.
+        pathway_state = ContentMetadataIndexingStateFactory(
+            content_metadata=pathway,
+            last_indexed_at=pathway.modified + timedelta(hours=1),
+        )
+        # Child program was indexed after the pathway.
+        ContentMetadataIndexingStateFactory(
+            content_metadata=child_program,
+            last_indexed_at=pathway_state.last_indexed_at + timedelta(hours=1),
+        )
+        self._set_mappings(
+            all_indexable_content_keys=[child_program.content_key, pathway.content_key],
+            pathway_to_program_course_keys={
+                pathway.content_key: {child_program.content_key},
+            },
+        )
+
+        result = dispatch_algolia_indexing(force=False)
+
+        self.assertEqual(result['dispatched'][LEARNER_PATHWAY], {'records': 1, 'batches': 1})
+        self.mock_pathway_si.assert_called_once()
+
     def test_batching_uses_configured_batch_size(self):
         courses = [
             ContentMetadataFactory(content_type=COURSE, content_key=f'course-batch-{index}')
@@ -1087,6 +1190,269 @@ class TestDispatchAlgoliaIndexingHelpers(TestCase):
             1234,
             None,
         ]), [program_key])
+
+    def test_group_aggregation_keys_skips_malformed_keys(self):
+        """
+        Keys with no ``':'`` separator are logged and excluded from all buckets.
+        """
+        result = _group_aggregation_keys_by_content_type({'malformed-key-no-colon'})
+        self.assertEqual(result, {COURSE: [], PROGRAM: [], LEARNER_PATHWAY: []})
+
+    def test_group_aggregation_keys_skips_unknown_content_types(self):
+        """
+        Keys whose content-type prefix is not one of the known types are
+        logged and excluded.
+        """
+        result = _group_aggregation_keys_by_content_type({'video:video-key-123'})
+        self.assertEqual(result, {COURSE: [], PROGRAM: [], LEARNER_PATHWAY: []})
+
+
+@override_settings(ALGOLIA_INDEXING_BATCH_SIZE=2)
+class TestDispatchAlgoliaIndexingForCatalogQuery(TestCase):
+    """
+    Tests for the catalog-query-specific dispatcher task.
+    """
+    # pylint: disable=no-value-for-parameter
+
+    def setUp(self):
+        self.algolia_client = mock.MagicMock(name='algolia_client')
+        client_patcher = mock.patch.object(
+            search_tasks, 'get_initialized_algolia_client', return_value=self.algolia_client,
+        )
+        client_patcher.start()
+        self.addCleanup(client_patcher.stop)
+
+        self.mock_invalidate_cache = mock.patch.object(
+            search_tasks, 'invalidate_indexing_mappings_cache',
+        ).start()
+        self.mock_course_si = mock.patch.object(
+            search_tasks.index_courses_batch_in_algolia, 'si',
+        ).start()
+        self.mock_program_si = mock.patch.object(
+            search_tasks.index_programs_batch_in_algolia, 'si',
+        ).start()
+        self.mock_pathway_si = mock.patch.object(
+            search_tasks.index_pathways_batch_in_algolia, 'si',
+        ).start()
+        self.mock_group = mock.patch.object(search_tasks, 'group').start()
+        self.mock_chain = mock.patch.object(search_tasks, 'chain').start()
+        self.addCleanup(mock.patch.stopall)
+
+        self.algolia_client.get_aggregation_keys_for_catalog_query.return_value = set()
+
+    def _create_catalog_membership(
+        self,
+        content_type,
+        content_key,
+        *,
+        catalog_query=None,
+        last_indexed_at=None,
+        last_failure_at=None,
+    ):
+        content = ContentMetadataFactory(content_type=content_type, content_key=content_key)
+        catalog_query = catalog_query or CatalogQueryFactory()
+        content.catalog_queries.add(catalog_query)
+        if last_indexed_at is not None or last_failure_at is not None:
+            ContentMetadataIndexingStateFactory(
+                content_metadata=content,
+                last_indexed_at=last_indexed_at,
+                last_failure_at=last_failure_at,
+            )
+        return content, catalog_query
+
+    def _set_catalog_query_diff(self, catalog_query, *extra_removed_aggregation_keys):
+        db_keys = set(
+            catalog_query.contentmetadata_set.values_list('content_type', 'content_key')
+            .order_by('content_type', 'content_key')
+        )
+        aggregation_keys = {
+            f'{content_type}:{content_key}'
+            for content_type, content_key in db_keys
+        }
+        aggregation_keys.update(extra_removed_aggregation_keys)
+        self.algolia_client.get_aggregation_keys_for_catalog_query.return_value = aggregation_keys
+
+    def test_dry_run_returns_summary_without_dispatching(self):
+        catalog_query = CatalogQueryFactory()
+        _current_content, catalog_query = self._create_catalog_membership(
+            COURSE, 'course-current',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() + timedelta(hours=1),
+        )
+        self._create_catalog_membership(
+            COURSE, 'course-stale',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() - timedelta(hours=1),
+        )
+        self._create_catalog_membership(
+            COURSE, 'course-failed',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() + timedelta(hours=1),
+            last_failure_at=localized_utcnow(),
+        )
+        self._create_catalog_membership(
+            PROGRAM, _program_content_key(),
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() - timedelta(hours=1),
+        )
+        self._create_catalog_membership(LEARNER_PATHWAY, 'pathway-new', catalog_query=catalog_query)
+        self._set_catalog_query_diff(catalog_query, f'{COURSE}:course-removed')
+
+        result = search_tasks.dispatch_algolia_indexing_for_catalog_query(
+            catalog_query.id,
+            dry_run=True,
+            force=False,
+            include_failed=True,
+            index_name='enterprise_catalog_v2',
+        )
+
+        self.assertEqual(result, {
+            'catalog_query_id': catalog_query.id,
+            'force': False,
+            'dry_run': True,
+            'batch_size': 2,
+            'index_name': 'enterprise_catalog_v2',
+            'db_membership_count': 5,
+            'algolia_membership_count': 6,
+            'removed_count': 1,
+            'added_count': 0,
+            'dispatched': {
+                COURSE: {'records': 3, 'batches': 2},
+                PROGRAM: {'records': 1, 'batches': 1},
+                LEARNER_PATHWAY: {'records': 1, 'batches': 1},
+            },
+        })
+        self.mock_invalidate_cache.assert_not_called()
+        self.algolia_client.get_aggregation_keys_for_catalog_query.assert_called_once_with(
+            catalog_query.uuid,
+            index_name='enterprise_catalog_v2',
+        )
+        self.mock_course_si.assert_not_called()
+        self.mock_program_si.assert_not_called()
+        self.mock_pathway_si.assert_not_called()
+
+    def test_force_false_excludes_failed_records_when_requested(self):
+        catalog_query = CatalogQueryFactory()
+        self._create_catalog_membership(
+            COURSE, 'course-current',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() + timedelta(hours=1),
+        )
+        _failed_content, catalog_query = self._create_catalog_membership(
+            COURSE, 'course-failed-only',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() + timedelta(hours=1),
+            last_failure_at=localized_utcnow(),
+        )
+        self._set_catalog_query_diff(catalog_query)
+
+        result = search_tasks.dispatch_algolia_indexing_for_catalog_query(
+            catalog_query.id,
+            force=False,
+            include_failed=False,
+        )
+
+        self.assertEqual(result['dispatched'][COURSE], {'records': 0, 'batches': 0})
+        self.mock_course_si.assert_not_called()
+
+    def test_added_content_dispatched_even_when_last_indexed_at_is_current(self):
+        """
+        Content that is in the DB membership but NOT currently facet-tagged in
+        Algolia (added to the catalog since the last index run) must be
+        dispatched even if its own ``last_indexed_at`` is current (i.e. the
+        staleness filter would otherwise skip it).
+
+        This is the symmetric case to removed content:
+        ``added = db_aggregation_keys - algolia_aggregation_keys``.
+        """
+        catalog_query = CatalogQueryFactory()
+        # course-current is already indexed and fully up-to-date — normally skipped.
+        self._create_catalog_membership(
+            COURSE, 'course-current',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() + timedelta(hours=1),
+        )
+        # course-added is also "current" but Algolia has never written the
+        # catalog-query facet for it. Must be dispatched to gain the new facet.
+        self._create_catalog_membership(
+            COURSE, 'course-added',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() + timedelta(hours=1),
+        )
+        # Algolia only knows about course-current for this catalog query.
+        self.algolia_client.get_aggregation_keys_for_catalog_query.return_value = {
+            f'{COURSE}:course-current',
+        }
+
+        result = search_tasks.dispatch_algolia_indexing_for_catalog_query(
+            catalog_query.id,
+            force=False,
+            include_failed=False,
+        )
+
+        self.assertEqual(result['added_count'], 1)
+        self.assertEqual(result['dispatched'][COURSE], {'records': 1, 'batches': 1})
+        self.mock_course_si.assert_called_once_with(
+            content_keys=['course-added'],
+            force=False,
+            index_name=None,
+        )
+
+    def test_force_true_dispatches_everything_in_the_catalog(self):
+        catalog_query = CatalogQueryFactory()
+        _current_content, catalog_query = self._create_catalog_membership(
+            COURSE, 'course-current',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() + timedelta(hours=1),
+        )
+        self._create_catalog_membership(
+            COURSE, 'course-stale',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() - timedelta(hours=1),
+        )
+        self._create_catalog_membership(
+            COURSE, 'course-failed',
+            catalog_query=catalog_query,
+            last_indexed_at=localized_utcnow() + timedelta(hours=1),
+            last_failure_at=localized_utcnow(),
+        )
+        removed_course_aggregation_key = f'{COURSE}:course-removed'
+        self._set_catalog_query_diff(catalog_query, removed_course_aggregation_key)
+
+        result = search_tasks.dispatch_algolia_indexing_for_catalog_query(
+            catalog_query.id,
+            force=True,
+            index_name='enterprise_catalog_v2',
+        )
+
+        self.assertEqual(result['dispatched'][COURSE], {'records': 4, 'batches': 2})
+        self.mock_invalidate_cache.assert_called_once_with()
+        self.assertEqual(self.mock_course_si.call_count, 2)
+        self.assertEqual(
+            [call.kwargs['content_keys'] for call in self.mock_course_si.call_args_list],
+            [
+                ['course-current', 'course-failed'],
+                ['course-removed', 'course-stale'],
+            ],
+        )
+        self.assertEqual(
+            [call.kwargs['index_name'] for call in self.mock_course_si.call_args_list],
+            ['enterprise_catalog_v2', 'enterprise_catalog_v2'],
+        )
+
+    def test_catalog_query_not_found_returns_empty_summary(self):
+        """
+        If the CatalogQuery doesn't exist at execution time (e.g. deleted
+        between enqueue and run), the task logs a warning and returns ``{}``
+        without touching Algolia or dispatching any batch tasks.
+        """
+        result = search_tasks.dispatch_algolia_indexing_for_catalog_query(
+            catalog_query_id=999999,
+        )
+        self.assertEqual(result, {})
+        self.algolia_client.get_aggregation_keys_for_catalog_query.assert_not_called()
+        self.mock_course_si.assert_not_called()
+        self.mock_invalidate_cache.assert_not_called()
 
 
 class TestRecordOutcome(TestCase):

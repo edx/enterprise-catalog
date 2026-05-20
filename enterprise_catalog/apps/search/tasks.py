@@ -67,7 +67,8 @@ from enterprise_catalog.apps.catalog.constants import (
     LEARNER_PATHWAY,
     PROGRAM,
 )
-from enterprise_catalog.apps.catalog.models import ContentMetadata
+from enterprise_catalog.apps.catalog.models import CatalogQuery, ContentMetadata
+from enterprise_catalog.apps.catalog.utils import _partition_aggregation_key
 from enterprise_catalog.apps.search.indexing_mappings import (
     IndexingMappings,
     get_indexing_mappings,
@@ -167,6 +168,8 @@ def index_courses_batch_in_algolia(
 
     Returns a plain dict (via ``dataclasses.asdict``) so the on-the-wire
     Celery payload stays JSON-serializable.
+    Note that for this and the tasks below, the `self` argument is not directly used by the task,
+    but the django-celery-results backend depends on it for persisting task metadata.
     """
     return asdict(_index_content_batch(content_keys, COURSE, index_name=index_name, force=force))
 
@@ -195,6 +198,51 @@ def index_pathways_batch_in_algolia(
     Celery payload stays JSON-serializable.
     """
     return asdict(_index_content_batch(content_keys, LEARNER_PATHWAY, index_name=index_name, force=force))
+
+
+def _build_ordered_groups(
+    records_by_type: dict[str, list[str]],
+    batch_size: int,
+    force: bool,
+    index_name: str | None,
+    dry_run: bool,
+) -> tuple[list, dict]:
+    """
+    Materialize per-type content-key batches into an ordered list of Celery
+    ``group``\\s (courses → programs → pathways) and a summary count dict.
+
+    Tasks use ``.si()`` (immutable signatures) so each task's kwargs are fixed
+    at dispatch time and Celery does not forward the previous group's return
+    values as positional arguments.  Empty groups are omitted from the list so
+    callers can pass the result directly to ``chain(*ordered_groups)``.
+
+    Returns:
+        ordered_groups: list of ``group`` objects, one per non-empty content
+            type, in courses → programs → pathways order.
+        dispatched_summary: ``{content_type: {'records': int, 'batches': int}}``
+    """
+    task_by_content_type = {
+        COURSE: index_courses_batch_in_algolia,
+        PROGRAM: index_programs_batch_in_algolia,
+        LEARNER_PATHWAY: index_pathways_batch_in_algolia,
+    }
+    ordered_groups = []
+    dispatched_summary = {}
+    for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY):
+        tasks, batch_count, record_count = [], 0, 0
+        for batch in _chunked(records_by_type.get(content_type, []), batch_size):
+            batch_count += 1
+            record_count += len(batch)
+            if not dry_run:
+                tasks.append(
+                    task_by_content_type[content_type].si(
+                        content_keys=batch, force=force, index_name=index_name,
+                    )
+                )
+        dispatched_summary[content_type] = {'records': record_count, 'batches': batch_count}
+        if tasks:
+            ordered_groups.append(group(tasks))
+    return ordered_groups, dispatched_summary
 
 
 @shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
@@ -237,71 +285,131 @@ def dispatch_algolia_indexing(
         mappings.all_indexable_content_keys,
     )
 
-    content_keys_to_dispatch: dict[str, list[str]] = {
-        COURSE: _get_course_keys_for_dispatch(
-            content_keys=indexable_keys_by_type[COURSE],
-            force=force,
-            include_failed=include_failed,
-        ),
-        PROGRAM: _get_program_keys_for_dispatch(
-            content_keys=indexable_keys_by_type[PROGRAM],
-            program_to_course_keys=mappings.program_to_course_keys,
-            force=force,
-            include_failed=include_failed,
-        ),
-        LEARNER_PATHWAY: _get_pathway_keys_for_dispatch(
-            content_keys=indexable_keys_by_type[LEARNER_PATHWAY],
-            pathway_to_program_course_keys=mappings.pathway_to_program_course_keys,
-            force=force,
-            include_failed=include_failed,
-        ),
-    }
+    content_keys_to_dispatch = _get_keys_to_dispatch_by_type(
+        content_keys_by_type=indexable_keys_by_type,
+        mappings=mappings,
+        force=force,
+        include_failed=include_failed,
+    )
 
-    task_by_content_type = {
-        COURSE: index_courses_batch_in_algolia,
-        PROGRAM: index_programs_batch_in_algolia,
-        LEARNER_PATHWAY: index_pathways_batch_in_algolia,
-    }
+    ordered_groups, dispatched_summary = _build_ordered_groups(
+        records_by_type=content_keys_to_dispatch,
+        batch_size=batch_size,
+        force=force,
+        index_name=index_name,
+        dry_run=dry_run,
+    )
     summary = {
         'force': force,
         'dry_run': dry_run,
         'batch_size': batch_size,
         'index_name': index_name,
-        'dispatched': {},
+        'dispatched': dispatched_summary,
     }
 
-    # Build per-type batches and record summary counts before dispatching.
-    batches_by_type = {}
-    for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY):
-        content_keys = content_keys_to_dispatch[content_type]
-        batches = _chunked(content_keys, batch_size)
-        batches_by_type[content_type] = batches
-        summary['dispatched'][content_type] = {'records': 0, 'batches': 0}
-
-    # Build a chain of groups: courses -> programs -> pathways.
-    # Tasks use .si() (immutable signatures) so each task's kwargs are
-    # fixed at dispatch time and Celery does not forward the previous
-    # group's return values as positional arguments.
-    ordered_groups = []
-    for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY):
-        content_type_group_tasks = []
-        for batch in batches_by_type[content_type]:
-            summary['dispatched'][content_type]['batches'] += 1
-            summary['dispatched'][content_type]['records'] += len(batch)
-            if dry_run:
-                continue
-            content_type_group_tasks.append(
-                task_by_content_type[content_type].si(
-                    content_keys=batch, force=force, index_name=index_name,
-                ),
-            )
-        if content_type_group_tasks:
-            ordered_groups.append(group(content_type_group_tasks))
-
-    if not dry_run and len(ordered_groups) >= 1:
+    if not dry_run and ordered_groups:
         chain(*ordered_groups).apply_async()
 
     logger.info('dispatch_algolia_indexing summary=%s', summary)
+    return summary
+
+
+@shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
+def dispatch_algolia_indexing_for_catalog_query(
+    self,  # pylint: disable=unused-argument
+    catalog_query_id,
+    dry_run=False,
+    force=False,
+    include_failed=True,
+    index_name=None,
+):
+    """
+    Dispatch incremental Algolia indexing for a single CatalogQuery.
+
+    This diffs the catalog's current membership in the database against what
+    Algolia currently has indexed, so removed content is reindexed and loses
+    stale catalog facets. Additionally, content that is a new member of the given
+    catalog query, but doesn't look stale based on index time, is also reindexed
+    so that the membership facets of such Algolia records are updated.
+    """
+    try:
+        catalog_query = CatalogQuery.objects.get(id=catalog_query_id)
+    except CatalogQuery.DoesNotExist:
+        logger.warning(
+            'dispatch_algolia_indexing_for_catalog_query: CatalogQuery id=%s not found; skipping.',
+            catalog_query_id,
+        )
+        return {}
+
+    # Invalidate on every real (non-dry) run, not just on force=True as Phase 4a does.
+    # This dispatcher is triggered by a catalog refresh, so membership may have changed
+    # and the mappings cache is likely stale regardless of whether force was requested.
+    if not dry_run:
+        invalidate_indexing_mappings_cache()
+    mappings = get_indexing_mappings()
+    algolia_client = get_initialized_algolia_client()
+    batch_size = getattr(settings, 'ALGOLIA_INDEXING_BATCH_SIZE', 10)
+
+    db_content_keys_by_type = _get_catalog_query_content_keys_by_type(catalog_query)
+    db_aggregation_keys = {
+        _aggregation_key_for(content_type, content_key)
+        for content_type, content_keys in db_content_keys_by_type.items()
+        for content_key in content_keys
+    }
+    algolia_aggregation_keys = algolia_client.get_aggregation_keys_for_catalog_query(
+        catalog_query.uuid,
+        index_name=index_name,
+    )
+    removed_aggregation_keys = algolia_aggregation_keys - db_aggregation_keys
+    removed_content_keys_by_type = _group_aggregation_keys_by_content_type(removed_aggregation_keys)
+    # Content added to this catalog query since the last Algolia index run:
+    # present in the DB but not yet facet-tagged in Algolia. These must be
+    # dispatched regardless of staleness so the new catalog-query facet is written.
+    added_aggregation_keys = db_aggregation_keys - algolia_aggregation_keys
+    added_content_keys_by_type = _group_aggregation_keys_by_content_type(added_aggregation_keys)
+
+    # Apply per-type staleness/child-staleness logic to the DB keys, then
+    # union with removed keys (must shed stale facets) and added keys (must
+    # gain new facets) — both bypass the staleness filter.
+    db_keys_to_dispatch = _get_keys_to_dispatch_by_type(
+        content_keys_by_type=db_content_keys_by_type,
+        mappings=mappings,
+        force=force,
+        include_failed=include_failed,
+    )
+    records_to_dispatch = {
+        content_type: sorted(
+            set(db_keys_to_dispatch[content_type])
+            | set(removed_content_keys_by_type.get(content_type, []))
+            | set(added_content_keys_by_type.get(content_type, [])),
+        )
+        for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY)
+    }
+
+    ordered_groups, dispatched_summary = _build_ordered_groups(
+        records_by_type=records_to_dispatch,
+        batch_size=batch_size,
+        force=force,
+        index_name=index_name,
+        dry_run=dry_run,
+    )
+    summary = {
+        'catalog_query_id': catalog_query_id,
+        'force': force,
+        'dry_run': dry_run,
+        'batch_size': batch_size,
+        'index_name': index_name,
+        'db_membership_count': len(db_aggregation_keys),
+        'algolia_membership_count': len(algolia_aggregation_keys),
+        'removed_count': len(removed_aggregation_keys),
+        'added_count': len(added_aggregation_keys),
+        'dispatched': dispatched_summary,
+    }
+
+    if not dry_run and ordered_groups:
+        chain(*ordered_groups).apply_async()
+
+    logger.info('dispatch_algolia_indexing_for_catalog_query summary=%s', summary)
     return summary
 
 
@@ -628,6 +736,84 @@ def _get_course_keys_for_dispatch(
     return keys_to_dispatch
 
 
+def _get_catalog_query_content_keys_by_type(catalog_query: CatalogQuery) -> dict[str, list[str]]:
+    """
+    Return current catalog membership grouped by content type.
+    """
+    content_keys_by_type = {
+        COURSE: [],
+        PROGRAM: [],
+        LEARNER_PATHWAY: [],
+    }
+    queryset = catalog_query.contentmetadata_set.filter(
+        content_type__in=(COURSE, PROGRAM, LEARNER_PATHWAY),
+    ).values_list(
+        'content_type', 'content_key',
+    ).order_by(
+        'content_type', 'content_key',
+    )
+
+    for content_type, content_key in queryset:
+        content_keys_by_type[content_type].append(content_key)
+    return content_keys_by_type
+
+
+def _get_keys_to_dispatch_by_type(
+    content_keys_by_type: dict[str, list[str]],
+    mappings: IndexingMappings,
+    force: bool,
+    include_failed: bool,
+) -> dict[str, list[str]]:
+    """
+    Apply the correct per-type staleness/failure/child-staleness logic to each
+    content type and return the keys that should be dispatched.
+
+    Courses are filtered by ``ContentMetadata.modified`` vs ``last_indexed_at``.
+    Programs add a child-staleness check: re-dispatch when any member course was
+    indexed more recently than the program itself.
+    Pathways add an analogous check against their child programs.
+    """
+    return {
+        COURSE: _get_course_keys_for_dispatch(
+            content_keys=content_keys_by_type.get(COURSE, []),
+            force=force,
+            include_failed=include_failed,
+        ),
+        PROGRAM: _get_program_keys_for_dispatch(
+            content_keys=content_keys_by_type.get(PROGRAM, []),
+            program_to_course_keys=mappings.program_to_course_keys,
+            force=force,
+            include_failed=include_failed,
+        ),
+        LEARNER_PATHWAY: _get_pathway_keys_for_dispatch(
+            content_keys=content_keys_by_type.get(LEARNER_PATHWAY, []),
+            pathway_to_program_course_keys=mappings.pathway_to_program_course_keys,
+            force=force,
+            include_failed=include_failed,
+        ),
+    }
+
+
+def _group_aggregation_keys_by_content_type(aggregation_keys):
+    """
+    Split aggregation keys into content-type buckets.
+    """
+    grouped_keys = {
+        COURSE: [],
+        PROGRAM: [],
+        LEARNER_PATHWAY: [],
+    }
+    for aggregation_key in aggregation_keys:
+        content_type, content_key = _partition_aggregation_key(aggregation_key)
+        try:
+            grouped_keys[content_type].append(content_key)
+        except KeyError:
+            logger.warning(
+                'Ignoring unsupported content_type=%s for aggregation key=%s', content_type, aggregation_key,
+            )
+    return grouped_keys
+
+
 def _get_program_keys_for_dispatch(
     content_keys: list[str],
     program_to_course_keys: dict[str, set[str]],
@@ -636,10 +822,15 @@ def _get_program_keys_for_dispatch(
 ) -> list[str]:
     """
     Return the program content_keys that the dispatcher should enqueue.
+
+    A program is considered stale if its own ``ContentMetadata.modified``
+    timestamp has advanced past ``last_indexed_at``, OR if any of its child
+    courses was indexed more recently than the program itself.
     """
     if force:
         return list(content_keys)
 
+    content_modified_by_key = _get_content_modified_by_key(content_keys, PROGRAM)
     state_by_key = _get_indexing_state_by_key(content_keys)
     all_child_course_keys = {
         child_key
@@ -655,6 +846,9 @@ def _get_program_keys_for_dispatch(
             keys_to_dispatch.append(content_key)
             continue
         if _should_retry_failed_record(state_by_key, content_key, include_failed):
+            keys_to_dispatch.append(content_key)
+            continue
+        if content_modified_by_key.get(content_key) > state['last_indexed_at']:
             keys_to_dispatch.append(content_key)
             continue
         if _has_newer_child_index(
@@ -674,10 +868,15 @@ def _get_pathway_keys_for_dispatch(
 ) -> list[str]:
     """
     Return the learner pathway content_keys that the dispatcher should enqueue.
+
+    A pathway is considered stale if its own ``ContentMetadata.modified``
+    timestamp has advanced past ``last_indexed_at``, OR if any of its child
+    programs was indexed more recently than the pathway itself.
     """
     if force:
         return list(content_keys)
 
+    content_modified_by_key = _get_content_modified_by_key(content_keys, LEARNER_PATHWAY)
     state_by_key = _get_indexing_state_by_key(content_keys)
     child_program_keys_by_pathway = {
         pathway_key: _extract_program_keys(
@@ -699,6 +898,9 @@ def _get_pathway_keys_for_dispatch(
             keys_to_dispatch.append(content_key)
             continue
         if _should_retry_failed_record(state_by_key, content_key, include_failed):
+            keys_to_dispatch.append(content_key)
+            continue
+        if content_modified_by_key.get(content_key) > state['last_indexed_at']:
             keys_to_dispatch.append(content_key)
             continue
         if _has_newer_child_index(
@@ -864,7 +1066,16 @@ def _resolve_indexing_decision(
                 ),
             )
 
-        if not force and state.last_indexed_at and state.last_indexed_at >= content.modified:
+        # We can skip reindexing (by early-returning) this content if:
+        # 1. We're not explicitly forcing a re-index operation, and
+        # 2. the content has been been indexed at least once and not recently modified
+        # 3. The last re-indexing attempt on this content succeeded
+        if (
+            not force
+            and state.last_indexed_at
+            and state.last_indexed_at >= content.modified
+            and not state.last_failure_at
+        ):
             return IndexingDecision.skipped(
                 content_key=content_key, content=content, state=state,
             )

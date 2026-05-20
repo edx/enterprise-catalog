@@ -178,7 +178,7 @@ def index_pathways_batch_in_algolia(self, content_keys, index_name=None, force=F
 
 
 @shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
-def dispatch_algolia_indexing(  # pylint: disable=unused-argument
+def dispatch_algolia_indexing(
     self,
     force=False,
     dry_run=False,
@@ -192,6 +192,7 @@ def dispatch_algolia_indexing(  # pylint: disable=unused-argument
     dispatch only records that have never been indexed, are stale, or have a
     recorded failure that should be retried.
     """
+    del self
     if force:
         invalidate_indexing_mappings_cache()
 
@@ -448,7 +449,8 @@ def _index_content_batch(content_keys, content_type, index_name=None, force=Fals
 
 def _chunked(iterable, size):
     """
-    Yield ``iterable`` in lists of ``size`` items.
+    Yield successive ``list`` batches from ``iterable`` with at most ``size``
+    items per batch.
     """
     iterator = iter(iterable)
     while True:
@@ -630,12 +632,11 @@ def _has_newer_child_index(child_keys, child_state_by_key, parent_last_indexed_a
     """
     Return whether any child was indexed more recently than its parent.
     """
-    return any(
-        child_state_by_key.get(child_key)
-        and child_state_by_key[child_key]['last_indexed_at']
-        and child_state_by_key[child_key]['last_indexed_at'] > parent_last_indexed_at
-        for child_key in child_keys
-    )
+    for child_key in child_keys:
+        child_state = child_state_by_key.get(child_key)
+        if child_state and child_state['last_indexed_at'] and child_state['last_indexed_at'] > parent_last_indexed_at:
+            return True
+    return False
 
 
 def _extract_program_keys(content_keys):
@@ -651,11 +652,11 @@ def _extract_program_keys(content_keys):
 
 def _is_uuid_string(value):
     """
-    Return whether ``value`` parses cleanly as a UUID.
+    Return whether ``value`` parses cleanly as a UUID after string coercion.
     """
     try:
         UUID(str(value))
-    except (TypeError, ValueError, AttributeError):
+    except (TypeError, ValueError):
         return False
     return True
 

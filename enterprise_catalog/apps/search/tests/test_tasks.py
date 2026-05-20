@@ -51,6 +51,13 @@ def _algolia_object(content_key, content_type=COURSE, shard_index=0):
     }
 
 
+def _program_content_key():
+    """
+    Build a UUID-formatted content_key for program records.
+    """
+    return str(uuid4())
+
+
 @ddt.ddt
 class TestIndexContentBatch(TestCase):
     """
@@ -696,7 +703,7 @@ class TestDispatchAlgoliaIndexing(TestCase):
 
     def test_dry_run_returns_summary_without_dispatching(self):
         course = ContentMetadataFactory(content_type=COURSE, content_key='course-dry-run')
-        program = ContentMetadataFactory(content_type=PROGRAM, content_key=str(uuid4()))
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
         pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='pathway-dry-run')
         self._set_mappings(
             all_indexable_content_keys=[course.content_key, program.content_key, pathway.content_key],
@@ -787,7 +794,7 @@ class TestDispatchAlgoliaIndexing(TestCase):
 
     def test_programs_dispatch_when_child_course_indexed_more_recently(self):
         child_course = ContentMetadataFactory(content_type=COURSE, content_key='course-program-child')
-        program = ContentMetadataFactory(content_type=PROGRAM, content_key=str(uuid4()))
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
         program_state = ContentMetadataIndexingStateFactory(
             content_metadata=program,
             last_indexed_at=localized_utcnow() - timedelta(hours=2),
@@ -810,8 +817,8 @@ class TestDispatchAlgoliaIndexing(TestCase):
             index_name=None,
         )
 
-    def test_pathways_dispatch_when_child_program_uuid_is_newer(self):
-        child_program = ContentMetadataFactory(content_type=PROGRAM, content_key=str(uuid4()))
+    def test_pathways_dispatch_when_child_program_is_newer(self):
+        child_program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
         pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='pathway-stale')
         pathway_state = ContentMetadataIndexingStateFactory(
             content_metadata=pathway,

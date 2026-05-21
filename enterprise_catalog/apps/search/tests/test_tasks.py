@@ -895,7 +895,9 @@ class TestDispatchAlgoliaIndexing(TestCase):
         """
         Programs with no indexing state are always dispatched.
         """
-        child_course = ContentMetadataFactory(content_type=COURSE, content_key='course-program-never-child')
+        child_course = ContentMetadataFactory(
+            content_type=COURSE, content_key='course-program-child-never-indexed',
+        )
         program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
         self._set_mappings(
             all_indexable_content_keys=[child_course.content_key, program.content_key],
@@ -915,7 +917,9 @@ class TestDispatchAlgoliaIndexing(TestCase):
         """
         Failed program records are retried when ``include_failed=True``.
         """
-        child_course = ContentMetadataFactory(content_type=COURSE, content_key='course-program-failed-child')
+        child_course = ContentMetadataFactory(
+            content_type=COURSE, content_key='course-program-child-with-failed-parent',
+        )
         program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
         ContentMetadataIndexingStateFactory(
             content_metadata=program,

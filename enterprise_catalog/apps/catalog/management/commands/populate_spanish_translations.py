@@ -4,7 +4,7 @@ Management command to pre-populate Spanish translations for content metadata.
 import logging
 
 from django.core.management.base import BaseCommand
-from django.db.models import Q
+from django.db.models import Exists, OuterRef
 
 from enterprise_catalog.apps.catalog.algolia_utils import (
     _should_index_course,
@@ -14,6 +14,9 @@ from enterprise_catalog.apps.catalog.constants import COURSE, PROGRAM
 from enterprise_catalog.apps.catalog.content_metadata_utils import (
     get_advertised_course_run,
 )
+from enterprise_catalog.apps.catalog.management.utils import (
+    iter_queryset_in_batches,
+)
 from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     ContentTranslation,
@@ -21,10 +24,7 @@ from enterprise_catalog.apps.catalog.models import (
 from enterprise_catalog.apps.catalog.translation_utils import (
     translate_object_fields,
 )
-from enterprise_catalog.apps.catalog.utils import (
-    batch_by_pk,
-    compute_source_hash,
-)
+from enterprise_catalog.apps.catalog.utils import compute_source_hash
 
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Translate all content, even if it would not be indexed in Algolia'
         )
+        parser.add_argument(
+            '--missing-only',
+            action='store_true',
+            help='Only process content that has no Spanish ContentTranslation row yet'
+        )
 
     def handle(self, *args, **options):
         """
@@ -92,21 +97,36 @@ class Command(BaseCommand):
         language_code = 'es'  # Only Spanish is supported at this time
         dry_run = options.get('dry_run')
         all_content = options.get('all')
+        missing_only = options.get('missing_only')
 
         # Build queryset
         queryset = ContentMetadata.objects.all()
-        extra_filter = Q()
         if content_keys:
-            extra_filter = Q(content_key__in=content_keys)
-            queryset = queryset.filter(extra_filter)
+            queryset = queryset.filter(content_key__in=content_keys)
 
+        # Optionally scope down to content with no pre-computed Spanish translation row
+        # Use Exists to avoid JOIN issues when ContentMetadata has multiple translations
+        if missing_only:
+            has_translation = ContentTranslation.objects.filter(
+                content_metadata=OuterRef('pk'),
+                language_code=language_code
+            )
+            queryset = queryset.exclude(Exists(has_translation))
+
+        # Single count() call — reused for both the missing-only log and the start log
         total_count = queryset.count()
+        if missing_only:
+            logger.info(
+                '[MISSING_ONLY] Found %s content items missing %s translations',
+                total_count,
+                language_code,
+            )
+
         logger.info(
             'Starting translation for %s content items to %s',
             total_count,
             language_code
         )
-
         if dry_run:
             logger.warning('DRY RUN MODE - No changes will be saved')
 
@@ -117,8 +137,7 @@ class Command(BaseCommand):
         error_count = 0
 
         # Process in batches
-        # Process in batches using efficient keyset pagination
-        for batch in batch_by_pk(ContentMetadata, extra_filter=extra_filter, batch_size=batch_size):
+        for batch in iter_queryset_in_batches(queryset, batch_size=batch_size):
 
             logger.info('Processing batch of %s items...', len(batch))
 

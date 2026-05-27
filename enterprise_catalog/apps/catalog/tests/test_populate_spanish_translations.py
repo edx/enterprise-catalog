@@ -1,12 +1,18 @@
 """
-Tests for populate_spanish_translations management command.
+Tests for populate_spanish_translations management command and related management utilities.
 """
 from unittest import mock
 
 from django.core.management import call_command
 from django.test import TestCase
 
-from enterprise_catalog.apps.catalog.models import ContentTranslation
+from enterprise_catalog.apps.catalog.management.utils import (
+    iter_queryset_in_batches,
+)
+from enterprise_catalog.apps.catalog.models import (
+    ContentMetadata,
+    ContentTranslation,
+)
 from enterprise_catalog.apps.catalog.tests.factories import (
     ContentMetadataFactory,
 )
@@ -308,3 +314,181 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
         mock_translate.assert_called()
         # Should create translation
         self.assertEqual(ContentTranslation.objects.count(), 2)
+
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.translate_object_fields'
+    )
+    def test_command_missing_only_processes_only_missing(self, mock_translate):
+        """Test that --missing-only only translates records without an es row."""
+        mock_translate.return_value = {'title': 'Translated'}
+
+        existing_hash = compute_source_hash(self.content1)
+        ContentTranslation.objects.create(
+            content_metadata=self.content1,
+            language_code='es',
+            title='Already Translated',
+            source_hash=existing_hash,
+        )
+
+        call_command('populate_spanish_translations', missing_only=True, all=True)
+
+        self.assertEqual(ContentTranslation.objects.count(), 2)
+        self.assertEqual(
+            ContentTranslation.objects.get(content_metadata=self.content1).title,
+            'Already Translated'
+        )
+        self.assertTrue(ContentTranslation.objects.filter(content_metadata=self.content2).exists())
+        self.assertEqual(mock_translate.call_count, 1)
+
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.translate_object_fields'
+    )
+    def test_command_missing_only_with_content_keys_respects_filter(self, mock_translate):
+        """Test that --missing-only combined with content key filter only processes missing keyed rows."""
+        mock_translate.return_value = {'title': 'Translated'}
+
+        existing_hash = compute_source_hash(self.content1)
+        ContentTranslation.objects.create(
+            content_metadata=self.content1,
+            language_code='es',
+            title='Already Translated',
+            source_hash=existing_hash,
+        )
+
+        call_command(
+            'populate_spanish_translations',
+            missing_only=True,
+            all=True,
+            content_keys=['course-1'],
+        )
+
+        self.assertEqual(ContentTranslation.objects.count(), 1)
+        mock_translate.assert_not_called()
+
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.logger'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.translate_object_fields'
+    )
+    def test_command_logging(self, mock_translate, mock_logger):
+        """Test that --missing-only produces the correct log output."""
+        mock_translate.return_value = {'title': 'Translated'}
+
+        existing_hash = compute_source_hash(self.content1)
+        ContentTranslation.objects.create(
+            content_metadata=self.content1,
+            language_code='es',
+            title='Already Translated',
+            source_hash=existing_hash,
+        )
+
+        call_command('populate_spanish_translations', missing_only=True, all=True)
+
+        # Verify the [MISSING_ONLY] log message was called
+        mock_logger.info.assert_any_call(
+            '[MISSING_ONLY] Found %s content items missing %s translations',
+            1,
+            'es',
+        )
+
+
+class IterQuerysetInBatchesTests(TestCase):
+    """
+    Unit tests for the ``iter_queryset_in_batches`` management utility.
+
+    This helper lives in ``management/utils.py`` so it can be reused by any
+    future management command that needs PK-pivot batch iteration over an
+    arbitrary queryset (including those with ``exclude(Exists(...))`` or other
+    complex predicates that cannot be expressed as a plain ``Q()`` filter).
+    """
+
+    def _make_content(self, count):
+        """Create *count* ContentMetadata objects and return the queryset, ordered by pk."""
+        for i in range(count):
+            ContentMetadataFactory(content_key=f'batch-test-course-{i}')
+        return ContentMetadata.objects.filter(content_key__startswith='batch-test-course-').order_by('pk')
+
+    def test_yields_all_records_single_batch(self):
+        """All records fit in one batch when batch_size >= total count."""
+        qs = self._make_content(3)
+        batches = list(iter_queryset_in_batches(qs, batch_size=10))
+        self.assertEqual(len(batches), 1)
+        self.assertEqual(len(batches[0]), 3)
+
+    def test_yields_correct_number_of_batches(self):
+        """Records are split across the expected number of batches."""
+        qs = self._make_content(5)
+        batches = list(iter_queryset_in_batches(qs, batch_size=2))
+        # 5 records / batch_size 2 → 3 batches (2, 2, 1)
+        self.assertEqual(len(batches), 3)
+        self.assertEqual(len(batches[0]), 2)
+        self.assertEqual(len(batches[1]), 2)
+        self.assertEqual(len(batches[2]), 1)
+
+    def test_all_records_are_yielded_exactly_once(self):
+        """Every record appears in exactly one batch, no duplicates or omissions."""
+        qs = self._make_content(7)
+        expected_pks = set(qs.values_list('pk', flat=True))
+        seen_pks = set()
+        for batch in iter_queryset_in_batches(qs, batch_size=3):
+            for obj in batch:
+                self.assertNotIn(obj.pk, seen_pks, 'Duplicate record detected across batches')
+                seen_pks.add(obj.pk)
+        self.assertEqual(seen_pks, expected_pks)
+
+    def test_empty_queryset_yields_nothing(self):
+        """An empty queryset produces no batches."""
+        qs = ContentMetadata.objects.none()
+        batches = list(iter_queryset_in_batches(qs, batch_size=10))
+        self.assertEqual(batches, [])
+
+    def test_preserves_queryset_predicates(self):
+        """Only records matching the queryset's filter are returned."""
+        self._make_content(4)
+        qs = ContentMetadata.objects.filter(
+            content_key__in=['batch-test-course-0', 'batch-test-course-1']
+        )
+        all_yielded = [obj for batch in iter_queryset_in_batches(qs, batch_size=10) for obj in batch]
+        self.assertEqual(len(all_yielded), 2)
+        yielded_keys = {obj.content_key for obj in all_yielded}
+        self.assertEqual(yielded_keys, {'batch-test-course-0', 'batch-test-course-1'})
+
+    def test_batch_size_one(self):
+        """Each batch contains exactly one record when batch_size=1."""
+        qs = self._make_content(3)
+        batches = list(iter_queryset_in_batches(qs, batch_size=1))
+        self.assertEqual(len(batches), 3)
+        for batch in batches:
+            self.assertEqual(len(batch), 1)
+
+    def test_records_in_pk_order(self):
+        """Records within each batch and across batches are in ascending PK order."""
+        qs = self._make_content(6)
+        all_pks = [obj.pk for batch in iter_queryset_in_batches(qs, batch_size=2) for obj in batch]
+        self.assertEqual(all_pks, sorted(all_pks))
+
+    def test_zero_batch_size_raises_value_error(self):
+        """A zero batch size is rejected instead of silently yielding nothing."""
+        qs = self._make_content(1)
+
+        with self.assertRaisesMessage(ValueError, 'batch_size must be a positive integer'):
+            list(iter_queryset_in_batches(qs, batch_size=0))
+
+    def test_negative_batch_size_raises_value_error(self):
+        """A negative batch size is rejected before queryset slicing occurs."""
+        qs = self._make_content(1)
+
+        with self.assertRaisesMessage(ValueError, 'batch_size must be a positive integer'):
+            list(iter_queryset_in_batches(qs, batch_size=-1))
+
+    def test_non_integer_batch_size_raises_value_error(self):
+        """A non-integer batch size is rejected early."""
+        qs = self._make_content(1)
+
+        with self.assertRaisesMessage(ValueError, 'batch_size must be a positive integer'):
+            list(iter_queryset_in_batches(qs, batch_size='10'))

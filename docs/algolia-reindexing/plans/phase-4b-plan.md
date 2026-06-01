@@ -35,8 +35,8 @@ The tricky part: **membership removals**. When content is removed from a catalog
 
 ## Non-goals
 
-- No attempt to "stream" changes; this is dispatcher-based, invoked per API refresh.
-- No attempt to track pre-update membership state in the DB; we use Algolia as "what was indexed" and the DB as "what should be indexed".
+- No attempt to “stream” changes; this is dispatcher-based, invoked per API refresh.
+- No attempt to track pre-update membership state in the DB; we use Algolia as “what was indexed” and the DB as “what should be indexed”.
 
 ---
 
@@ -75,16 +75,17 @@ Like Phase 4a, we will not re-run partition helpers directly. Indexability const
 
 **Location**: `enterprise_catalog/apps/search/tasks.py`
 
-**Signature**:
+**Signature (proposed)**:
 
 ```python
-# Celery shared_task — invoke via .delay() or .apply_async()
+@shared_task
 dispatch_algolia_indexing_for_catalog_query(
-    catalog_query_id,   # positional; CatalogQuery primary key (int)
-    dry_run=False,
-    force=False,
-    include_failed=True,
-    index_name=None,
+    self,
+    catalog_query_id: int,
+    dry_run: bool = False,
+    force: bool = False,
+    include_failed: bool = True,
+    index_name: str | None = None,
 )
 ```
 
@@ -119,7 +120,7 @@ Notes:
 
 Call the Algolia helper from Phase 2:
 
-- `algolia_aggregation_keys = algolia_client.get_aggregation_keys_for_catalog_query(catalog_query.uuid, index_name=index_name)`
+- `algolia_aggregation_keys = algolia_client.get_aggregation_keys_for_catalog_query(catalog_query_uuid, index_name=index_name)`
 
 This yields the “is currently indexed under this facet” set.
 
@@ -183,7 +184,7 @@ Return a dict such as:
   "db_membership_count": 456,
   "algolia_membership_count": 470,
   "removed_count": 14,
-  "dispatched": {
+  "dispatch": {
     "course": {"records": 300, "batches": 30},
     "program": {"records": 120, "batches": 12},
     "learnerpathway": {"records": 50, "batches": 5},
@@ -209,7 +210,7 @@ Add unit tests in `enterprise_catalog/apps/search/tests/test_tasks.py` (or a new
 2. **Removed keys are always included** even when `force=False` and even if not stale
 3. **Grouping by content type** from aggregation keys is correct
 4. **Batch sizing** matches `ALGOLIA_INDEXING_BATCH_SIZE`
-5. **dry_run**: no `.si()` calls and `dispatched` counts reflect what would run
+5. **dry_run**: no `.delay()` calls and summary says “would dispatch”
 6. **index_name** is passed through to:
    - Algolia diff query helper
    - batch tasks

@@ -764,7 +764,7 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
 - Implement `_get_stale_content_keys(content_type, force, include_failed)` helper
 - Create `dispatch_algolia_indexing_for_catalog_query` task
 - Implement batching logic (default batch size 10, configurable)
-- Dispatch tasks in this order: courses -> programs -> pathways
+- Dispatch tasks in this order: courses → programs → pathways
 - Support `dry_run` mode for testing
 - Add `ALGOLIA_INDEXING_BATCH_SIZE` setting
 - Pre-warm `IndexingMappings` before fan-out: call

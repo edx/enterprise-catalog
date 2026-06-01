@@ -182,9 +182,12 @@ class AlgoliaSearchClient:
             return None
         index = self._get_index(index_name)
         effective_chunk_size = chunk_size or getattr(settings, 'ALGOLIA_INDEXING_CHUNK_SIZE', 100)
+        wait_for_tasks = getattr(settings, 'ALGOLIA_WAIT_FOR_TASKS', False)
         try:
             for chunk in batch(list(algolia_objects), batch_size=effective_chunk_size):
-                index.save_objects(chunk)
+                response = index.save_objects(chunk)
+                if wait_for_tasks:
+                    response.wait()
         except AlgoliaException as exc:
             logger.exception(
                 'Could not save objects batch in the %s Algolia index due to an exception.',
@@ -210,9 +213,12 @@ class AlgoliaSearchClient:
             return None
         index = self._get_index(index_name)
         effective_chunk_size = chunk_size or getattr(settings, 'ALGOLIA_INDEXING_CHUNK_SIZE', 100)
+        wait_for_tasks = getattr(settings, 'ALGOLIA_WAIT_FOR_TASKS', False)
         try:
             for chunk in batch(list(object_ids), batch_size=effective_chunk_size):
-                index.delete_objects(chunk)
+                response = index.delete_objects(chunk)
+                if wait_for_tasks:
+                    response.wait()
         except AlgoliaException as exc:
             logger.exception(
                 'Could not delete objects batch from the %s Algolia index due to an exception.',

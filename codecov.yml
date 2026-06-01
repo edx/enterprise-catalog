@@ -6,3 +6,5 @@ coverage:
     project:
       default:
         target: auto  # Just make sure it doesn't get worse
+ignore:
+  - "tests/integration"

@@ -1,0 +1,445 @@
+{
+  "content_metadata": [
+    {
+      "content_key": "edX+DemoX",
+      "content_uuid": "d9105cd5-079b-4aec-98c9-40da6279bdfd",
+      "content_type": "course",
+      "parent_content_key": null,
+      "_json_metadata": {
+        "aggregation_key": "course:edX+DemoX",
+        "content_type": "course",
+        "key": "edX+DemoX",
+        "uuid": "d9105cd5-079b-4aec-98c9-40da6279bdfd",
+        "title": "edX Demonstration Course",
+        "full_description": "",
+        "short_description": "",
+        "card_image_url": null,
+        "image_url": "https://prod-discovery.edx-cdn.org/media/course/image/3a31db71-de8f-45f1-ae65-11981ed9d680-b801bb328333.small.png",
+        "canonical_course_run_key": "course-v1:edX+DemoX+Demo_Course",
+        "advertised_course_run_uuid": "7dd8b1bc-b2d6-4ef1-8a29-45bbee3cb9c9",
+        "course_runs": [
+          {
+            "key": "course-v1:edX+DemoX+Demo_Course",
+            "uuid": "7dd8b1bc-b2d6-4ef1-8a29-45bbee3cb9c9",
+            "title": "Demonstration Course",
+            "seats": [
+              {
+                "type": "verified",
+                "price": "149.00",
+                "currency": "USD",
+                "upgrade_deadline": "2099-10-21T20:26:56Z",
+                "upgrade_deadline_override": "2099-10-21T20:26:56Z",
+                "credit_provider": null,
+                "credit_hours": null,
+                "sku": "8CF08E5",
+                "bulk_sku": "A5B6DBE"
+              },
+              {
+                "type": "audit",
+                "price": "0.00",
+                "currency": "USD",
+                "upgrade_deadline": null,
+                "upgrade_deadline_override": null,
+                "credit_provider": null,
+                "credit_hours": null,
+                "sku": "68EFFFF",
+                "bulk_sku": null
+              }
+            ],
+            "start": "2024-11-19T05:00:00Z",
+            "end": null,
+            "pacing_type": "instructor_paced",
+            "type": "verified",
+            "restriction_type": null,
+            "status": "published",
+            "is_enrollable": true,
+            "is_marketable": true,
+            "availability": "Current",
+            "course": "edX+DemoX",
+            "hidden": false,
+            "first_enrollable_paid_seat_price": 149,
+            "content_language": null
+          }
+        ],
+        "owners": [
+          {
+            "uuid": "5cacdd1e-8192-4322-a4e8-9bcbff06bca5",
+            "key": "edX",
+            "name": "edX",
+            "logo_image_url": null
+          }
+        ],
+        "seat_types": [
+          "verified",
+          "audit"
+        ],
+        "url_slug": "edx-demonstration-course",
+        "marketing_url": "https://www.edx.org/course/edx-demonstration-course",
+        "course_type": "verified-audit",
+        "normalized_metadata": {
+          "start_date": "2024-11-19T05:00:00Z",
+          "end_date": null,
+          "enroll_by_date": "2099-10-21T20:26:56Z",
+          "enroll_start_date": null,
+          "content_price": 149.0
+        },
+        "programs": [
+          {
+            "uuid": "96b52724-0a92-44e7-a856-dbbfbc696a6a",
+            "title": "edX Demonstration Program",
+            "type": "MicroMasters",
+            "aggregation_key": "program:96b52724-0a92-44e7-a856-dbbfbc696a6a",
+            "content_type": "program"
+          }
+        ],
+        "course_run_keys": [
+          "course-v1:edX+DemoX+Demo_Course"
+        ],
+        "course_run_statuses": [
+          "published"
+        ],
+        "skill_names": [],
+        "subjects": [],
+        "languages": [],
+        "entitlements": [],
+        "product_source": {
+          "name": "edx",
+          "slug": "edx",
+          "description": "edx"
+        },
+        "excluded_from_search": false,
+        "excluded_from_seo": false,
+        "parent_content_key": null,
+        "active": true
+      }
+    },
+    {
+      "content_key": "edX+E2E-101",
+      "content_uuid": "3bf6782a-b894-4278-b149-e90069e5a6de",
+      "content_type": "course",
+      "parent_content_key": null,
+      "_json_metadata": {
+        "aggregation_key": "course:edX+E2E-101",
+        "content_type": "course",
+        "key": "edX+E2E-101",
+        "uuid": "3bf6782a-b894-4278-b149-e90069e5a6de",
+        "title": "Manual Smoke Test Course 1 - Auto",
+        "full_description": null,
+        "short_description": null,
+        "card_image_url": null,
+        "image_url": null,
+        "canonical_course_run_key": "course-v1:edX+E2E-101+course",
+        "advertised_course_run_uuid": "9b353dba-445d-46b1-ad76-9aaf81c93ec0",
+        "course_runs": [
+          {
+            "key": "course-v1:edX+E2E-101+course",
+            "uuid": "9b353dba-445d-46b1-ad76-9aaf81c93ec0",
+            "title": "E2E Test Course",
+            "seats": [
+              {
+                "type": "masters",
+                "price": "0.00",
+                "currency": "USD",
+                "upgrade_deadline": null,
+                "upgrade_deadline_override": null,
+                "credit_provider": null,
+                "credit_hours": null,
+                "sku": null,
+                "bulk_sku": null
+              }
+            ],
+            "start": "2016-01-01T00:00:00Z",
+            "end": "2099-12-31T00:00:00Z",
+            "pacing_type": "instructor_paced",
+            "type": null,
+            "restriction_type": null,
+            "status": "published",
+            "is_enrollable": true,
+            "is_marketable": true,
+            "availability": "Current",
+            "course": "edX+E2E-101",
+            "hidden": false,
+            "first_enrollable_paid_seat_price": null,
+            "content_language": null
+          }
+        ],
+        "owners": [
+          {
+            "uuid": "5cacdd1e-8192-4322-a4e8-9bcbff06bca5",
+            "key": "edX",
+            "name": "edX",
+            "logo_image_url": null
+          }
+        ],
+        "seat_types": [
+          "masters"
+        ],
+        "url_slug": "manual-smoke-test-course-1-auto",
+        "marketing_url": null,
+        "course_type": "verified-audit",
+        "normalized_metadata": {
+          "start_date": null,
+          "end_date": null,
+          "enroll_by_date": null,
+          "enroll_start_date": null,
+          "content_price": 0.0
+        },
+        "programs": [
+          {
+            "uuid": "96b52724-0a92-44e7-a856-dbbfbc696a6a",
+            "title": "edX Demonstration Program",
+            "type": "MicroMasters",
+            "aggregation_key": "program:96b52724-0a92-44e7-a856-dbbfbc696a6a",
+            "content_type": "program"
+          }
+        ],
+        "course_run_keys": [
+          "course-v1:edX+E2E-101+course"
+        ],
+        "course_run_statuses": [
+          "published"
+        ],
+        "skill_names": [],
+        "subjects": [],
+        "languages": [],
+        "entitlements": [],
+        "product_source": null,
+        "excluded_from_search": false,
+        "excluded_from_seo": false,
+        "parent_content_key": null,
+        "active": true
+      }
+    },
+    {
+      "content_key": "IBM+CAD0210EN",
+      "content_uuid": "0af1e674-790b-4aa6-89dc-80adbd89d479",
+      "content_type": "course",
+      "parent_content_key": null,
+      "_json_metadata": {
+        "aggregation_key": "course:IBM+CAD0210EN",
+        "content_type": "course",
+        "key": "IBM+CAD0210EN",
+        "uuid": "0af1e674-790b-4aa6-89dc-80adbd89d479",
+        "title": "Developing Front End Apps with React",
+        "full_description": "<p>Learn React.</p>",
+        "short_description": "<p>Gain job-ready front-end skills with React.</p>",
+        "card_image_url": null,
+        "image_url": "https://prod-discovery.edx-cdn.org/media/course/image/0af1e674-790b-4aa6-89dc-80adbd89d479-f877a35880a3.small.jpeg",
+        "canonical_course_run_key": "course-v1:IBM+CAD0210EN+3T2022",
+        "advertised_course_run_uuid": "98212baf-5efe-4122-a7e2-29254e981b63",
+        "course_runs": [
+          {
+            "key": "course-v1:IBM+CAD0210EN+3T2022",
+            "uuid": "98212baf-5efe-4122-a7e2-29254e981b63",
+            "title": "Developing Front End Apps with React",
+            "seats": [
+              {
+                "type": "audit",
+                "price": "0.00",
+                "currency": "USD",
+                "upgrade_deadline": null,
+                "upgrade_deadline_override": null,
+                "credit_provider": null,
+                "credit_hours": null,
+                "sku": "6551289",
+                "bulk_sku": null
+              },
+              {
+                "type": "verified",
+                "price": "24.00",
+                "currency": "USD",
+                "upgrade_deadline": "2099-06-20T23:59:59Z",
+                "upgrade_deadline_override": null,
+                "credit_provider": null,
+                "credit_hours": null,
+                "sku": "7EADA76",
+                "bulk_sku": "E5E5288"
+              }
+            ],
+            "start": "2022-11-22T17:00:00Z",
+            "end": "2099-06-30T16:00:00Z",
+            "pacing_type": "self_paced",
+            "type": "verified",
+            "restriction_type": null,
+            "status": "published",
+            "is_enrollable": true,
+            "is_marketable": true,
+            "availability": "Current",
+            "course": "IBM+CAD0210EN",
+            "hidden": false,
+            "first_enrollable_paid_seat_price": 24,
+            "content_language": "en-us"
+          }
+        ],
+        "owners": [
+          {
+            "uuid": "87b07564-d569-4cfd-bee6-8b0a407acb73",
+            "key": "IBM",
+            "name": "IBM",
+            "logo_image_url": "https://prod-discovery.edx-cdn.org/organization/logos/87b07564-d569-4cfd-bee6-8b0a407acb73-dc33e4b5f353.png"
+          }
+        ],
+        "seat_types": [
+          "audit",
+          "verified"
+        ],
+        "url_slug": "learn/react-native/ibm-developing-front-end-apps-with-react",
+        "marketing_url": "https://www.edx.org/learn/react-native/ibm-developing-front-end-apps-with-react",
+        "course_type": "verified-audit",
+        "normalized_metadata": {
+          "start_date": "2025-08-31T04:00:00Z",
+          "end_date": "2099-07-31T04:00:00Z",
+          "enroll_by_date": "2099-07-21T23:59:59Z",
+          "enroll_start_date": null,
+          "content_price": 24.0
+        },
+        "programs": [],
+        "course_run_keys": [
+          "course-v1:IBM+CAD0210EN+3T2022"
+        ],
+        "course_run_statuses": [
+          "published"
+        ],
+        "skill_names": [
+          "React.js",
+          "Front End (Software Engineering)",
+          "JavaScript (Programming Language)"
+        ],
+        "subjects": [],
+        "languages": [
+          "English"
+        ],
+        "entitlements": [
+          {
+            "mode": "verified",
+            "price": "24.00",
+            "currency": "USD",
+            "sku": "3002DC1",
+            "expires": null
+          }
+        ],
+        "product_source": {
+          "name": "edX",
+          "slug": "edx",
+          "description": ""
+        },
+        "excluded_from_search": false,
+        "excluded_from_seo": false,
+        "parent_content_key": null,
+        "active": true
+      }
+    },
+    {
+      "content_key": "96b52724-0a92-44e7-a856-dbbfbc696a6a",
+      "content_uuid": "96b52724-0a92-44e7-a856-dbbfbc696a6a",
+      "content_type": "program",
+      "parent_content_key": null,
+      "_json_metadata": {
+        "aggregation_key": "program:96b52724-0a92-44e7-a856-dbbfbc696a6a",
+        "content_type": "program",
+        "uuid": "96b52724-0a92-44e7-a856-dbbfbc696a6a",
+        "title": "edX Demonstration Program",
+        "type": "Professional Certificate",
+        "status": "active",
+        "hidden": false,
+        "marketing_url": "masters/micromasters/edx-edx-demonstration-program",
+        "marketing_slug": "masters/micromasters/edx-edx-demonstration-program",
+        "subtitle": "",
+        "partner": "edx",
+        "published": true,
+        "card_image_url": "http://edx.devstack.lms:18000/asset-v1:edX+DemoX+Demo_Course+type@asset+block@images_course_image.jpg",
+        "courses": [
+          {
+            "key": "edX+E2E-101",
+            "uuid": "3bf6782a-b894-4278-b149-e90069e5a6de",
+            "title": "Manual Smoke Test Course 1 - Auto"
+          },
+          {
+            "key": "edX+DemoX",
+            "uuid": "d9105cd5-079b-4aec-98c9-40da6279bdfd",
+            "title": "edX Demonstration Course"
+          }
+        ],
+        "authoring_organizations": [],
+        "number_of_courses": 2,
+        "is_program_eligible_for_one_click_purchase": false,
+        "excluded_from_search": false,
+        "excluded_from_seo": false,
+        "course_run_statuses": [
+          "published"
+        ],
+        "subscription_eligible": null,
+        "subscription_prices": []
+      }
+    }
+  ],
+  "catalog_queries": [
+    {
+      "uuid": "aaaaaaaa-1111-1111-1111-000000000001",
+      "title": "Integration Test CQ1 - Program Only",
+      "content_filter": {
+        "_integration_test_id": "cq1"
+      }
+    },
+    {
+      "uuid": "aaaaaaaa-1111-1111-1111-000000000002",
+      "title": "Integration Test CQ2 - All Courses",
+      "content_filter": {
+        "_integration_test_id": "cq2"
+      }
+    },
+    {
+      "uuid": "aaaaaaaa-1111-1111-1111-000000000003",
+      "title": "Integration Test CQ3 - IBM Only",
+      "content_filter": {
+        "_integration_test_id": "cq3"
+      }
+    }
+  ],
+  "enterprise_catalogs": [
+    {
+      "uuid": "bbbbbbbb-1111-1111-1111-000000000001",
+      "enterprise_uuid": "cccccccc-1111-1111-1111-000000000001",
+      "enterprise_name": "Integration Test Enterprise 1",
+      "title": "Integration Test Catalog 1",
+      "catalog_query_uuid": "aaaaaaaa-1111-1111-1111-000000000001"
+    },
+    {
+      "uuid": "bbbbbbbb-1111-1111-1111-000000000002",
+      "enterprise_uuid": "cccccccc-1111-1111-1111-000000000002",
+      "enterprise_name": "Integration Test Enterprise 2",
+      "title": "Integration Test Catalog 2",
+      "catalog_query_uuid": "aaaaaaaa-1111-1111-1111-000000000002"
+    },
+    {
+      "uuid": "bbbbbbbb-1111-1111-1111-000000000003",
+      "enterprise_uuid": "cccccccc-1111-1111-1111-000000000003",
+      "enterprise_name": "Integration Test Enterprise 3",
+      "title": "Integration Test Catalog 3",
+      "catalog_query_uuid": "aaaaaaaa-1111-1111-1111-000000000003"
+    }
+  ],
+  "associations": {
+    "content_catalog_queries": {
+      "edX+DemoX": [
+        "aaaaaaaa-1111-1111-1111-000000000002"
+      ],
+      "edX+E2E-101": [
+        "aaaaaaaa-1111-1111-1111-000000000002"
+      ],
+      "IBM+CAD0210EN": [
+        "aaaaaaaa-1111-1111-1111-000000000002",
+        "aaaaaaaa-1111-1111-1111-000000000003"
+      ],
+      "96b52724-0a92-44e7-a856-dbbfbc696a6a": [
+        "aaaaaaaa-1111-1111-1111-000000000001"
+      ]
+    },
+    "program_courses": {
+      "96b52724-0a92-44e7-a856-dbbfbc696a6a": [
+        "edX+DemoX",
+        "edX+E2E-101"
+      ]
+    }
+  }
+}

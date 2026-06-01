@@ -48,8 +48,8 @@ Not included in this slice:
 
 ## Non-goals
 
-- No membership-removal detection for a specific catalog query (that's the catalog-query-specific dispatcher).
-- No integration into the daily cron chain / API endpoint in this slice (that's later integration work).
+- No membership-removal detection for a specific catalog query (that’s the catalog-query-specific dispatcher).
+- No integration into the daily cron chain / API endpoint in this slice (that’s later integration work).
 
 ---
 

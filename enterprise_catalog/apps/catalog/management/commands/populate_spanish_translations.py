@@ -54,6 +54,24 @@ class Command(BaseCommand):
     """
     help = 'Pre-populate Spanish translations for content metadata'
 
+    @staticmethod
+    def _truncate_to_model_field_max_length(model_class, field_name, value):
+        """
+        Truncate string values to the target model field's max_length.
+
+        This prevents database-level DataError exceptions when translated text is
+        longer than the destination CharField allows.
+        """
+        if value is None or not isinstance(value, str):
+            return value
+
+        model_field = model_class._meta.get_field(field_name)
+        max_length = getattr(model_field, 'max_length', None)
+        if max_length and len(value) > max_length:
+            return value[:max_length]
+
+        return value
+
     def add_arguments(self, parser):
         parser.add_argument(
             '--content-keys',
@@ -260,10 +278,32 @@ class Command(BaseCommand):
         )
 
         # Update translation fields
-        translation.title = translated_data.get('title')
+        raw_title = translated_data.get('title')
+        translation.title = self._truncate_to_model_field_max_length(
+            ContentTranslation,
+            'title',
+            raw_title,
+        )
+        if translation.title != raw_title:
+            logger.warning(
+                'Truncated translated title for content %s to %s characters',
+                content.content_key,
+                ContentTranslation._meta.get_field('title').max_length,
+            )
         translation.short_description = translated_data.get('short_description')
         translation.full_description = translated_data.get('full_description')
-        translation.subtitle = translated_data.get('subtitle')
+        raw_subtitle = translated_data.get('subtitle')
+        translation.subtitle = self._truncate_to_model_field_max_length(
+            ContentTranslation,
+            'subtitle',
+            raw_subtitle,
+        )
+        if translation.subtitle != raw_subtitle:
+            logger.warning(
+                'Truncated translated subtitle for content %s to %s characters',
+                content.content_key,
+                ContentTranslation._meta.get_field('subtitle').max_length,
+            )
         translation.source_hash = source_hash
 
         # Save if not dry run

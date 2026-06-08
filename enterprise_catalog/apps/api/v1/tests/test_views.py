@@ -2184,6 +2184,11 @@ class AcademiesViewSetTests(APITestMixin):
         self.enterprise_catalog1.academies.add(self.academy1)
         self.enterprise_catalog2 = EnterpriseCatalogFactory(catalog_query=self.enterprise_catalog_query)
         self.enterprise_catalog2.academies.add(self.academy2)
+        # Create course content metadata linked to academy tags and catalog query
+        # so that the academy passes the content existence check.
+        self.content_metadata = ContentMetadataFactory(content_type=COURSE)
+        self.content_metadata.catalog_queries.add(self.enterprise_catalog_query)
+        self.tag1.content_metadata.add(self.content_metadata)
 
     @mock.patch('enterprise_catalog.apps.api_client.enterprise_cache.EnterpriseApiClient')
     @mock.patch('enterprise_catalog.apps.api.v1.serializers.get_initialized_algolia_client')
@@ -2238,6 +2243,34 @@ class AcademiesViewSetTests(APITestMixin):
             response.data['tags'][0].get('title'),
             self.mock_algolia_hits['facetHits'][0]['value']
         )
+
+    @mock.patch('enterprise_catalog.apps.api_client.enterprise_cache.EnterpriseApiClient')
+    @mock.patch('enterprise_catalog.apps.api.v1.serializers.get_initialized_algolia_client')
+    def test_list_excludes_academy_without_course_content(self, mock_algolia_client, mock_client):  # pylint: disable=unused-argument
+        """
+        Verify the viewset excludes an academy when its catalog is associated
+        but has no matching course content in the catalog query.
+        """
+        mock_algolia_client.return_value.algolia_index.search_for_facet_values.side_effect = [
+            self.mock_algolia_hits, {'facetHits': []}
+        ]
+        # Create an academy with a catalog association but explicitly no content metadata.
+        academy_no_content = AcademyFactory()
+        tag_no_content = TagFactory(title='empty-tag')
+        tag_no_content.content_metadata.clear()
+        academy_no_content.tags.add(tag_no_content)
+        enterprise_catalog_no_content = EnterpriseCatalogFactory(
+            catalog_query=CatalogQueryFactory(uuid=uuid.uuid4()),
+        )
+        enterprise_catalog_no_content.academies.add(academy_no_content)
+
+        params = {
+            'enterprise_customer': str(enterprise_catalog_no_content.enterprise_customer.uuid),
+        }
+        url = reverse('api:v1:academies-list') + '?{}'.format(urlencode(params))
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 0)
 
     def test_list_with_missing_enterprise_customer(self):
         """

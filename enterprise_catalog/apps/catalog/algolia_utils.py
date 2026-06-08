@@ -140,6 +140,7 @@ ALGOLIA_FIELDS = [
     'avg_course_rating',
     'course_bayesian_average',
     'transcript_languages',
+    'translation_languages',
     'is_new_content',
 ]
 
@@ -190,6 +191,7 @@ ALGOLIA_INDEX_SETTINGS = {
         'learning_type',
         'learning_type_v2',
         'transcript_languages',
+        'translation_languages',
         'is_new_content',
     ],
     'unretrievableAttributes': [
@@ -534,6 +536,21 @@ def get_course_transcript_languages(course):
 
     transcript_languages = advertised_course_run.get('transcript_languages_search_facet_names')
     return transcript_languages
+
+
+def get_course_translation_languages(course):
+    """
+    Gets human-readable AI translation languages associated with a course.
+
+    Arguments:
+        course (dict): a dict representing course metadata
+
+    Returns:
+        list: a list of human-readable AI translation language labels.
+    """
+    ai_languages = course.get('ai_languages') or {}
+    translation_languages = ai_languages.get('translation_languages') or []
+    return [language.get('label') for language in translation_languages if language.get('label')]
 
 
 def get_course_availability(course):
@@ -1616,6 +1633,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'avg_course_rating': get_avg_course_rating(searchable_product),
             'course_bayesian_average': get_course_bayesian_average(searchable_product),
             'transcript_languages': get_course_transcript_languages(searchable_product),
+            'translation_languages': get_course_translation_languages(searchable_product),
             'metadata_language': searchable_product.get('metadata_language', 'en'),
             'is_new_content': is_course_new_content(searchable_product),
         })

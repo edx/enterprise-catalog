@@ -1719,6 +1719,56 @@ class AlgoliaUtilsTests(TestCase):
     @ddt.data(
         (
             {
+                'ai_languages': {
+                    'translation_languages': [
+                        {'code': 'ar', 'label': 'Arabic'},
+                        {'code': 'en', 'label': 'English'},
+                        {'code': 'es-419', 'label': 'Spanish (Latin America)'},
+                    ],
+                },
+            },
+            ['Arabic', 'English', 'Spanish (Latin America)'],
+        ),
+        (
+            {
+                'ai_languages': {
+                    'translation_languages': [
+                        {'code': 'ar'},
+                        {'label': 'English'},
+                        {},
+                    ],
+                },
+            },
+            ['English'],
+        ),
+        (
+            {
+                'ai_languages': None,
+            },
+            [],
+        ),
+        (
+            {
+                'ai_languages': {},
+            },
+            [],
+        ),
+        (
+            {},
+            [],
+        ),
+    )
+    @ddt.unpack
+    def test_get_course_translation_languages(self, course_metadata, expected_translation_languages):
+        """
+        Assert correct parsing of ``translation_languages`` from ``ai_languages``.
+        """
+        translation_languages = utils.get_course_translation_languages(course_metadata)
+        assert translation_languages == expected_translation_languages
+
+    @ddt.data(
+        (
+            {
                 'course_runs': [{
                     'key': 'course-v1:org+course+1T2021',
                     'uuid': ADVERTISED_COURSE_RUN_UUID,

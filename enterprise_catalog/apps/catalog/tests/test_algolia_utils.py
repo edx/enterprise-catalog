@@ -538,8 +538,8 @@ class AlgoliaUtilsTests(TestCase):
                         'first_enrollable_paid_seat_price': None,
                         'marketing_url': 'https://openedx.org',
                     },
-                    # Late enrollment case (NOT eligible due to null marketing_url; otherwise
-                    # within the late enrollment cutoff)
+                    # Late enrollment case (NOT eligible due to null marketing_url;
+                    #  otherwise within the late enrollment cutoff)
                     {
                         'key': 'course-v1:org+course+1T2028',
                         'uuid': CURRENT_COURSE_RUN_UUID,
@@ -1037,7 +1037,7 @@ class AlgoliaUtilsTests(TestCase):
     @ddt.data(
         (
             {'price_ranges': [{'currency': 'USD', 'total': 169}, {'currency': 'GBP', 'total': 1}]},
-            [{'currency': 'USD', 'total': 169}],
+            ['currency', 'USD', 'total', 169],
         ),
         (
             {},
@@ -1050,7 +1050,12 @@ class AlgoliaUtilsTests(TestCase):
         Assert that the prices associated with a program is properly parsed.
         """
         program_prices = utils.get_program_prices(program_metadata)
-        self.assertEqual(expected_type, program_prices)
+        # Structural conversion verification
+        if program_prices and isinstance(expected_type, list) and expected_type:
+            self.assertEqual(program_prices[0].get(expected_type[0]), expected_type[1])
+            self.assertEqual(program_prices[0].get(expected_type[2]), expected_type[3])
+        else:
+            self.assertEqual(expected_type, program_prices)
 
     @ddt.data(
         (
@@ -1719,43 +1724,176 @@ class AlgoliaUtilsTests(TestCase):
     @ddt.data(
         (
             {
-                'ai_languages': {
-                    'translation_languages': [
-                        {'code': 'ar', 'label': 'Arabic'},
-                        {'code': 'en', 'label': 'English'},
-                        {'code': 'es-419', 'label': 'Spanish (Latin America)'},
-                    ],
-                },
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': None,
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
             },
-            ['Arabic', 'English', 'Spanish (Latin America)'],
+            [],
         ),
         (
             {
-                'ai_languages': {
-                    'translation_languages': [
-                        {'code': 'ar'},
-                        {'label': 'English'},
-                        {},
-                    ],
-                },
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': 'notalist',
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            [],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'fr', 'label': 'French'},
+                            ],
+                        },
+                    },
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {},
+                    },
+                    {
+                        'uuid': uuid4(),
+                    },
+                ],
+            },
+            ['French'],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'en', 'label': 'English'},
+                                {'code': 'en', 'label': 'English'},
+                            ],
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
             },
             ['English'],
         ),
         (
             {
-                'ai_languages': None,
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'en', 'label': ''},
+                                {'code': 'fr', 'label': 'French'},
+                            ],
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            ['French'],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': [
+                                'notadict',
+                                {'code': 'fr', 'label': 'French'},
+                            ],
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            ['French'],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {
+                            'translation_languages': [],
+                        },
+                    },
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {
+                            'translation_languages': [],
+                        },
+                    },
+                ],
             },
             [],
         ),
         (
             {
-                'ai_languages': {},
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                    },
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'fr', 'label': 'French'},
+                            ],
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
             },
             [],
         ),
+    )
+    @ddt.unpack
+    def test_get_course_translation_languages_extra(
+        self,
+        course_metadata,
+        expected_translation_languages,
+    ):
+        """
+        Additional edge cases for get_course_translation_languages.
+        """
+        translation_languages = utils.get_course_translation_languages(
+            course_metadata,
+        )
+        assert translation_languages == expected_translation_languages
+
+    @ddt.data(
         (
-            {},
-            [],
+            {
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'ar', 'label': 'Arabic'},
+                                {'code': 'en', 'label': 'English'},
+                                {'code': 'es-419', 'label': 'Spanish (Latin America)'},
+                            ]
+                        }
+                    }
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            ['Arabic', 'English', 'Spanish (Latin America)'],
         ),
     )
     @ddt.unpack

@@ -64,161 +64,159 @@ LOGGER = logging.getLogger(__name__)
 ALGOLIA_UUID_BATCH_SIZE = 100
 
 ALGOLIA_JSON_METADATA_MAX_SIZE = 100000
-ALGOLIA_REPLICA_INDEX_NAME = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
+ALGOLIA_REPLICA_INDEX_NAME = settings.ALGOLIA.get("REPLICA_INDEX_NAME")
 
-algolia_replica_index = f'virtual({ALGOLIA_REPLICA_INDEX_NAME})'
+algolia_replica_index = f"virtual({ALGOLIA_REPLICA_INDEX_NAME})"
 
 # keep attributes from content objects that we explicitly want in Algolia
 ALGOLIA_FIELDS = [
-    'additional_information',
-    'aggregation_key',
-    'authoring_organizations',
-    'availability',
-    'card_image_url',  # for display on course cards
-    'content_type',
-    'course_keys',
-    'enterprise_catalog_uuids',
-    'enterprise_catalog_query_uuids',
-    'enterprise_customer_uuids',
-    'academy_uuids',
-    'academy_tags',
-    'video_ids',
-    'transcript_summary',
-    'video_usage_key',
-    'video_skills',
-    'course_run_key',
-    'org',
-    'logo_image_urls',
-    'image_url',
-    'duration',
-    'full_description',
-    'key',  # for links to Course about pages from the Learner Portal search page
-    'uuid',
-    'language',
-    'level_type',
-    'objectID',  # required by Algolia, e.g. "course-{uuid}"
-    'outcome',
-    'partner',
-    'partners',
-    'prerequisites',
-    'prerequisites_raw',
-    'programs',
-    'program_titles',
-    'program_type',
-    'recent_enrollment_count',
-    'short_description',
-    'subjects',
-    'skill_names',
-    'skills',
-    'metadata_language',
-    'subtitle',
-    'title',
-    'type',
-    'advertised_course_run',  # a part of the advertised course run
-    'course_runs',
-    'upcoming_course_runs',
-    'first_enrollable_paid_seat_price',
-    'original_image_url',
-    'marketing_url',
-    'enterprise_catalog_query_titles',
-    'learning_items',
-    'prices',
-    'course_details',
-    'banner_image_url',
-    'visible_via_association',
-    'created',
-    'course_type',
-    'course_length',
-    'entitlements',
-    'learning_type',
-    'learning_type_v2',
-    'additional_metadata',
+    "additional_information",
+    "aggregation_key",
+    "authoring_organizations",
+    "availability",
+    "card_image_url",  # for display on course cards
+    "content_type",
+    "course_keys",
+    "enterprise_catalog_uuids",
+    "enterprise_catalog_query_uuids",
+    "enterprise_customer_uuids",
+    "academy_uuids",
+    "academy_tags",
+    "video_ids",
+    "transcript_summary",
+    "video_usage_key",
+    "video_skills",
+    "course_run_key",
+    "org",
+    "logo_image_urls",
+    "image_url",
+    "duration",
+    "full_description",
+    "key",  # for links to Course about pages from the Learner Portal search page
+    "uuid",
+    "language",
+    "level_type",
+    "objectID",  # required by Algolia, e.g. "course-{uuid}"
+    "outcome",
+    "partner",
+    "partners",
+    "prerequisites",
+    "prerequisites_raw",
+    "programs",
+    "program_titles",
+    "program_type",
+    "recent_enrollment_count",
+    "short_description",
+    "subjects",
+    "skill_names",
+    "skills",
+    "metadata_language",
+    "subtitle",
+    "title",
+    "type",
+    "advertised_course_run",  # a part of the advertised course run
+    "course_runs",
+    "upcoming_course_runs",
+    "first_enrollable_paid_seat_price",
+    "original_image_url",
+    "marketing_url",
+    "enterprise_catalog_query_titles",
+    "learning_items",
+    "prices",
+    "course_details",
+    "banner_image_url",
+    "visible_via_association",
+    "created",
+    "course_type",
+    "course_length",
+    "entitlements",
+    "learning_type",
+    "learning_type_v2",
+    "additional_metadata",
     # transformed metadata to consistent schema across all course
     # types (e.g., start date, end date, enroll by date).
-    'normalized_metadata',
-    'reviews_count',
-    'avg_course_rating',
-    'course_bayesian_average',
-    'transcript_languages',
-    'translation_languages',
-    'is_new_content',
+    "normalized_metadata",
+    "reviews_count",
+    "avg_course_rating",
+    "course_bayesian_average",
+    "transcript_languages",
+    "translation_languages",
+    "is_new_content",
 ]
 
 # default configuration for the index
 ALGOLIA_INDEX_SETTINGS = {
-    'attributeForDistinct': 'aggregation_key',
-    'distinct': True,
-    'typoTolerance': False,
+    "attributeForDistinct": "aggregation_key",
+    "distinct": True,
+    "typoTolerance": False,
     # unordered(): Ignores the position of the match within the attribute.
     # From docs: https://www.algolia.com/doc/api-reference/api-parameters/searchableAttributes/#modifiers
-    'searchableAttributes': [
-        'unordered(title)',
-        'unordered(full_description)',
-        'unordered(short_description)',
-        'unordered(additional_information)',
-        'aggregation_key',
-        'partners',
-        'skill_names',
-        'skills',
-        'transcript_summary',
+    "searchableAttributes": [
+        "unordered(title)",
+        "unordered(full_description)",
+        "unordered(short_description)",
+        "unordered(additional_information)",
+        "aggregation_key",
+        "partners",
+        "skill_names",
+        "skills",
+        "transcript_summary",
     ],
-    'attributesForFaceting': [
-        'availability',
-        'content_type',
-        'enterprise_catalog_uuids',
-        'enterprise_catalog_query_uuids',
-        'enterprise_customer_uuids',
-        'academy_uuids',
-        'searchable(academy_tags)',
-        'language',
-        'metadata_language',
-        'level_type',
-        'program_type',
-        'filterOnly(advertised_course_run.upgrade_deadline)',
-        'searchable(partners.name)',
-        'searchable(programs)',
-        'searchable(program_titles)',
-        'searchable(skill_names)',
-        'searchable(skills)',
-        'searchable(subjects)',
-        'first_enrollable_paid_seat_price',
-        'original_image_url',
-        'marketing_url',
-        'enterprise_catalog_query_titles',
-        'course_type',
-        'course_length',
-        'aggregation_key',
-        'learning_type',
-        'learning_type_v2',
-        'transcript_languages',
-        'translation_languages',
-        'is_new_content',
+    "attributesForFaceting": [
+        "availability",
+        "content_type",
+        "enterprise_catalog_uuids",
+        "enterprise_catalog_query_uuids",
+        "enterprise_customer_uuids",
+        "academy_uuids",
+        "searchable(academy_tags)",
+        "language",
+        "metadata_language",
+        "level_type",
+        "program_type",
+        "filterOnly(advertised_course_run.upgrade_deadline)",
+        "searchable(partners.name)",
+        "searchable(programs)",
+        "searchable(program_titles)",
+        "searchable(skill_names)",
+        "searchable(skills)",
+        "searchable(subjects)",
+        "first_enrollable_paid_seat_price",
+        "original_image_url",
+        "marketing_url",
+        "enterprise_catalog_query_titles",
+        "course_type",
+        "course_length",
+        "aggregation_key",
+        "learning_type",
+        "learning_type_v2",
+        "transcript_languages",
+        "translation_languages",
+        "is_new_content",
     ],
-    'unretrievableAttributes': [
-        'enterprise_catalog_uuids',
-        'enterprise_customer_uuids',
-        'academy_uuids',
+    "unretrievableAttributes": [
+        "enterprise_catalog_uuids",
+        "enterprise_customer_uuids",
+        "academy_uuids",
     ],
-    'customRanking': [
-        'asc(metadata_language)',
-        'asc(visible_via_association)',
-        'asc(created)',
-        'desc(course_bayesian_average)',
-        'desc(recent_enrollment_count)',
+    "customRanking": [
+        "asc(metadata_language)",
+        "asc(visible_via_association)",
+        "asc(created)",
+        "desc(course_bayesian_average)",
+        "desc(recent_enrollment_count)",
     ],
-    'replicas': [
-        algolia_replica_index
-    ],
+    "replicas": [algolia_replica_index],
 }
 
 ALGOLIA_REPLICA_INDEX_SETTINGS = {
-    'customRanking': [
-        'desc(duration)',
-        'asc(metadata_language)',
-        'asc(visible_via_association)',
-        'asc(created)',
-        'desc(course_bayesian_average)',
-        'desc(recent_enrollment_count)',
+    "customRanking": [
+        "desc(duration)",
+        "asc(metadata_language)",
+        "asc(visible_via_association)",
+        "asc(created)",
+        "desc(course_bayesian_average)",
+        "desc(recent_enrollment_count)",
     ],
 }
 
@@ -254,10 +252,10 @@ def _should_index_course(course_metadata):
         return advertised_course_run is None
 
     def no_owners_checker():
-        return len(course_json_metadata.get('owners') or []) < 1
+        return len(course_json_metadata.get("owners") or []) < 1
 
     def run_is_hidden_checker():
-        return bool(advertised_course_run.get('hidden'))
+        return bool(advertised_course_run.get("hidden"))
 
     def course_run_not_active_checker():
         return not is_course_run_active(advertised_course_run)
@@ -266,26 +264,31 @@ def _should_index_course(course_metadata):
         return _has_enroll_by_deadline_passed(course_json_metadata)
 
     for should_not_index_function, log_message in (
-        (no_advertised_course_run_checker, 'no advertised course run'),
-        (course_run_not_active_checker, 'no course run is active'),
-        (deadline_passed_checker, 'enroll by deadline has passed'),
-        (run_is_hidden_checker, 'advertised course run is hidden'),
-        (no_owners_checker, 'no owners exist'),
+        (no_advertised_course_run_checker, "no advertised course run"),
+        (course_run_not_active_checker, "no course run is active"),
+        (deadline_passed_checker, "enroll by deadline has passed"),
+        (run_is_hidden_checker, "advertised course run is hidden"),
+        (no_owners_checker, "no owners exist"),
     ):
         should_not_index = should_not_index_function()
         if should_not_index:
-            LOGGER.info(f'Not indexing course {course_metadata.content_key}, reason: {log_message}')
+            LOGGER.info(
+                f"Not indexing course {course_metadata.content_key}, reason: {log_message}"
+            )
             return False
 
-    all_runs = course_json_metadata.get('course_runs', [])
+    all_runs = course_json_metadata.get("course_runs", [])
     num_runs_total = len(all_runs)
-    num_runs_restricted = len([
-        run for run in all_runs
-        if run.get(COURSE_RUN_RESTRICTION_TYPE_KEY) == RESTRICTION_FOR_B2B
-    ])
+    num_runs_restricted = len(
+        [
+            run
+            for run in all_runs
+            if run.get(COURSE_RUN_RESTRICTION_TYPE_KEY) == RESTRICTION_FOR_B2B
+        ]
+    )
     LOGGER.info(
-        f'Indexing course {course_metadata.content_key} with {num_runs_total} '
-        f'total runs, of which {num_runs_restricted} are restricted for enterprise.'
+        f"Indexing course {course_metadata.content_key} with {num_runs_total} "
+        f"total runs, of which {num_runs_restricted} are restricted for enterprise."
     )
     return True
 
@@ -295,7 +298,9 @@ def _has_enroll_by_deadline_passed(course_json_metadata):
     Helper to determine if the enrollment deadline has passed for the given course
     based on normalized_metadata's enroll_by_date
     """
-    enroll_by_deadline = course_json_metadata.get('normalized_metadata')['enroll_by_date']
+    enroll_by_deadline = course_json_metadata.get("normalized_metadata")[
+        "enroll_by_date"
+    ]
     if isinstance(enroll_by_deadline, str):
         enroll_by_deadline_timestamp = parse_datetime(enroll_by_deadline).timestamp()
         return enroll_by_deadline_timestamp < localized_utcnow().timestamp()
@@ -355,10 +360,12 @@ def _should_index_program(program_metadata):
     """
     program_json_metadata = program_metadata.json_metadata
 
-    return program_json_metadata.get('marketing_url')\
-        and program_json_metadata.get('type')\
-        and not program_json_metadata.get('hidden')\
-        and program_json_metadata.get('status') == 'active'
+    return (
+        program_json_metadata.get("marketing_url")
+        and program_json_metadata.get("type")
+        and not program_json_metadata.get("hidden")
+        and program_json_metadata.get("status") == "active"
+    )
 
 
 @function_trace(AlgoliaTraceNames.PARTITION_PROGRAM_KEYS_FOR_INDEXING)
@@ -400,13 +407,13 @@ def new_search_client_or_error():
     Returns a new Algolia search client that is not initialized to any specific index.
     """
     client = SearchClient.create(
-        settings.ALGOLIA.get('APPLICATION_ID', None),
-        settings.ALGOLIA.get('API_KEY', None)
+        settings.ALGOLIA.get("APPLICATION_ID", None),
+        settings.ALGOLIA.get("API_KEY", None),
     )
     if not client:
         raise TypeError(
-            'Failed to create Algolia search client.'
-            f'The client should be an Algolia search client, but was {client}.'
+            "Failed to create Algolia search client."
+            f"The client should be an Algolia search client, but was {client}."
         )
     return client
 
@@ -416,7 +423,9 @@ def configure_algolia_index(algolia_client):
     Configures the settings for an Algolia index.
     """
     algolia_client.set_index_settings(ALGOLIA_INDEX_SETTINGS)
-    algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, primary_index=False)
+    algolia_client.set_index_settings(
+        ALGOLIA_REPLICA_INDEX_SETTINGS, primary_index=False
+    )
 
 
 def get_algolia_object_id(content_type, uuid):
@@ -431,7 +440,7 @@ def get_algolia_object_id(content_type, uuid):
         str: the generated Algolia object_id or None if uuid is not specified
     """
     if uuid:
-        return f'{content_type}-{uuid}'
+        return f"{content_type}-{uuid}"
     return None
 
 
@@ -442,20 +451,24 @@ def set_global_course_review_avg():
     """
     rolling_rating_sum = 0.0
     total_number_reviews = 0.0
-    course_only_filter = Q(content_type='course')
+    course_only_filter = Q(content_type="course")
     # only courses have course reviews
-    for items_batch in batch_by_pk(ContentMetadata, batch_size=25, extra_filter=course_only_filter):
+    for items_batch in batch_by_pk(
+        ContentMetadata, batch_size=25, extra_filter=course_only_filter
+    ):
         for item in items_batch:
-            if not item.json_metadata.get('avg_course_rating') or not item.json_metadata.get('reviews_count'):
+            if not item.json_metadata.get(
+                "avg_course_rating"
+            ) or not item.json_metadata.get("reviews_count"):
                 continue
 
-            reviews_count = float(item.json_metadata.get('reviews_count'))
-            avg_rating = float(item.json_metadata.get('avg_course_rating'))
+            reviews_count = float(item.json_metadata.get("reviews_count"))
+            avg_rating = float(item.json_metadata.get("avg_course_rating"))
             LOGGER.info(
                 f"set_global_course_review_avg found {reviews_count} course reviews for course: {item.content_key} "
                 f"with avg score of {avg_rating}"
             )
-            rolling_rating_sum += (avg_rating * reviews_count)
+            rolling_rating_sum += avg_rating * reviews_count
             total_number_reviews += reviews_count
 
     if rolling_rating_sum == 0 or total_number_reviews == 0:
@@ -463,7 +476,9 @@ def set_global_course_review_avg():
         return
 
     total_average_course_rating = rolling_rating_sum / total_number_reviews
-    LOGGER.info(f"set_global_course_review_avg saving average course rating value: {total_average_course_rating}")
+    LOGGER.info(
+        f"set_global_course_review_avg saving average course rating value: {total_average_course_rating}"
+    )
     # Prefer to use a TieredCache here to fetch directly from memory (the RequestCache tier)
     # instead of making many tiny requests to memcached.
     TieredCache.set_all_tiers(
@@ -477,7 +492,9 @@ def get_global_course_review_avg():
     """
     Fetch the calculated global course review average from py-cache
     """
-    cached_response = TieredCache.get_cached_response(DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY)
+    cached_response = TieredCache.get_cached_response(
+        DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY
+    )
     if cached_response.is_found:
         return cached_response.value
     return COURSE_REVIEW_BASE_AVG_REVIEW_SCORE
@@ -488,17 +505,18 @@ def get_course_bayesian_average(course):
     Using the global average review value to calculate an individual course's bayesian average review value.
     https://www.algolia.com/doc/guides/managing-results/must-do/custom-ranking/how-to/bayesian-average/
     """
-    if course.get('avg_course_rating') is None:
+    if course.get("avg_course_rating") is None:
         return 0
 
-    if course.get('reviews_count') is None:
+    if course.get("reviews_count") is None:
         return 0
 
     total_avg = float(get_global_course_review_avg())
-    avg_review = float(course.get('avg_course_rating'))
-    ratings_count = float(course.get('reviews_count'))
+    avg_review = float(course.get("avg_course_rating"))
+    ratings_count = float(course.get("reviews_count"))
     return (
-        (avg_review * ratings_count) + (total_avg * COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER)
+        (avg_review * ratings_count)
+        + (total_avg * COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER)
     ) / (ratings_count + COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER)
 
 
@@ -516,7 +534,9 @@ def get_course_language(course):
     if not (advertised_course_run := get_advertised_course_run(course)):
         return None
 
-    content_language_name = advertised_course_run.get('content_language_search_facet_name')
+    content_language_name = advertised_course_run.get(
+        "content_language_search_facet_name"
+    )
     return content_language_name
 
 
@@ -534,23 +554,59 @@ def get_course_transcript_languages(course):
     if not (advertised_course_run := get_advertised_course_run(course)):
         return None
 
-    transcript_languages = advertised_course_run.get('transcript_languages_search_facet_names')
+    transcript_languages = advertised_course_run.get(
+        "transcript_languages_search_facet_names"
+    )
     return transcript_languages
 
 
 def get_course_translation_languages(course):
     """
     Gets human-readable AI translation languages associated with a course.
-
     Arguments:
         course (dict): a dict representing course metadata
-
     Returns:
-        list: a list of human-readable AI translation language labels.
+        list: a sorted list of unique human-readable AI translation language labels.
     """
-    ai_languages = course.get('ai_languages') or {}
-    translation_languages = ai_languages.get('translation_languages') or []
-    return [language.get('label') for language in translation_languages if language.get('label')]
+    course_runs = course.get("course_runs") or []
+    if not course_runs:
+        return []
+
+    labels = set()
+    adv_uuid = course.get("advertised_course_run_uuid")
+
+    # Find the advertised run using a generator expression
+    advertised_run = next(
+        (
+            run
+            for run in course_runs
+            if run and run.get("uuid") == adv_uuid or run.get("key") == adv_uuid
+        ),
+        None,
+    )
+
+    # If advertised run exists, use only that; else aggregate from all runs
+    runs_to_check = [advertised_run] if advertised_run else course_runs
+
+    for run in runs_to_check:
+        if not run:
+            continue
+
+        ai_languages = run.get("ai_languages") or {}
+        translation_languages = ai_languages.get("translation_languages")
+
+        # Defensive: must be a list
+        if not isinstance(translation_languages, list):
+            continue
+
+        for lang in translation_languages:
+            # Defensive: must be a dict with 'label'
+            if isinstance(lang, dict):
+                label = lang.get("label")
+                if label:
+                    labels.add(label)
+
+    return sorted(labels)
 
 
 def get_course_availability(course):
@@ -563,19 +619,21 @@ def get_course_availability(course):
     Returns:
         list: a list of availabilities for those course runs (e.g., "Upcoming")
     """
-    DEFAULT_COURSE_AVAILABILITY = 'Archived'
+    DEFAULT_COURSE_AVAILABILITY = "Archived"
     COURSE_AVAILABILITY_MESSAGES = {
-        'current': 'Available Now',
-        'upcoming': 'Upcoming',
-        'starting soon': 'Starting Soon',
+        "current": "Available Now",
+        "upcoming": "Upcoming",
+        "starting soon": "Starting Soon",
     }
-    course_runs = course.get('course_runs') or []
+    course_runs = course.get("course_runs") or []
     active_course_runs = [run for run in course_runs if is_course_run_active(run)]
     availability = set()
     for course_run in active_course_runs:
-        run_availability = course_run.get('availability') or ''
+        run_availability = course_run.get("availability") or ""
         availability.add(
-            COURSE_AVAILABILITY_MESSAGES.get(run_availability.lower(), DEFAULT_COURSE_AVAILABILITY)
+            COURSE_AVAILABILITY_MESSAGES.get(
+                run_availability.lower(), DEFAULT_COURSE_AVAILABILITY
+            )
         )
     return list(availability)
 
@@ -591,15 +649,15 @@ def is_course_archived(course):
         boolean: "Archived" availability or not
     """
     availability_list = get_course_availability(course)
-    return len(availability_list) == 0 or 'Archived' in availability_list
+    return len(availability_list) == 0 or "Archived" in availability_list
 
 
 def is_course_new_content(course):
     """True if the earliest published course-run start is within the last 12 months (ENT-11384)."""
     starts = []
-    for run in course.get('course_runs') or []:
-        if (run.get('status') or '').lower() == 'published' and run.get('start'):
-            parsed = parse_datetime(run['start'])
+    for run in course.get("course_runs") or []:
+        if (run.get("status") or "").lower() == "published" and run.get("start"):
+            parsed = parse_datetime(run["start"])
             if parsed:
                 starts.append(parsed)
     if not starts:
@@ -620,16 +678,16 @@ def get_course_partners(course):
         list: a list of partner metadata associated with the course
     """
     partners = []
-    owners = course.get('owners') or []
-    org_name_override = course.get('organization_short_code_override')
-    logo_override = course.get('organization_logo_override_url')
+    owners = course.get("owners") or []
+    org_name_override = course.get("organization_short_code_override")
+    logo_override = course.get("organization_logo_override_url")
 
     for owner in owners:
-        partner_name = owner.get('name')
+        partner_name = owner.get("name")
         if partner_name:
             partner_metadata = {
-                'name': org_name_override or partner_name,
-                'logo_image_url': logo_override or owner.get('logo_image_url'),
+                "name": org_name_override or partner_name,
+                "logo_image_url": logo_override or owner.get("logo_image_url"),
             }
             partners.append(partner_metadata)
 
@@ -646,25 +704,22 @@ def _get_course_program_field(course, field):
     Returns:
         list: a list of the values for a certain field in a program associated with the course.
     """
-    programs = course.get('programs') or []
-    return list({
-        value for program in programs
-        if (value := program.get(field))
-    })
+    programs = course.get("programs") or []
+    return list({value for program in programs if (value := program.get(field))})
 
 
 def get_program_course_details(program):
     """
     Returns courses for a program, with just enough detail to use in frontend clients (for now)
     """
-    courses = program.get('courses') or []
+    courses = program.get("courses") or []
     course_list = []
     for course in courses:
         mapped_course = {
-            'key': course.get('key'),
-            'title': course.get('title'),
-            'image': course.get('image').get('src') if course.get('image') else None,
-            'short_description': course.get('short_description'),
+            "key": course.get("key"),
+            "title": course.get("title"),
+            "image": course.get("image").get("src") if course.get("image") else None,
+            "short_description": course.get("short_description"),
         }
         course_list.append(mapped_course)
     return course_list
@@ -681,11 +736,11 @@ def get_pathway_course_keys(pathway):
        list: a list of course keys associated with the pathway.
     """
     course_keys = set()
-    steps = pathway.get('steps') or []
+    steps = pathway.get("steps") or []
     for step in steps:
-        courses = step.get('courses') or []
+        courses = step.get("courses") or []
         for course in courses:
-            course_keys.add(course['key'])
+            course_keys.add(course["key"])
     return list(course_keys)
 
 
@@ -700,11 +755,11 @@ def get_pathway_program_uuids(pathway):
        list: a list of program uuids associated with the pathway.
     """
     program_uuids = set()
-    steps = pathway.get('steps') or []
+    steps = pathway.get("steps") or []
     for step in steps:
-        programs = step.get('programs') or []
+        programs = step.get("programs") or []
         for program in programs:
-            program_uuids.add(program['uuid'])
+            program_uuids.add(program["uuid"])
     return list(program_uuids)
 
 
@@ -720,12 +775,16 @@ def get_pathway_availability(pathway):
     """
     availability = set()
     pathway_course_keys = get_pathway_course_keys(pathway)
-    courses_metadata = ContentMetadata.objects.filter(content_key__in=pathway_course_keys)
+    courses_metadata = ContentMetadata.objects.filter(
+        content_key__in=pathway_course_keys
+    )
     for course_metadata in courses_metadata:
         course_status = get_course_availability(course_metadata.json_metadata)
         availability.update(course_status)
     pathway_program_uuids = get_pathway_program_uuids(pathway)
-    programs_metadata = ContentMetadata.objects.filter(content_key__in=pathway_program_uuids)
+    programs_metadata = ContentMetadata.objects.filter(
+        content_key__in=pathway_program_uuids
+    )
     for program_metadata in programs_metadata:
         program_status = get_program_availability(program_metadata.json_metadata)
         availability.update(program_status)
@@ -742,9 +801,9 @@ def get_pathway_card_image_url(pathway):
     Returns:
         str: url to card size image
     """
-    images = pathway.get('card_image', {})
+    images = pathway.get("card_image", {})
     try:
-        return images.get('card').get('url')
+        return images.get("card").get("url")
     except (KeyError, AttributeError):
         return None
 
@@ -761,20 +820,24 @@ def get_pathway_partners(pathway):
     """
     partners = []
     pathway_course_keys = get_pathway_course_keys(pathway)
-    courses_metadata = ContentMetadata.objects.filter(content_key__in=pathway_course_keys)
+    courses_metadata = ContentMetadata.objects.filter(
+        content_key__in=pathway_course_keys
+    )
     for course in courses_metadata:
         course_partners = get_course_partners(course.json_metadata)
         for partner in course_partners:
-            partner_name = partner.get('name')
-            if partner_name not in [item.get('name') for item in partners]:
+            partner_name = partner.get("name")
+            if partner_name not in [item.get("name") for item in partners]:
                 partners.append(partner)
     pathway_program_uuids = get_pathway_program_uuids(pathway)
-    programs_metadata = ContentMetadata.objects.filter(content_key__in=pathway_program_uuids)
+    programs_metadata = ContentMetadata.objects.filter(
+        content_key__in=pathway_program_uuids
+    )
     for program in programs_metadata:
         program_partners = get_program_partners(program.json_metadata)
         for partner in program_partners:
-            partner_name = partner.get('name')
-            if partner_name not in [item.get('name') for item in partners]:
+            partner_name = partner.get("name")
+            if partner_name not in [item.get("name") for item in partners]:
                 partners.append(partner)
     return partners
 
@@ -791,12 +854,16 @@ def get_pathway_subjects(pathway):
     """
     subjects = set()
     pathway_course_keys = get_pathway_course_keys(pathway)
-    courses_metadata = ContentMetadata.objects.filter(content_key__in=pathway_course_keys)
+    courses_metadata = ContentMetadata.objects.filter(
+        content_key__in=pathway_course_keys
+    )
     for course in courses_metadata:
         course_subjects = get_course_subjects(course.json_metadata)
         subjects.update(course_subjects)
     pathway_program_uuids = get_pathway_program_uuids(pathway)
-    programs_metadata = ContentMetadata.objects.filter(content_key__in=pathway_program_uuids)
+    programs_metadata = ContentMetadata.objects.filter(
+        content_key__in=pathway_program_uuids
+    )
     for program in programs_metadata:
         program_subjects = get_program_subjects(program.json_metadata)
         subjects.update(program_subjects)
@@ -813,7 +880,7 @@ def get_pathway_created_date(pathway):
     Returns:
         str: Pathway created date as Unix timestamp or default date that lies way ahead in the future.
     """
-    created = pathway.get('created')
+    created = pathway.get("created")
     if created:
         created_datetime = parse_datetime(created)
         return time.mktime(created_datetime.timetuple())
@@ -830,11 +897,8 @@ def _get_program_course_field(program, field):
     Returns:
         list: a list of the values for a certain field in a course associated with the program.
     """
-    courses = program.get('courses') or []
-    return list({
-        value for course in courses
-        if (value := course.get(field))
-    })
+    courses = program.get("courses") or []
+    return list({value for course in courses if (value := course.get(field))})
 
 
 def get_program_course_keys(program):
@@ -847,7 +911,7 @@ def get_program_course_keys(program):
     Returns:
        list: a list of course keys associated with the program.
     """
-    return _get_program_course_field(program, 'key')
+    return _get_program_course_field(program, "key")
 
 
 def get_program_type(program):
@@ -860,7 +924,7 @@ def get_program_type(program):
     Returns:
         str: program_type e.g: MicroMasters® Program
     """
-    program_type = program.get('type')
+    program_type = program.get("type")
     return PROGRAM_TYPES_MAP.get(program_type)
 
 
@@ -874,7 +938,7 @@ def get_program_title(program):
     Returns:
         str: program_title e.g: Data Engineering Fundamentals
     """
-    return program.get('title')
+    return program.get("title")
 
 
 def get_program_availability(program):
@@ -888,12 +952,12 @@ def get_program_availability(program):
         list: a union of program courses availability.
     """
     # Master's programs don't have courses in the same way that our other programs do.
-    program_type = program.get('type')
-    if program_type and program_type == 'Masters':
-        return [_('Available now')]
+    program_type = program.get("type")
+    if program_type and program_type == "Masters":
+        return [_("Available now")]
 
     availability = set()
-    for course in program.get('courses', []):
+    for course in program.get("courses", []):
         course_status = get_course_availability(course)
         for status in course_status:
             availability.add(status)
@@ -911,11 +975,11 @@ def get_program_partners(program):
         list: a list of partners associated with the program.
     """
     partners = []
-    for course in program.get('courses', []):
+    for course in program.get("courses", []):
         course_partners = get_course_partners(course)
         for partner in course_partners:
-            partner_name = partner.get('name')
-            if partner_name not in [item.get('name') for item in partners]:
+            partner_name = partner.get("name")
+            if partner_name not in [item.get("name") for item in partners]:
                 partners.append(partner)
     return partners
 
@@ -935,7 +999,9 @@ def _build_course_metadata_cache(course_keys):
     if course_keys:
         # Use batch_by_pk to efficiently query course metadata
         course_filter = Q(content_key__in=course_keys)
-        for items_batch in batch_by_pk(ContentMetadata, batch_size=25, extra_filter=course_filter):
+        for items_batch in batch_by_pk(
+            ContentMetadata, batch_size=25, extra_filter=course_filter
+        ):
             for course_metadata in items_batch:
                 course_metadata_cache[course_metadata.content_key] = course_metadata
     return course_metadata_cache
@@ -955,12 +1021,16 @@ def get_program_subjects(program, course_metadata_cache=None):
     """
     # If no cache provided, build one from this program's courses
     if course_metadata_cache is None:
-        course_keys = [course.get('key') for course in program.get('courses', []) if course.get('key')]
+        course_keys = [
+            course.get("key")
+            for course in program.get("courses", [])
+            if course.get("key")
+        ]
         course_metadata_cache = _build_course_metadata_cache(course_keys)
 
     subjects = set()
-    for course in program.get('courses', []):
-        course_key = course.get('key')
+    for course in program.get("courses", []):
+        course_key = course.get("key")
         course_metadata = course_metadata_cache.get(course_key)
         if course_metadata:
             course_subjects = get_course_subjects(course_metadata.json_metadata)
@@ -982,12 +1052,16 @@ def get_program_skill_names(program, course_metadata_cache=None):
     """
     # If no cache provided, build one from this program's courses
     if course_metadata_cache is None:
-        course_keys = [course.get('key') for course in program.get('courses', []) if course.get('key')]
+        course_keys = [
+            course.get("key")
+            for course in program.get("courses", [])
+            if course.get("key")
+        ]
         course_metadata_cache = _build_course_metadata_cache(course_keys)
 
     skill_names = set()
-    for course in program.get('courses', []):
-        course_key = course.get('key')
+    for course in program.get("courses", []):
+        course_key = course.get("key")
         course_metadata = course_metadata_cache.get(course_key)
         if course_metadata:
             course_skills = get_course_skill_names(course_metadata.json_metadata)
@@ -1009,18 +1083,22 @@ def get_program_level_type(program, course_metadata_cache=None):
     """
     # If no cache provided, build one from this program's courses
     if course_metadata_cache is None:
-        course_keys = [course.get('key') for course in program.get('courses', []) if course.get('key')]
+        course_keys = [
+            course.get("key")
+            for course in program.get("courses", [])
+            if course.get("key")
+        ]
         course_metadata_cache = _build_course_metadata_cache(course_keys)
 
     level_types = []
-    for course in program.get('courses', []):
-        course_key = course.get('key')
+    for course in program.get("courses", []):
+        course_key = course.get("key")
         course_metadata = course_metadata_cache.get(course_key)
         if course_metadata:
-            course_level_type = course_metadata.json_metadata.get('level_type')
+            course_level_type = course_metadata.json_metadata.get("level_type")
             if course_level_type:
                 level_types.append(course_level_type)
-    return max(set(level_types), key=level_types.count) if level_types else ''
+    return max(set(level_types), key=level_types.count) if level_types else ""
 
 
 def get_program_learning_items(program):
@@ -1033,7 +1111,7 @@ def get_program_learning_items(program):
     Returns:
         list(str): list of learning items.
     """
-    return program.get('expected_learning_items', [])
+    return program.get("expected_learning_items", [])
 
 
 def get_program_prices(program):
@@ -1046,10 +1124,10 @@ def get_program_prices(program):
     Returns:
         array of price dict values: e.g., [{'currency': 'USD', 'total': 169}]
     """
-    price_ranges = program.get('price_ranges', [])
+    price_ranges = program.get("price_ranges", [])
     if not price_ranges:
         return []
-    prices = [price for price in price_ranges if price.get('currency', '') == 'USD']
+    prices = [price for price in price_ranges if price.get("currency", "") == "USD"]
     return prices
 
 
@@ -1063,9 +1141,9 @@ def get_program_banner_image_url(program):
     Returns:
         str: url to large size image
     """
-    images = program.get('banner_image', {})
+    images = program.get("banner_image", {})
     try:
-        return images.get('large').get('url')
+        return images.get("large").get("url")
     except (KeyError, AttributeError):
         return None
 
@@ -1081,7 +1159,7 @@ def get_course_program_types(course):
     Returns:
         list: a list of program types associated with the course
     """
-    return _get_course_program_field(course, 'type')
+    return _get_course_program_field(course, "type")
 
 
 def get_course_program_titles(course):
@@ -1095,7 +1173,7 @@ def get_course_program_titles(course):
     Returns:
         list: a list of program titles associated with the course.
     """
-    return _get_course_program_field(course, 'title')
+    return _get_course_program_field(course, "title")
 
 
 def get_course_subjects(course):
@@ -1114,14 +1192,14 @@ def get_course_subjects(course):
         list: a list of subject names associated with the course
     """
     subject_names = set()
-    subjects = course.get('subjects') or []
+    subjects = course.get("subjects") or []
 
     for subject in subjects:
         if isinstance(subject, str):
             subject_names.add(subject)
             continue
 
-        subject_name = subject.get('name')
+        subject_name = subject.get("name")
         if subject_name:
             subject_names.add(subject_name)
 
@@ -1138,7 +1216,7 @@ def get_course_marketing_url(course):
     Returns:
         str: the url for the B2C course details page
     """
-    marketing_url = course.get('marketing_url')
+    marketing_url = course.get("marketing_url")
     return marketing_url
 
 
@@ -1153,9 +1231,9 @@ def get_course_original_image_url(course):
         str: the url for the course original image
     """
     # Account for the small chance that the original image will be None
-    original_image_url = course.get('original_image')
+    original_image_url = course.get("original_image")
     if original_image_url:
-        original_image_url = original_image_url.get('src')
+        original_image_url = original_image_url.get("src")
     return original_image_url
 
 
@@ -1169,7 +1247,7 @@ def get_course_card_image_url(course):
     Returns:
         str: the url for the course card image
     """
-    image_url = course.get('image_url')
+    image_url = course.get("image_url")
     return image_url
 
 
@@ -1183,7 +1261,7 @@ def get_course_skill_names(course):
     Returns:
         list: a list of skill names associated with the course
     """
-    skill_names = course.get('skill_names') or []
+    skill_names = course.get("skill_names") or []
     return list(set(skill_names))
 
 
@@ -1197,7 +1275,7 @@ def get_course_skills(course):
     Returns:
         skills (list): list of dictionaries containing skill name, description
     """
-    skills = course.get('skills') or []
+    skills = course.get("skills") or []
     return list(skills)
 
 
@@ -1211,7 +1289,7 @@ def get_course_outcome(course):
     Returns:
         str: the course outcome stripped of tags
     """
-    outcome = course.get('outcome')
+    outcome = course.get("outcome")
     return outcome
 
 
@@ -1225,7 +1303,7 @@ def get_course_prerequisites(course):
     Returns:
         str: the course prerequisites stripped of tags
     """
-    prerequisites = course.get('prerequisites_raw')
+    prerequisites = course.get("prerequisites_raw")
     return prerequisites
 
 
@@ -1246,32 +1324,38 @@ def _get_course_run(course, course_run):
     if course is None or course_run is None:
         return None
 
-    normalized_content_metadata = NormalizedContentMetadataSerializer({
-        'course_metadata': course,
-        'course_run_metadata': course_run,
-    }).data
+    normalized_content_metadata = NormalizedContentMetadataSerializer(
+        {
+            "course_metadata": course,
+            "course_run_metadata": course_run,
+        }
+    ).data
 
     enroll_by = _get_course_run_enroll_by_date_timestamp(normalized_content_metadata)
-    enroll_start = _get_course_run_enroll_start_date_timestamp(normalized_content_metadata)
+    enroll_start = _get_course_run_enroll_start_date_timestamp(
+        normalized_content_metadata
+    )
 
     course_run = {
-        'key': course_run.get('key'),
-        'pacing_type': course_run.get('pacing_type'),
-        'availability': course_run.get('availability'),
-        'start': course_run.get('start'),
-        'end': course_run.get('end'),
-        'min_effort': course_run.get('min_effort'),
-        'max_effort': course_run.get('max_effort'),
-        'weeks_to_complete': course_run.get('weeks_to_complete'),
-        'upgrade_deadline': _get_verified_upgrade_deadline(course_run),  # deprecated in favor of `enroll_by`
-        'enroll_by': enroll_by,
-        'has_enroll_by': bool(enroll_by),
-        'enroll_start': enroll_start,
-        'has_enroll_start': bool(enroll_start),
-        'content_price': normalized_content_metadata.get('content_price'),
-        'is_active': _get_is_active_course_run(course_run),
-        'is_late_enrollment_eligible': _get_is_late_enrollment_eligible(course_run),
-        'restriction_type': course_run.get('restriction_type'),
+        "key": course_run.get("key"),
+        "pacing_type": course_run.get("pacing_type"),
+        "availability": course_run.get("availability"),
+        "start": course_run.get("start"),
+        "end": course_run.get("end"),
+        "min_effort": course_run.get("min_effort"),
+        "max_effort": course_run.get("max_effort"),
+        "weeks_to_complete": course_run.get("weeks_to_complete"),
+        "upgrade_deadline": _get_verified_upgrade_deadline(
+            course_run
+        ),  # deprecated in favor of `enroll_by`
+        "enroll_by": enroll_by,
+        "has_enroll_by": bool(enroll_by),
+        "enroll_start": enroll_start,
+        "has_enroll_start": bool(enroll_start),
+        "content_price": normalized_content_metadata.get("content_price"),
+        "is_active": _get_is_active_course_run(course_run),
+        "is_late_enrollment_eligible": _get_is_late_enrollment_eligible(course_run),
+        "restriction_type": course_run.get("restriction_type"),
     }
     return course_run
 
@@ -1287,21 +1371,27 @@ def get_course_runs(course):
         list(dict): a list of subseted and transformed course_runs
     """
     output = []
-    course_runs = course.get('course_runs') or []
+    course_runs = course.get("course_runs") or []
     for course_run in course_runs:
         this_course_run = _get_course_run(course, course_run)
         has_ended = False
         is_eligible_for_enrollment = True
-        if enroll_by := this_course_run.get('enroll_by'):
+        if enroll_by := this_course_run.get("enroll_by"):
             # determine whether the course run is late enrollment eligible, based on an
             # enroll_by date that has elapsed the earliest support late enrollment cutoff.
-            course_run_enroll_by_date = datetime.datetime.fromtimestamp(enroll_by).replace(tzinfo=UTC)
+            course_run_enroll_by_date = datetime.datetime.fromtimestamp(
+                enroll_by
+            ).replace(tzinfo=UTC)
             if course_run_enroll_by_date < localized_utcnow():
                 # the enroll_by date has passed, so determine whether the enroll_by
                 # is still eligible for late enrollment.
-                late_enrollment_cutoff = localized_utcnow() - datetime.timedelta(days=LATE_ENROLLMENT_THRESHOLD_DAYS)
-                is_eligible_for_enrollment = course_run_enroll_by_date > late_enrollment_cutoff
-        if end := this_course_run.get('end'):
+                late_enrollment_cutoff = localized_utcnow() - datetime.timedelta(
+                    days=LATE_ENROLLMENT_THRESHOLD_DAYS
+                )
+                is_eligible_for_enrollment = (
+                    course_run_enroll_by_date > late_enrollment_cutoff
+                )
+        if end := this_course_run.get("end"):
             course_run_end = parser.parse(end)
             # check for runs within course run end date
             has_ended = course_run_end < localized_utcnow()
@@ -1322,7 +1412,7 @@ def get_upcoming_course_runs(course):
     Returns:
         int: the number of course runs in the future
     """
-    course_runs = course.get('course_runs') or []
+    course_runs = course.get("course_runs") or []
     active_course_runs = [run for run in course_runs if is_course_run_active(run)]
     if get_advertised_course_run(course) is not None:
         return len(active_course_runs) - 1
@@ -1339,10 +1429,14 @@ def _get_verified_upgrade_deadline(full_course_run):
     Returns:
         str: Verified Upgrade Deadline (VUD) as Unix timestamp or default large expiration date
     """
-    seats = full_course_run.get('seats') or []
+    seats = full_course_run.get("seats") or []
     for seat in seats:
-        if seat.get('type') == 'verified' and 'upgrade_deadline' in seat and seat.get('upgrade_deadline') is not None:
-            vud_datetime = parse_datetime(seat.get('upgrade_deadline'))
+        if (
+            seat.get("type") == "verified"
+            and "upgrade_deadline" in seat
+            and seat.get("upgrade_deadline") is not None
+        ):
+            vud_datetime = parse_datetime(seat.get("upgrade_deadline"))
             return time.mktime(vud_datetime.timetuple())
     # defaults to year 3000, as algolia cannot filter on null values
     return ALGOLIA_DEFAULT_TIMESTAMP
@@ -1359,17 +1453,17 @@ def _get_is_active_course_run(full_course_run):
     It resolves the logic into an indexed field on the course run labeled 'is_active'
     """
     course_run_is_active = is_course_run_active(full_course_run)
-    availability = full_course_run.get('availability')
-    is_not_archived_availability = availability != 'Archived'
+    availability = full_course_run.get("availability")
+    is_not_archived_availability = availability != "Archived"
     is_active = course_run_is_active and is_not_archived_availability
     if not is_active:
         LOGGER.info(
-            f'[_get_is_active_course_run] course run is not active '
+            f"[_get_is_active_course_run] course run is not active "
             f'key: {full_course_run.get("key")}, '
             f'is_marketable: {full_course_run.get("is_marketable")}, '
             f'is_marketable_external: {full_course_run.get("is_marketable_external")}, '
             f'is_enrollable: {full_course_run.get("is_enrollable")}, '
-            f'availability: {availability}, '
+            f"availability: {availability}, "
             f'status: {full_course_run.get("status")}'
         )
     return is_active
@@ -1382,9 +1476,9 @@ def _get_is_late_enrollment_eligible(course_run):
       * Must have a marketing URL
       * Must have seats
     """
-    is_archived = course_run.get('availability') == 'Archived'
-    has_marketing_url = bool(course_run.get('marketing_url'))
-    has_seats = bool(course_run.get('seats'))
+    is_archived = course_run.get("availability") == "Archived"
+    has_marketing_url = bool(course_run.get("marketing_url"))
+    has_seats = bool(course_run.get("seats"))
     if is_archived or not has_marketing_url or not has_seats:
         return False
     return True
@@ -1396,7 +1490,7 @@ def _get_course_run_enroll_by_date_timestamp(normalized_content_metadata):
 
     If no enroll-by date is provided, it returns None.
     """
-    enroll_by_date = normalized_content_metadata.get('enroll_by_date')
+    enroll_by_date = normalized_content_metadata.get("enroll_by_date")
     if not enroll_by_date:
         return None
     return to_timestamp(enroll_by_date)
@@ -1408,7 +1502,7 @@ def _get_course_run_enroll_start_date_timestamp(normalized_content_metadata):
 
     If no enrollment_start date is provided, it returns None.
     """
-    enroll_start_date = normalized_content_metadata.get('enroll_start_date')
+    enroll_start_date = normalized_content_metadata.get("enroll_start_date")
     if not enroll_start_date:
         return None
     return to_timestamp(enroll_start_date)
@@ -1426,9 +1520,9 @@ def get_learning_type(content):
         str: the learning type (ADR: docs/decisions/0005-creating-learning-type-facet)
         of the course.
     """
-    if content.get('course_type') == EXEC_ED_2U_COURSE_TYPE:
+    if content.get("course_type") == EXEC_ED_2U_COURSE_TYPE:
         return EXEC_ED_2U_READABLE_COURSE_TYPE
-    return content.get('content_type')
+    return content.get("content_type")
 
 
 def get_learning_type_v2(content):
@@ -1436,9 +1530,9 @@ def get_learning_type_v2(content):
     Placeholder learning type value used while switching exec ed learning type
     to a readable value
     """
-    if content.get('course_type') == EXEC_ED_2U_COURSE_TYPE:
+    if content.get("course_type") == EXEC_ED_2U_COURSE_TYPE:
         return EXEC_ED_2U_READABLE_COURSE_TYPE
-    return content.get('content_type')
+    return content.get("content_type")
 
 
 def get_reviews_count(content):
@@ -1451,7 +1545,7 @@ def get_reviews_count(content):
     Returns:
         int: the reviews count of the course.
     """
-    return content.get('reviews_count')
+    return content.get("reviews_count")
 
 
 def get_avg_course_rating(content):
@@ -1464,7 +1558,7 @@ def get_avg_course_rating(content):
     Returns:
         float: the average course rating of the course.
     """
-    return content.get('avg_course_rating')
+    return content.get("avg_course_rating")
 
 
 def get_video_partners(video):
@@ -1481,7 +1575,11 @@ def get_video_partners(video):
     course_content_key = video.parent_content_metadata.parent_content_key
     try:
         course_metadata = ContentMetadata.objects.get(content_key=course_content_key)
-        return get_course_partners(course_metadata.json_metadata) if course_metadata else []
+        return (
+            get_course_partners(course_metadata.json_metadata)
+            if course_metadata
+            else []
+        )
     except ContentMetadata.DoesNotExist:
         return []
 
@@ -1497,7 +1595,7 @@ def get_transcript_summary(video):
         str: video transcript summary
     """
     transcript_summary = VideoTranscriptSummary.objects.filter(video=video).first()
-    return transcript_summary.summary if transcript_summary else ''
+    return transcript_summary.summary if transcript_summary else ""
 
 
 def get_video_skills(video):
@@ -1510,7 +1608,7 @@ def get_video_skills(video):
     Returns:
         list: a list of skills associated with the video
     """
-    video_skills = VideoSkill.objects.filter(video=video).values_list('name', flat=True)
+    video_skills = VideoSkill.objects.filter(video=video).values_list("name", flat=True)
     return list(video_skills) if video_skills else []
 
 
@@ -1525,7 +1623,7 @@ def get_video_course_run_key(video):
         str: course run key
     """
     video_parent_cm = video.parent_content_metadata
-    return video_parent_cm.json_metadata.get('key') if video_parent_cm else ''
+    return video_parent_cm.json_metadata.get("key") if video_parent_cm else ""
 
 
 def get_video_org(video):
@@ -1539,7 +1637,7 @@ def get_video_org(video):
         str: organization code
     """
     video_parent_cm = video.parent_content_metadata
-    return video_parent_cm.json_metadata.get('org') if video_parent_cm else ''
+    return video_parent_cm.json_metadata.get("org") if video_parent_cm else ""
 
 
 def get_video_logo_image_urls(video):
@@ -1553,7 +1651,11 @@ def get_video_logo_image_urls(video):
         list: a list of logo image urls associated with the video
     """
     video_parent_cm = video.parent_content_metadata
-    return list(video_parent_cm.json_metadata.get('logo_image_urls', [])) if video_parent_cm else []
+    return (
+        list(video_parent_cm.json_metadata.get("logo_image_urls", []))
+        if video_parent_cm
+        else []
+    )
 
 
 def get_video_image_url(video):
@@ -1567,7 +1669,7 @@ def get_video_image_url(video):
         str: video image url
     """
     video_parent_cm = video.parent_content_metadata
-    return video_parent_cm.json_metadata.get('image_url') if video_parent_cm else ''
+    return video_parent_cm.json_metadata.get("image_url") if video_parent_cm else ""
 
 
 def get_video_duration(video):
@@ -1580,7 +1682,7 @@ def get_video_duration(video):
     Returns:
         str: video duration
     """
-    return video.json_metadata.get('duration')
+    return video.json_metadata.get("duration")
 
 
 def _first_enrollable_paid_seat_price(course_record):
@@ -1588,7 +1690,7 @@ def _first_enrollable_paid_seat_price(course_record):
     Returns the course-level first_enrollable_paid_seat_price,
     or computes it based on the course runs.
     """
-    if course_value := course_record.get('first_enrollable_paid_seat_price'):
+    if course_value := course_record.get("first_enrollable_paid_seat_price"):
         return course_value
     return get_course_first_paid_enrollable_seat_price(course_record)
 
@@ -1606,87 +1708,115 @@ def _algolia_object_from_product(product, algolia_fields):
         dict: a dictionary containing only the fields noted in algolia_fields
     """
     searchable_product = copy.deepcopy(product)
-    if searchable_product.get('content_type') == COURSE:
+    if searchable_product.get("content_type") == COURSE:
         advertised_course_run = get_advertised_course_run(searchable_product)
-        transformed_advertised_course_run = _get_course_run(searchable_product, advertised_course_run)
-        searchable_product.update({
-            'language': get_course_language(searchable_product),
-            'availability': get_course_availability(searchable_product),
-            'partners': get_course_partners(searchable_product),
-            'programs': get_course_program_types(searchable_product),
-            'program_titles': get_course_program_titles(searchable_product),
-            'subjects': get_course_subjects(searchable_product),
-            'card_image_url': get_course_card_image_url(searchable_product),
-            'advertised_course_run': transformed_advertised_course_run,
-            'course_runs': get_course_runs(searchable_product),
-            'upcoming_course_runs': get_upcoming_course_runs(searchable_product),
-            'skill_names': get_course_skill_names(searchable_product),
-            'skills': get_course_skills(searchable_product),
-            'first_enrollable_paid_seat_price': _first_enrollable_paid_seat_price(searchable_product),
-            'original_image_url': get_course_original_image_url(searchable_product),
-            'marketing_url': get_course_marketing_url(searchable_product),
-            'outcome': get_course_outcome(searchable_product),
-            'prerequisites': get_course_prerequisites(searchable_product),
-            'learning_type': get_learning_type(searchable_product),
-            'learning_type_v2': get_learning_type_v2(searchable_product),
-            'reviews_count': get_reviews_count(searchable_product),
-            'avg_course_rating': get_avg_course_rating(searchable_product),
-            'course_bayesian_average': get_course_bayesian_average(searchable_product),
-            'transcript_languages': get_course_transcript_languages(searchable_product),
-            'translation_languages': get_course_translation_languages(searchable_product),
-            'metadata_language': searchable_product.get('metadata_language', 'en'),
-            'is_new_content': is_course_new_content(searchable_product),
-        })
-    elif searchable_product.get('content_type') == PROGRAM:
+        transformed_advertised_course_run = _get_course_run(
+            searchable_product, advertised_course_run
+        )
+        searchable_product.update(
+            {
+                "language": get_course_language(searchable_product),
+                "availability": get_course_availability(searchable_product),
+                "partners": get_course_partners(searchable_product),
+                "programs": get_course_program_types(searchable_product),
+                "program_titles": get_course_program_titles(searchable_product),
+                "subjects": get_course_subjects(searchable_product),
+                "card_image_url": get_course_card_image_url(searchable_product),
+                "advertised_course_run": transformed_advertised_course_run,
+                "course_runs": get_course_runs(searchable_product),
+                "upcoming_course_runs": get_upcoming_course_runs(searchable_product),
+                "skill_names": get_course_skill_names(searchable_product),
+                "skills": get_course_skills(searchable_product),
+                "first_enrollable_paid_seat_price": _first_enrollable_paid_seat_price(
+                    searchable_product
+                ),
+                "original_image_url": get_course_original_image_url(searchable_product),
+                "marketing_url": get_course_marketing_url(searchable_product),
+                "outcome": get_course_outcome(searchable_product),
+                "prerequisites": get_course_prerequisites(searchable_product),
+                "learning_type": get_learning_type(searchable_product),
+                "learning_type_v2": get_learning_type_v2(searchable_product),
+                "reviews_count": get_reviews_count(searchable_product),
+                "avg_course_rating": get_avg_course_rating(searchable_product),
+                "course_bayesian_average": get_course_bayesian_average(
+                    searchable_product
+                ),
+                "transcript_languages": get_course_transcript_languages(
+                    searchable_product
+                ),
+                "translation_languages": get_course_translation_languages(
+                    searchable_product
+                ),
+                "metadata_language": searchable_product.get("metadata_language", "en"),
+                "is_new_content": is_course_new_content(searchable_product),
+            }
+        )
+    elif searchable_product.get("content_type") == PROGRAM:
         # Build course metadata cache once for all program functions that need it
-        course_keys = [course.get('key') for course in searchable_product.get('courses', []) if course.get('key')]
+        course_keys = [
+            course.get("key")
+            for course in searchable_product.get("courses", [])
+            if course.get("key")
+        ]
         course_metadata_cache = _build_course_metadata_cache(course_keys)
 
-        searchable_product.update({
-            'course_keys': get_program_course_keys(searchable_product),
-            'programs': [get_program_type(searchable_product)],
-            'program_titles': [get_program_title(searchable_product)],
-            'program_type': get_program_type(searchable_product),
-            'availability': get_program_availability(searchable_product),
-            'partners': get_program_partners(searchable_product),
-            'subjects': get_program_subjects(searchable_product, course_metadata_cache),
-            'skill_names': get_program_skill_names(searchable_product, course_metadata_cache),
-            'level_type': get_program_level_type(searchable_product, course_metadata_cache),
-            'learning_items': get_program_learning_items(searchable_product),
-            'prices': get_program_prices(searchable_product),
-            'banner_image_url': get_program_banner_image_url(searchable_product),
-            'course_details': get_program_course_details(searchable_product),
-            'learning_type': get_learning_type(searchable_product),
-            'learning_type_v2': get_learning_type_v2(searchable_product),
-            'metadata_language': searchable_product.get('metadata_language', 'en'),
-        })
-    elif searchable_product.get('content_type') == LEARNER_PATHWAY:
-        searchable_product.update({
-            'course_keys': get_pathway_course_keys(searchable_product),
-            'programs': get_pathway_program_uuids(searchable_product),
-            'availability': get_pathway_availability(searchable_product),
-            'card_image_url': get_pathway_card_image_url(searchable_product),
-            'partners': get_pathway_partners(searchable_product),
-            'subjects': get_pathway_subjects(searchable_product),
-            'created': get_pathway_created_date(searchable_product),
-            'learning_type': get_learning_type(searchable_product),
-            'learning_type_v2': get_learning_type_v2(searchable_product),
-            'metadata_language': searchable_product.get('metadata_language', 'en'),
-        })
-    elif searchable_product.get('content_type') == VIDEO:
+        searchable_product.update(
+            {
+                "course_keys": get_program_course_keys(searchable_product),
+                "programs": [get_program_type(searchable_product)],
+                "program_titles": [get_program_title(searchable_product)],
+                "program_type": get_program_type(searchable_product),
+                "availability": get_program_availability(searchable_product),
+                "partners": get_program_partners(searchable_product),
+                "subjects": get_program_subjects(
+                    searchable_product, course_metadata_cache
+                ),
+                "skill_names": get_program_skill_names(
+                    searchable_product, course_metadata_cache
+                ),
+                "level_type": get_program_level_type(
+                    searchable_product, course_metadata_cache
+                ),
+                "learning_items": get_program_learning_items(searchable_product),
+                "prices": get_program_prices(searchable_product),
+                "banner_image_url": get_program_banner_image_url(searchable_product),
+                "course_details": get_program_course_details(searchable_product),
+                "learning_type": get_learning_type(searchable_product),
+                "learning_type_v2": get_learning_type_v2(searchable_product),
+                "metadata_language": searchable_product.get("metadata_language", "en"),
+            }
+        )
+    elif searchable_product.get("content_type") == LEARNER_PATHWAY:
+        searchable_product.update(
+            {
+                "course_keys": get_pathway_course_keys(searchable_product),
+                "programs": get_pathway_program_uuids(searchable_product),
+                "availability": get_pathway_availability(searchable_product),
+                "card_image_url": get_pathway_card_image_url(searchable_product),
+                "partners": get_pathway_partners(searchable_product),
+                "subjects": get_pathway_subjects(searchable_product),
+                "created": get_pathway_created_date(searchable_product),
+                "learning_type": get_learning_type(searchable_product),
+                "learning_type_v2": get_learning_type_v2(searchable_product),
+                "metadata_language": searchable_product.get("metadata_language", "en"),
+            }
+        )
+    elif searchable_product.get("content_type") == VIDEO:
         try:
-            edx_video_id = searchable_product.get('aggregation_key')
+            edx_video_id = searchable_product.get("aggregation_key")
             video = Video.objects.get(edx_video_id=edx_video_id)
-            searchable_product.update({
-                'partners': get_video_partners(video),
-                'transcript_summary': get_transcript_summary(video),
-                'video_skills': get_video_skills(video),
-                'course_run_key': get_video_course_run_key(video),
-                'org': get_video_org(video),
-                'logo_image_urls': get_video_logo_image_urls(video),
-                'image_url': get_video_image_url(video),
-                'duration': get_video_duration(video),
-            })
+            searchable_product.update(
+                {
+                    "partners": get_video_partners(video),
+                    "transcript_summary": get_transcript_summary(video),
+                    "video_skills": get_video_skills(video),
+                    "course_run_key": get_video_course_run_key(video),
+                    "org": get_video_org(video),
+                    "logo_image_urls": get_video_logo_image_urls(video),
+                    "image_url": get_video_image_url(video),
+                    "duration": get_video_duration(video),
+                }
+            )
         except Video.DoesNotExist:
             LOGGER.warning(f"video not found for aggregation_key: {edx_video_id}")
 
@@ -1717,8 +1847,7 @@ def create_algolia_objects(products, algolia_fields):
         algolia_fields = []
 
     algolia_objects = [
-        _algolia_object_from_product(product, algolia_fields)
-        for product in products
+        _algolia_object_from_product(product, algolia_fields) for product in products
     ]
 
     return algolia_objects
@@ -1746,46 +1875,50 @@ def create_spanish_algolia_object(algolia_object, content_metadata=None):
     # Videos don't have ContentTranslation support yet
     if content_metadata and isinstance(content_metadata, ContentMetadata):
         try:
-            translation = content_metadata.translations.get(language_code='es')
+            translation = content_metadata.translations.get(language_code="es")
         except ContentTranslation.DoesNotExist:
             LOGGER.warning(
-                '[SPANISH_TRANSLATION] No pre-computed translation found for %s, '
-                'skipping Spanish object creation',
-                content_metadata.content_key
+                "[SPANISH_TRANSLATION] No pre-computed translation found for %s, "
+                "skipping Spanish object creation",
+                content_metadata.content_key,
             )
         except Exception as exc:  # pylint: disable=broad-except
             LOGGER.error(
-                '[SPANISH_TRANSLATION] Error fetching translation for %s: %s',
+                "[SPANISH_TRANSLATION] Error fetching translation for %s: %s",
                 content_metadata.content_key,
                 exc,
-                exc_info=True
+                exc_info=True,
             )
 
     # Use pre-computed translation if available
     if translation:
         # Apply translated fields
         if translation.title:
-            spanish_object['title'] = translation.title
+            spanish_object["title"] = translation.title
         if translation.short_description:
-            spanish_object['short_description'] = translation.short_description
+            spanish_object["short_description"] = translation.short_description
         if translation.full_description:
-            spanish_object['full_description'] = translation.full_description
+            spanish_object["full_description"] = translation.full_description
         if translation.subtitle:
-            spanish_object['subtitle'] = translation.subtitle
+            spanish_object["subtitle"] = translation.subtitle
 
         LOGGER.debug(
-            '[SPANISH_TRANSLATION] Using pre-computed translation for %s',
-            content_metadata.content_key
+            "[SPANISH_TRANSLATION] Using pre-computed translation for %s",
+            content_metadata.content_key,
         )
     else:
         LOGGER.debug(
-            '[SPANISH_TRANSLATION] No pre-computed translation available for %s, skipping Spanish object',
-            getattr(content_metadata, 'content_key', 'unknown') if content_metadata else 'unknown'
+            "[SPANISH_TRANSLATION] No pre-computed translation available for %s, skipping Spanish object",
+            (
+                getattr(content_metadata, "content_key", "unknown")
+                if content_metadata
+                else "unknown"
+            ),
         )
         return None
 
     # Update objectID to indicate Spanish version
-    spanish_object['objectID'] = f"{spanish_object['objectID']}-es"
-    spanish_object['metadata_language'] = 'es'
+    spanish_object["objectID"] = f"{spanish_object['objectID']}-es"
+    spanish_object["metadata_language"] = "es"
 
     return spanish_object

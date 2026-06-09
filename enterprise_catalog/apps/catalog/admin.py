@@ -224,12 +224,14 @@ class CatalogQueryAdmin(UnchangeableMixin):
     )
     readonly_fields = ('uuid', 'get_content_count')
     list_display = (
+        'title',
         'uuid',
         'content_filter_hash',
         'get_content_filter',
     )
     search_fields = (
         'content_filter_hash',
+        'title',
     )
 
     @admin.display(description='Content Filter')

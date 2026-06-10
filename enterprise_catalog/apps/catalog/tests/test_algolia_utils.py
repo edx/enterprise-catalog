@@ -538,8 +538,8 @@ class AlgoliaUtilsTests(TestCase):
                         'first_enrollable_paid_seat_price': None,
                         'marketing_url': 'https://openedx.org',
                     },
-                    # Late enrollment case (NOT eligible due to null marketing_url; otherwise
-                    # within the late enrollment cutoff)
+                    # Late enrollment case (NOT eligible due to null marketing_url;
+                    # otherwise within the late enrollment cutoff)
                     {
                         'key': 'course-v1:org+course+1T2028',
                         'uuid': CURRENT_COURSE_RUN_UUID,
@@ -869,7 +869,8 @@ class AlgoliaUtilsTests(TestCase):
     @ddt.unpack
     def test_get_course_program_types(self, course_metadata, expected_program_types):
         """
-        Assert that the list of program types associated with a course is properly parsed and formatted.
+        Assert that the list of program types associated with a course is properly parsed
+        and formatted.
         """
         program_types = utils.get_course_program_types(course_metadata)
         assert program_types == expected_program_types
@@ -909,7 +910,8 @@ class AlgoliaUtilsTests(TestCase):
     @ddt.unpack
     def test_get_course_program_titles(self, course_metadata, expected_program_titles):
         """
-        Assert that the list of program titles associated with a course is properly parsed and formatted.
+        Assert that the list of program titles associated with a
+        course is properly parsed and formatted.
         """
         program_titles = utils.get_course_program_titles(course_metadata)
         assert program_titles == expected_program_titles
@@ -931,7 +933,8 @@ class AlgoliaUtilsTests(TestCase):
     @ddt.unpack
     def test_get_course_outcomes(self, course_metadata, expected_course_outcome):
         """
-        Assert that the course outcome is properly parsed and formatted.
+        Assert that the
+        course outcome is properly parsed and formatted.
         """
         outcome = utils.get_course_outcome(course_metadata)
         assert outcome == expected_course_outcome
@@ -953,7 +956,8 @@ class AlgoliaUtilsTests(TestCase):
     @ddt.unpack
     def test_get_course_prerequisites(self, course_metadata, expected_course_prerequisites):
         """
-        Assert that the course prerequisites is properly parsed and formatted.
+        Assert that
+        the course prerequisites is properly parsed and formatted.
         """
         prerequisites = utils.get_course_prerequisites(course_metadata)
         assert prerequisites == expected_course_prerequisites
@@ -1396,28 +1400,30 @@ class AlgoliaUtilsTests(TestCase):
 
     @ddt.data(
         (
-            {'steps': [
-                {
-                    'courses': [
-                        {'key': 'pathway_course_key_1'},
-                        {'key': 'pathway_course_key_2'}
-                    ],
-                    'programs': [
-                        {'uuid': 'pathway_program_1'},
-                        {'uuid': 'pathway_program_2'}
-                    ]
-                },
-                {
-                    'courses': [
-                        {'key': 'pathway_course_key_3'},
-                        {'key': 'pathway_course_key_4'}
-                    ],
-                    'programs': [
-                        {'uuid': 'pathway_program_3'},
-                        {'uuid': 'pathway_program_4'}
-                    ]
-                }
-            ]},
+            {
+                'steps': [
+                    {
+                        'courses': [
+                            {'key': 'pathway_course_key_1'},
+                            {'key': 'pathway_course_key_2'}
+                        ],
+                        'programs': [
+                            {'uuid': 'pathway_program_1'},
+                            {'uuid': 'pathway_program_2'}
+                        ]
+                    },
+                    {
+                        'courses': [
+                            {'key': 'pathway_course_key_3'},
+                            {'key': 'pathway_course_key_4'}
+                        ],
+                        'programs': [
+                            {'uuid': 'pathway_program_3'},
+                            {'uuid': 'pathway_program_4'}
+                        ]
+                    }
+                ]
+            },
             [
                 {
                     'course_runs': [
@@ -1487,28 +1493,30 @@ class AlgoliaUtilsTests(TestCase):
 
     @ddt.data(
         (
-            {'steps': [
-                {
-                    'courses': [
-                        {'key': 'pathway_course_key_1'},
-                        {'key': 'pathway_course_key_2'}
-                    ],
-                    'programs': [
-                        {'uuid': 'pathway_program_1'},
-                        {'uuid': 'pathway_program_2'}
-                    ]
-                },
-                {
-                    'courses': [
-                        {'key': 'pathway_course_key_3'},
-                        {'key': 'pathway_course_key_4'}
-                    ],
-                    'programs': [
-                        {'uuid': 'pathway_program_3'},
-                        {'uuid': 'pathway_program_4'}
-                    ]
-                }
-            ]},
+            {
+                'steps': [
+                    {
+                        'courses': [
+                            {'key': 'pathway_course_key_1'},
+                            {'key': 'pathway_course_key_2'}
+                        ],
+                        'programs': [
+                            {'uuid': 'pathway_program_1'},
+                            {'uuid': 'pathway_program_2'}
+                        ]
+                    },
+                    {
+                        'courses': [
+                            {'key': 'pathway_course_key_3'},
+                            {'key': 'pathway_course_key_4'}
+                        ],
+                        'programs': [
+                            {'uuid': 'pathway_program_3'},
+                            {'uuid': 'pathway_program_4'}
+                        ]
+                    }
+                ]
+            },
             [
                 {
                     'owners': [
@@ -1570,28 +1578,30 @@ class AlgoliaUtilsTests(TestCase):
 
     @ddt.data(
         (
-            {'steps': [
-                {
-                    'courses': [
-                        {'key': 'pathway_course_key_1'},
-                        {'key': 'pathway_course_key_2'}
-                    ],
-                    'programs': [
-                        {'uuid': 'pathway_program_1'},
-                        {'uuid': 'pathway_program_2'}
-                    ]
-                },
-                {
-                    'courses': [
-                        {'key': 'pathway_course_key_3'},
-                        {'key': 'pathway_course_key_4'}
-                    ],
-                    'programs': [
-                        {'uuid': 'pathway_program_3'},
-                        {'uuid': 'pathway_program_4'}
-                    ]
-                }
-            ]},
+            {
+                'steps': [
+                    {
+                        'courses': [
+                            {'key': 'pathway_course_key_1'},
+                            {'key': 'pathway_course_key_2'}
+                        ],
+                        'programs': [
+                            {'uuid': 'pathway_program_1'},
+                            {'uuid': 'pathway_program_2'}
+                        ]
+                    },
+                    {
+                        'courses': [
+                            {'key': 'pathway_course_key_3'},
+                            {'key': 'pathway_course_key_4'}
+                        ],
+                        'programs': [
+                            {'uuid': 'pathway_program_3'},
+                            {'uuid': 'pathway_program_4'}
+                        ]
+                    }
+                ]
+            },
             [
                 {
                     'subjects': [
@@ -1717,53 +1727,221 @@ class AlgoliaUtilsTests(TestCase):
         assert transcript_languages == expected_transcript_languages
 
     @ddt.data(
+        # Complete Success scenario
         (
             {
-                'ai_languages': {
-                    'translation_languages': [
-                        {'code': 'ar', 'label': 'Arabic'},
-                        {'code': 'en', 'label': 'English'},
-                        {'code': 'es-419', 'label': 'Spanish (Latin America)'},
-                    ],
-                },
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'ar', 'label': 'Arabic'},
+                                {'code': 'en', 'label': 'English'},
+                                {'code': 'es-419', 'label': 'Spanish (Latin America)'},
+                            ]
+                        }
+                    }
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
             },
             ['Arabic', 'English', 'Spanish (Latin America)'],
         ),
+        # Empty/None scenarios
         (
             {
-                'ai_languages': {
-                    'translation_languages': [
-                        {'code': 'ar'},
-                        {'label': 'English'},
-                        {},
-                    ],
-                },
+                'course_runs': [],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            [],
+        ),
+        (
+            {
+                'course_runs': None,
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            [],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': None,
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            [],
+        ),
+        # Malformed layout fallbacks (for 100% path coverage)
+        (
+            {
+                'course_runs': "not-a-list-of-runs",
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            [],
+        ),
+        (
+            {
+                'course_runs': ["not-a-dict-run"],
+                'advertised_course_run_uuid': None,
+            },
+            [],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': "not-a-dict",
+                    }
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            [],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': 'notalist',
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            [],
+        ),
+        # Run collection aggregate fallbacks
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'fr', 'label': 'French'},
+                            ],
+                        },
+                    },
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {},
+                    },
+                    {
+                        'uuid': uuid4(),
+                    },
+                ],
+            },
+            ['French'],
+        ),
+        # Value filtering validation
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'en', 'label': 'English'},
+                                {'code': 'en', 'label': 'English'},
+                            ],
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
             },
             ['English'],
         ),
         (
             {
-                'ai_languages': None,
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'en', 'label': ''},
+                                {'code': 'fr', 'label': 'French'},
+                            ],
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            ['French'],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                        'ai_languages': {
+                            'translation_languages': [
+                                'notadict',
+                                {'code': 'fr', 'label': 'French'},
+                            ],
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
+            },
+            ['French'],
+        ),
+        (
+            {
+                'course_runs': [
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {
+                            'translation_languages': [],
+                        },
+                    },
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {
+                            'translation_languages': [],
+                        },
+                    },
+                ],
             },
             [],
         ),
         (
             {
-                'ai_languages': {},
+                'course_runs': [
+                    {
+                        'uuid': ADVERTISED_COURSE_RUN_UUID,
+                    },
+                    {
+                        'uuid': uuid4(),
+                        'ai_languages': {
+                            'translation_languages': [
+                                {'code': 'fr', 'label': 'French'},
+                            ],
+                        },
+                    },
+                ],
+                'advertised_course_run_uuid': ADVERTISED_COURSE_RUN_UUID,
             },
-            [],
-        ),
-        (
-            {},
             [],
         ),
     )
     @ddt.unpack
-    def test_get_course_translation_languages(self, course_metadata, expected_translation_languages):
+    def test_get_course_translation_languages_extra(
+        self,
+        course_metadata,
+        expected_translation_languages,
+    ):
         """
-        Assert correct parsing of ``translation_languages`` from ``ai_languages``.
+        Additional edge cases for get_course_translation_languages verifying isolation logic.
         """
-        translation_languages = utils.get_course_translation_languages(course_metadata)
+        translation_languages = utils.get_course_translation_languages(
+            course_metadata,
+        )
         assert translation_languages == expected_translation_languages
 
     @ddt.data(

@@ -714,6 +714,7 @@ class TestIndexContentBatch(TestCase):
 
 
 @override_settings(ALGOLIA_INDEXING_BATCH_SIZE=2)
+@ddt.ddt
 class TestDispatchAlgoliaIndexing(TestCase):
     """
     Tests for the Phase 4a dispatcher task.
@@ -1111,6 +1112,95 @@ class TestDispatchAlgoliaIndexing(TestCase):
 
         self.assertEqual(result['dispatched'][LEARNER_PATHWAY], {'records': 0, 'batches': 0})
         self.mock_pathway_si.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # content_types filtering
+    # ------------------------------------------------------------------
+
+    def test_content_types_unknown_value_raises(self):
+        """Passing an unrecognised content type raises ValueError immediately."""
+        with self.assertRaises(ValueError, msg='bogus_type'):
+            dispatch_algolia_indexing(content_types=['bogus_type'])
+
+    # Each tuple: (content_types, exp_courses, exp_programs, exp_pathways)
+    # exp_* == expected record count AND expected .si() call count (1 record per type, batch_size=2)
+    @ddt.data(
+        (None, 1, 1, 1),
+        ([COURSE], 1, 0, 0),
+        ([PROGRAM], 0, 1, 0),
+        ([LEARNER_PATHWAY], 0, 0, 1),
+        ([COURSE, PROGRAM], 1, 1, 0),
+    )
+    @ddt.unpack
+    def test_content_types_filter(self, content_types, exp_courses, exp_programs, exp_pathways):
+        """
+        content_types restricts which content type batches are dispatched.
+        """
+        course = ContentMetadataFactory(content_type=COURSE, content_key='ct-course')
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='ct-pathway')
+        self._set_mappings(
+            all_indexable_content_keys=[course.content_key, program.content_key, pathway.content_key],
+            pathway_to_program_course_keys={pathway.content_key: {program.content_key}},
+        )
+
+        result = dispatch_algolia_indexing(force=True, content_types=content_types)
+
+        self.assertEqual(result['dispatched'][COURSE]['records'], exp_courses)
+        self.assertEqual(result['dispatched'][PROGRAM]['records'], exp_programs)
+        self.assertEqual(result['dispatched'][LEARNER_PATHWAY]['records'], exp_pathways)
+        self.assertEqual(self.mock_course_si.call_count, exp_courses)
+        self.assertEqual(self.mock_program_si.call_count, exp_programs)
+        self.assertEqual(self.mock_pathway_si.call_count, exp_pathways)
+
+    def test_content_types_dry_run_filters_summary_without_dispatching(self):
+        """
+        dry_run=True with content_types set reports zero for excluded types and never calls .si().
+        """
+        course = ContentMetadataFactory(content_type=COURSE, content_key='ct-dry-course')
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key=_program_content_key())
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='ct-dry-pathway')
+        self._set_mappings(
+            all_indexable_content_keys=[course.content_key, program.content_key, pathway.content_key],
+        )
+
+        result = dispatch_algolia_indexing(force=True, dry_run=True, content_types=[COURSE])
+
+        self.assertEqual(result['dispatched'][COURSE], {'records': 1, 'batches': 1})
+        self.assertEqual(result['dispatched'][PROGRAM], {'records': 0, 'batches': 0})
+        self.assertEqual(result['dispatched'][LEARNER_PATHWAY], {'records': 0, 'batches': 0})
+        self.mock_course_si.assert_not_called()
+        self.mock_program_si.assert_not_called()
+        self.mock_pathway_si.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # use_apply
+    # ------------------------------------------------------------------
+
+    def test_use_apply_calls_chain_apply(self):
+        """
+        use_apply=True causes the dispatched chain to be executed via .apply()
+        rather than .apply_async(), making downstream tasks run synchronously.
+        """
+        course = ContentMetadataFactory(content_type=COURSE, content_key='ua-course')
+        self._set_mappings(all_indexable_content_keys=[course.content_key])
+
+        dispatch_algolia_indexing(force=True, use_apply=True)
+
+        self.mock_chain.return_value.apply.assert_called_once()
+        self.mock_chain.return_value.apply_async.assert_not_called()
+
+    def test_use_apply_false_calls_chain_apply_async(self):
+        """
+        use_apply=False (default) dispatches via .apply_async().
+        """
+        course = ContentMetadataFactory(content_type=COURSE, content_key='ua-async-course')
+        self._set_mappings(all_indexable_content_keys=[course.content_key])
+
+        dispatch_algolia_indexing(force=True, use_apply=False)
+
+        self.mock_chain.return_value.apply_async.assert_called_once()
+        self.mock_chain.return_value.apply.assert_not_called()
 
 
 @ddt.ddt

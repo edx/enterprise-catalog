@@ -9,6 +9,12 @@ import logging
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
+from enterprise_catalog.apps.catalog.algolia_utils import (
+    ALGOLIA_INDEX_SETTINGS,
+    ALGOLIA_REPLICA_INDEX_SETTINGS,
+    new_search_client_or_error,
+)
 from enterprise_catalog.apps.catalog.constants import (
     COURSE,
     LEARNER_PATHWAY,
@@ -41,7 +47,16 @@ class Command(BaseCommand):
             '--index-name',
             dest='index_name',
             default=None,
-            help='Target an alternate Algolia index (e.g. for v2 testing).',
+            help='Target Algolia index name.',
+        )
+        parser.add_argument(
+            '--replica-name',
+            dest='replica_index_name',
+            default=None,
+            help=(
+                'Algolia replica index name. '
+                'Defaults to the index name suffixed with "_repl".'
+            ),
         )
         parser.add_argument(
             '--force-all',
@@ -68,6 +83,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         content_types = options['content_types']  # None means all types
         index_name = options['index_name']
+        replica_index_name = options['replica_index_name']
         force_all = options['force_all']
         dry_run = options['dry_run']
         no_async = options['no_async']
@@ -85,6 +101,17 @@ class Command(BaseCommand):
 
         if dry_run:
             self.stdout.write(self.style.WARNING('[DRY-RUN] No Algolia writes will be made.'))
+        else:
+            self.stdout.write('Configuring Algolia index settings...')
+            replica_name = replica_index_name or f'{index_name}_repl'
+            sdk_client = new_search_client_or_error()
+            algolia_client = AlgoliaSearchClient()
+            algolia_client.algolia_index = sdk_client.init_index(index_name)
+            algolia_client.replica_index = sdk_client.init_index(replica_name)
+            primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': [f'virtual({replica_name})']}
+            algolia_client.set_index_settings(primary_settings)
+            algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, primary_index=False)
+
         self.stdout.write(f'Content types: {", ".join(content_types) if content_types else "all"}')
         self.stdout.write(f'Target index:  {resolved_index or "(not configured)"}')
         self.stdout.write(f'Force all:     {force_all}')

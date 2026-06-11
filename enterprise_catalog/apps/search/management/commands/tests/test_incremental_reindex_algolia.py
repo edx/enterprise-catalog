@@ -16,10 +16,10 @@ from enterprise_catalog.apps.catalog.constants import (
 )
 
 
-TASK_PATH = (
-    'enterprise_catalog.apps.search.management.commands'
-    '.incremental_reindex_algolia.dispatch_algolia_indexing'
-)
+_CMD = 'enterprise_catalog.apps.search.management.commands.incremental_reindex_algolia'
+TASK_PATH = f'{_CMD}.dispatch_algolia_indexing'
+NEW_SDK_CLIENT_PATH = f'{_CMD}.new_search_client_or_error'
+ALGOLIA_CLIENT_PATH = f'{_CMD}.AlgoliaSearchClient'
 
 _SAMPLE_SUMMARY = {
     'force': False,
@@ -37,6 +37,15 @@ _SAMPLE_SUMMARY = {
 @ddt.ddt
 class IncrementalReindexAlgoliaCommandTests(TestCase):
     command_name = 'incremental_reindex_algolia'
+
+    def setUp(self):
+        super().setUp()
+        patcher_sdk = mock.patch(NEW_SDK_CLIENT_PATH)
+        patcher_cls = mock.patch(ALGOLIA_CLIENT_PATH)
+        self.mock_new_sdk_client = patcher_sdk.start()
+        self.mock_algolia_cls = patcher_cls.start()
+        self.addCleanup(patcher_sdk.stop)
+        self.addCleanup(patcher_cls.stop)
 
     def _call(self, *args, **kwargs):
         out = StringIO()
@@ -169,6 +178,45 @@ class IncrementalReindexAlgoliaCommandTests(TestCase):
         self._call('--content-type', content_type)
         _, kwargs = mock_task.apply_async.call_args
         assert kwargs['kwargs']['content_types'] == [content_type]
+
+    # ------------------------------------------------------------------
+    # Index configuration
+    # ------------------------------------------------------------------
+
+    @mock.patch(TASK_PATH)
+    def test_configure_index_called_before_dispatch(self, mock_task):
+        mock_task.apply_async.return_value.get.return_value = _SAMPLE_SUMMARY
+        self._call('--index-name', 'enterprise_catalog_v2')
+        sdk = self.mock_new_sdk_client.return_value
+        algolia_instance = self.mock_algolia_cls.return_value
+        # Both primary and replica indices are initialized
+        sdk.init_index.assert_any_call('enterprise_catalog_v2')
+        sdk.init_index.assert_any_call('enterprise_catalog_v2_repl')
+        # set_index_settings called twice: primary (with replicas overridden) then replica
+        assert algolia_instance.set_index_settings.call_count == 2
+        primary_call_kwargs = algolia_instance.set_index_settings.call_args_list[0]
+        primary_settings = primary_call_kwargs[0][0]
+        assert primary_settings['replicas'] == ['virtual(enterprise_catalog_v2_repl)']
+        replica_call = algolia_instance.set_index_settings.call_args_list[1]
+        assert replica_call[1].get('primary_index') is False
+
+    @mock.patch(TASK_PATH)
+    def test_explicit_replica_name_used(self, mock_task):
+        mock_task.apply_async.return_value.get.return_value = _SAMPLE_SUMMARY
+        self._call('--index-name', 'enterprise_catalog_v2', '--replica-name', 'my_replica')
+        sdk = self.mock_new_sdk_client.return_value
+        sdk.init_index.assert_any_call('enterprise_catalog_v2')
+        sdk.init_index.assert_any_call('my_replica')
+        algolia_instance = self.mock_algolia_cls.return_value
+        primary_settings = algolia_instance.set_index_settings.call_args_list[0][0][0]
+        assert primary_settings['replicas'] == ['virtual(my_replica)']
+
+    @mock.patch(TASK_PATH)
+    def test_configure_index_skipped_on_dry_run(self, mock_task):
+        mock_task.apply_async.return_value.get.return_value = {**_SAMPLE_SUMMARY, 'dry_run': True}
+        self._call('--index-name', 'enterprise_catalog_v2', '--dry-run')
+        self.mock_new_sdk_client.assert_not_called()
+        self.mock_algolia_cls.assert_not_called()
 
     # ------------------------------------------------------------------
     # Summary output

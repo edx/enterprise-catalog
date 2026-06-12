@@ -198,7 +198,7 @@ class IncrementalReindexAlgoliaCommandTests(TestCase):
         primary_settings = primary_call_kwargs[0][0]
         assert primary_settings['replicas'] == ['virtual(enterprise_catalog_v2_repl)']
         replica_call = algolia_instance.set_index_settings.call_args_list[1]
-        assert replica_call[1].get('primary_index') is False
+        assert replica_call[1].get('index_name') == 'enterprise_catalog_v2_repl'
 
     @mock.patch(TASK_PATH)
     def test_explicit_replica_name_used(self, mock_task):

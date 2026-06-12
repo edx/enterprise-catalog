@@ -1049,13 +1049,15 @@ class AlgoliaUtilsTests(TestCase):
         """
         algolia_client = utils.get_initialized_algolia_client()
         utils.configure_algolia_index(algolia_client)
-        mock_search_client.return_value.set_index_settings.assert_any_call(utils.ALGOLIA_INDEX_SETTINGS)
-        mock_search_client.return_value.set_index_settings.assert_called_with(
+        set_index_settings = mock_search_client.return_value.set_index_settings
+        set_index_settings.assert_any_call(utils.ALGOLIA_INDEX_SETTINGS)
+        set_index_settings.assert_any_call(
             utils.ALGOLIA_REPLICA_INDEX_SETTINGS,
-            primary_index=False
+            index_name=utils.ALGOLIA_REPLICA_INDEX_NAME,
         )
-        # No recently-published replica name is configured by default, so that replica is skipped.
-        mock_search_client.return_value.set_replica_index_settings.assert_not_called()
+        # No recently-published replica name is configured by default, so only the primary and
+        # base replica are configured -- the recency replica settings are never applied.
+        assert set_index_settings.call_count == 2
 
     @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')
     def test_configure_algolia_index_configures_recently_published_replica(self, mock_search_client):
@@ -1066,9 +1068,9 @@ class AlgoliaUtilsTests(TestCase):
         replica_name = 'enterprise_catalog_recently_published_desc'
         with mock.patch.object(utils, 'ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME', replica_name):
             utils.configure_algolia_index(algolia_client)
-        mock_search_client.return_value.set_replica_index_settings.assert_called_once_with(
+        mock_search_client.return_value.set_index_settings.assert_any_call(
             utils.ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
-            replica_name,
+            index_name=replica_name,
         )
 
     @ddt.data(

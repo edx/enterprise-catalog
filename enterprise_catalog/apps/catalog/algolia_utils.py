@@ -71,14 +71,23 @@ ALGOLIA_REPLICA_INDEX_NAME = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
 ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME = settings.ALGOLIA.get('RECENTLY_PUBLISHED_REPLICA_INDEX_NAME')
 
 algolia_replica_index = f'virtual({ALGOLIA_REPLICA_INDEX_NAME})'
-algolia_recently_published_replica_index = f'virtual({ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME})'
 
-# Replicas declared on the primary index. The recency replica is only included when its name
-# is configured, so deploying this code before ops adds the name won't declare a
-# ``virtual(None)`` replica on the primary index.
-ALGOLIA_REPLICAS = [algolia_replica_index]
-if ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME:
-    ALGOLIA_REPLICAS.append(algolia_recently_published_replica_index)
+
+def _build_algolia_replicas(recently_published_replica_index_name):
+    """
+    Build the list of replica indexes to declare on the primary index.
+
+    The recency replica is only included when its name is configured, so deploying this code
+    before ops sets the name won't declare a ``virtual(None)`` replica on the primary index.
+    """
+    replicas = [algolia_replica_index]
+    if recently_published_replica_index_name:
+        replicas.append(f'virtual({recently_published_replica_index_name})')
+    return replicas
+
+
+# Replicas declared on the primary index (see ``_build_algolia_replicas``).
+ALGOLIA_REPLICAS = _build_algolia_replicas(ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME)
 
 # keep attributes from content objects that we explicitly want in Algolia
 ALGOLIA_FIELDS = [

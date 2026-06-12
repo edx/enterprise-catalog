@@ -633,10 +633,10 @@ def is_course_archived(course):
 
 
 def is_course_new_content(course):
-    """True if the earliest published course-run start is within the last 12 months (ENT-11384)."""
+    """True if the course's earliest run start (any status) is within the last 12 months (ENT-11386)."""
     starts = []
     for run in course.get('course_runs') or []:
-        if (run.get('status') or '').lower() == 'published' and run.get('start'):
+        if run.get('start'):
             parsed = parse_datetime(run['start'])
             if parsed:
                 starts.append(parsed)

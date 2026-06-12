@@ -282,6 +282,7 @@ class AlgoliaUtilsTests(TestCase):
 
     def test_build_algolia_replicas_includes_recency_replica_when_configured(self):
         """The recency replica is declared only when its index name is configured."""
+        # pylint: disable=protected-access
         assert utils._build_algolia_replicas('enterprise_catalog_recently_published_desc') == [
             utils.algolia_replica_index,
             'virtual(enterprise_catalog_recently_published_desc)',
@@ -292,6 +293,7 @@ class AlgoliaUtilsTests(TestCase):
 
     def test_algolia_object_includes_recently_published_timestamp(self):
         """The course Algolia object carries recently_published_timestamp (and is_new_content)."""
+        # pylint: disable=protected-access
         course_metadata = ContentMetadataFactory(content_type=COURSE)
         algolia_object = utils._algolia_object_from_product(
             course_metadata.json_metadata, utils.ALGOLIA_FIELDS,

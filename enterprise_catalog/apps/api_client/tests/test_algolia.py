@@ -87,6 +87,38 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         with self.assertRaises(ImproperlyConfigured):
             client._get_index()
 
+    def test_set_replica_index_settings_targets_named_replica(self):
+        """
+        ``set_replica_index_settings`` applies settings to the replica resolved by name.
+        """
+        client = self._build_client()
+        replica = mock.MagicMock(name='recently_published_replica')
+        client._client.init_index.return_value = replica
+        settings_payload = {'customRanking': ['desc(recently_published_timestamp)']}
+
+        client.set_replica_index_settings(settings_payload, 'enterprise_catalog_recently_published_desc')
+
+        client._client.init_index.assert_called_once_with('enterprise_catalog_recently_published_desc')
+        replica.set_settings.assert_called_once_with(settings_payload)
+
+    def test_set_replica_index_settings_noop_when_primary_uninitialized(self):
+        """
+        With no primary index initialized, the call logs and returns without touching Algolia.
+        """
+        client = AlgoliaSearchClient()  # nothing initialized
+        client.set_replica_index_settings({'customRanking': []}, 'some_replica')  # must not raise
+
+    def test_set_replica_index_settings_reraises_algolia_exception(self):
+        """
+        An AlgoliaException from set_settings propagates to the caller.
+        """
+        client = self._build_client()
+        replica = mock.MagicMock(name='recently_published_replica')
+        replica.set_settings.side_effect = AlgoliaException('boom')
+        client._client.init_index.return_value = replica
+        with self.assertRaises(AlgoliaException):
+            client.set_replica_index_settings({'customRanking': []}, 'some_replica')
+
     def test_save_objects_batch_calls_save_on_primary(self):
         """
         ``save_objects_batch`` delegates to ``save_objects`` on the primary index by default.

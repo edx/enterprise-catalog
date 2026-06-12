@@ -19,13 +19,14 @@ from enterprise_catalog.apps.catalog.constants import (
     COURSE,
     LEARNER_PATHWAY,
     PROGRAM,
+    VIDEO,
 )
 from enterprise_catalog.apps.search.tasks import dispatch_algolia_indexing
 
 
 logger = logging.getLogger(__name__)
 
-_ALL_CONTENT_TYPES = [COURSE, PROGRAM, LEARNER_PATHWAY]
+_ALL_CONTENT_TYPES = [COURSE, PROGRAM, LEARNER_PATHWAY, VIDEO]
 
 
 class Command(BaseCommand):

@@ -46,6 +46,10 @@ class AlgoliaSearchClient:
     def algolia_replica_index_name(self):
         return settings.ALGOLIA.get('REPLICA_INDEX_NAME')
 
+    @property
+    def algolia_recently_published_replica_index_name(self):
+        return settings.ALGOLIA.get('RECENTLY_PUBLISHED_REPLICA_INDEX_NAME')
+
     def init_index(self):
         """
         Initializes an index within Algolia. Initializing an index will create it if it doesn't exist.
@@ -108,6 +112,34 @@ class AlgoliaSearchClient:
             logger.exception(
                 'Unable to set settings for Algolia\'s %s index due to an exception.',
                 self.algolia_index_name,
+            )
+            raise exc
+
+    def set_replica_index_settings(self, index_settings, replica_index_name):
+        """
+        Set settings on a specific replica index by name.
+
+        Unlike ``set_index_settings(..., primary_index=False)`` (which targets the single
+        ``REPLICA_INDEX_NAME`` replica), this configures any replica the primary index has
+        declared in its ``replicas`` setting -- used for the additional "recently published"
+        sort replica. The replica must already be declared on the primary index (Algolia
+        creates replica indices when the primary index's settings are saved).
+
+        Arguments:
+            index_settings (dict): A dictionary of Algolia settings.
+            replica_index_name (str): The name of the replica index to configure.
+        """
+        if not self.algolia_index:
+            logger.error('Algolia index does not exist. Did you initialize it?')
+            return
+
+        try:
+            replica_index = self._get_index(replica_index_name)
+            replica_index.set_settings(index_settings)
+        except AlgoliaException as exc:
+            logger.exception(
+                'Unable to set settings for Algolia replica index %s due to an exception.',
+                replica_index_name,
             )
             raise exc
 
@@ -424,6 +456,8 @@ class AlgoliaSearchClient:
             indices.append(self.algolia_index_name)
         if self.algolia_replica_index_name:
             indices.append(self.algolia_replica_index_name)
+        if self.algolia_recently_published_replica_index_name:
+            indices.append(self.algolia_recently_published_replica_index_name)
         if indices:
             restrictions |= {'restrictIndices': indices}
 

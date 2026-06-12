@@ -246,6 +246,40 @@ class AlgoliaUtilsTests(TestCase):
             {'status': 'published', 'start': 'not-a-date'},
         ]}) is False
 
+    def test_get_course_recently_published_timestamp(self):
+        """
+        Verify the "recently published" sort timestamp uses the earliest published-run start.
+        """
+        now = localized_utcnow()
+        recent = now - timedelta(days=30)
+        old = now - timedelta(days=500)
+
+        # No published run start -> 0 so the course sorts last under a desc ranking.
+        assert utils.get_course_recently_published_timestamp({'course_runs': []}) == 0
+        assert utils.get_course_recently_published_timestamp(
+            {'course_runs': [{'status': 'unpublished', 'start': recent.isoformat()}]}
+        ) == 0
+        # Malformed ISO strings are silently ignored (treated as no date).
+        assert utils.get_course_recently_published_timestamp(
+            {'course_runs': [{'status': 'published', 'start': 'not-a-date'}]}
+        ) == 0
+        # A published run start -> its Unix timestamp, regardless of age (unlike is_new_content).
+        assert utils.get_course_recently_published_timestamp(
+            {'course_runs': [{'status': 'published', 'start': recent.isoformat()}]}
+        ) == int(recent.timestamp())
+        assert utils.get_course_recently_published_timestamp(
+            {'course_runs': [{'status': 'published', 'start': old.isoformat()}]}
+        ) == int(old.timestamp())
+        # Earliest published start wins; an old unpublished draft is ignored.
+        assert utils.get_course_recently_published_timestamp({'course_runs': [
+            {'status': 'unpublished', 'start': recent.isoformat()},
+            {'status': 'published', 'start': old.isoformat()},
+        ]}) == int(old.timestamp())
+        assert utils.get_course_recently_published_timestamp({'course_runs': [
+            {'status': 'published', 'start': old.isoformat()},
+            {'status': 'published', 'start': recent.isoformat()},
+        ]}) == int(old.timestamp())
+
     @ddt.data(
         (
             {
@@ -995,6 +1029,22 @@ class AlgoliaUtilsTests(TestCase):
         mock_search_client.return_value.set_index_settings.assert_called_with(
             utils.ALGOLIA_REPLICA_INDEX_SETTINGS,
             primary_index=False
+        )
+        # No recently-published replica name is configured by default, so that replica is skipped.
+        mock_search_client.return_value.set_replica_index_settings.assert_not_called()
+
+    @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')
+    def test_configure_algolia_index_configures_recently_published_replica(self, mock_search_client):
+        """
+        When a recently-published replica name is configured, its settings are applied too.
+        """
+        algolia_client = utils.get_initialized_algolia_client()
+        replica_name = 'enterprise_catalog_recently_published_desc'
+        with mock.patch.object(utils, 'ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME', replica_name):
+            utils.configure_algolia_index(algolia_client)
+        mock_search_client.return_value.set_replica_index_settings.assert_called_once_with(
+            utils.ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
+            replica_name,
         )
 
     @ddt.data(

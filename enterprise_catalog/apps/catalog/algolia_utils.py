@@ -65,8 +65,20 @@ ALGOLIA_UUID_BATCH_SIZE = 100
 
 ALGOLIA_JSON_METADATA_MAX_SIZE = 100000
 ALGOLIA_REPLICA_INDEX_NAME = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
+# Optional second replica that sorts courses by recency (newest-first). Only declared when a
+# name is configured (see settings.ALGOLIA); absent in local/test until ops sets it in the
+# deployment config.
+ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME = settings.ALGOLIA.get('RECENTLY_PUBLISHED_REPLICA_INDEX_NAME')
 
 algolia_replica_index = f'virtual({ALGOLIA_REPLICA_INDEX_NAME})'
+algolia_recently_published_replica_index = f'virtual({ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME})'
+
+# Replicas declared on the primary index. The recency replica is only included when its name
+# is configured, so deploying this code before ops adds the name won't declare a
+# ``virtual(None)`` replica on the primary index.
+ALGOLIA_REPLICAS = [algolia_replica_index]
+if ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME:
+    ALGOLIA_REPLICAS.append(algolia_recently_published_replica_index)
 
 # keep attributes from content objects that we explicitly want in Algolia
 ALGOLIA_FIELDS = [
@@ -142,6 +154,7 @@ ALGOLIA_FIELDS = [
     'transcript_languages',
     'translation_languages',
     'is_new_content',
+    'recently_published_timestamp',
 ]
 
 # default configuration for the index
@@ -206,14 +219,27 @@ ALGOLIA_INDEX_SETTINGS = {
         'desc(course_bayesian_average)',
         'desc(recent_enrollment_count)',
     ],
-    'replicas': [
-        algolia_replica_index
-    ],
+    'replicas': ALGOLIA_REPLICAS,
 }
 
 ALGOLIA_REPLICA_INDEX_SETTINGS = {
     'customRanking': [
         'desc(duration)',
+        'asc(metadata_language)',
+        'asc(visible_via_association)',
+        'asc(created)',
+        'desc(course_bayesian_average)',
+        'desc(recent_enrollment_count)',
+    ],
+}
+
+# Replica that sorts courses by recency (newest-first). Leads with the precomputed
+# ``recently_published_timestamp`` (the course's earliest published run start) descending,
+# then falls back to the primary index's tie-breakers. Surfaced in the Learner Portal search
+# page as the "newest courses first" sort.
+ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS = {
+    'customRanking': [
+        'desc(recently_published_timestamp)',
         'asc(metadata_language)',
         'asc(visible_via_association)',
         'asc(created)',
@@ -417,6 +443,11 @@ def configure_algolia_index(algolia_client):
     """
     algolia_client.set_index_settings(ALGOLIA_INDEX_SETTINGS)
     algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, primary_index=False)
+    if ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME:
+        algolia_client.set_replica_index_settings(
+            ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
+            ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME,
+        )
 
 
 def get_algolia_object_id(content_type, uuid):
@@ -632,18 +663,44 @@ def is_course_archived(course):
     return len(availability_list) == 0 or 'Archived' in availability_list
 
 
-def is_course_new_content(course):
-    """True if the earliest published course-run start is within the last 12 months (ENT-11384)."""
+def _earliest_published_course_run_start(course):
+    """
+    The earliest published course-run start as a timezone-aware datetime, or None.
+
+    Shared by the "new content" flag and the "recently published" sort timestamp so both key
+    off the same signal: a course's first published availability. Unpublished/draft runs are
+    excluded so backfilled drafts can't change a course's recency (ENT-11384).
+    """
     starts = []
     for run in course.get('course_runs') or []:
         if (run.get('status') or '').lower() == 'published' and run.get('start'):
             parsed = parse_datetime(run['start'])
             if parsed:
                 starts.append(parsed)
-    if not starts:
+    return min(starts) if starts else None
+
+
+def is_course_new_content(course):
+    """True if the earliest published course-run start is within the last 12 months (ENT-11384)."""
+    earliest_start = _earliest_published_course_run_start(course)
+    if earliest_start is None:
         return False
     now = localized_utcnow()
-    return now - relativedelta(months=12) <= min(starts) <= now
+    return now - relativedelta(months=12) <= earliest_start <= now
+
+
+def get_course_recently_published_timestamp(course):
+    """
+    Unix timestamp (int) of the course's earliest published course-run start, used as the
+    custom-ranking attribute for the "recently published" (newest-first) Algolia replica.
+
+    Sorting this descending surfaces courses whose first published run started most recently.
+    Courses with no published run start default to 0 so they sort last under a desc ranking --
+    note ``ALGOLIA_DEFAULT_TIMESTAMP`` is a far-future sentinel and is deliberately NOT used
+    here, since it would float undated courses to the top of a newest-first sort.
+    """
+    earliest_start = _earliest_published_course_run_start(course)
+    return int(earliest_start.timestamp()) if earliest_start else 0
 
 
 def get_course_partners(course):
@@ -1674,6 +1731,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'translation_languages': get_course_translation_languages(searchable_product),
             'metadata_language': searchable_product.get('metadata_language', 'en'),
             'is_new_content': is_course_new_content(searchable_product),
+            'recently_published_timestamp': get_course_recently_published_timestamp(searchable_product),
         })
     elif searchable_product.get('content_type') == PROGRAM:
         # Build course metadata cache once for all program functions that need it

@@ -6,7 +6,7 @@ from unittest import mock
 import ddt
 from algoliasearch.exceptions import AlgoliaException
 from django.core.exceptions import ImproperlyConfigured
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 
@@ -118,6 +118,47 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         client._client.init_index.return_value = replica
         with self.assertRaises(AlgoliaException):
             client.set_replica_index_settings({'customRanking': []}, 'some_replica')
+
+    @override_settings(ALGOLIA={
+        'INDEX_NAME': 'enterprise_catalog',
+        'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
+        'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_published_desc',
+        'SEARCH_API_KEY': 'fake-search-key',
+    })
+    @mock.patch('enterprise_catalog.apps.api_client.algolia.SearchClient.generate_secured_api_key')
+    def test_generate_secured_api_key_restricts_to_all_indices(self, mock_generate):
+        """The secured key's restrictIndices covers the primary, duration, and recency replicas."""
+        mock_generate.return_value = 'secured-key'
+        client = AlgoliaSearchClient()
+
+        result = client.generate_secured_api_key('user-1', ['query-uuid-1'])
+
+        assert result['secured_api_key'] == 'secured-key'
+        _api_key, restrictions = mock_generate.call_args[0]
+        assert restrictions['restrictIndices'] == [
+            'enterprise_catalog',
+            'enterprise_catalog_duration_desc',
+            'enterprise_catalog_recently_published_desc',
+        ]
+
+    @override_settings(ALGOLIA={
+        'INDEX_NAME': 'enterprise_catalog',
+        'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
+        'SEARCH_API_KEY': 'fake-search-key',
+    })
+    @mock.patch('enterprise_catalog.apps.api_client.algolia.SearchClient.generate_secured_api_key')
+    def test_generate_secured_api_key_omits_recency_replica_when_unset(self, mock_generate):
+        """When no recency replica is configured, it is excluded from restrictIndices."""
+        mock_generate.return_value = 'secured-key'
+        client = AlgoliaSearchClient()
+
+        client.generate_secured_api_key('user-1', ['query-uuid-1'])
+
+        _api_key, restrictions = mock_generate.call_args[0]
+        assert restrictions['restrictIndices'] == [
+            'enterprise_catalog',
+            'enterprise_catalog_duration_desc',
+        ]
 
     def test_save_objects_batch_calls_save_on_primary(self):
         """

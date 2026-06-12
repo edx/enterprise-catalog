@@ -282,6 +282,26 @@ class AlgoliaUtilsTests(TestCase):
             {'status': 'published', 'start': recent.isoformat()},
         ]}) == int(old.timestamp())
 
+    def test_build_algolia_replicas_includes_recency_replica_when_configured(self):
+        """The recency replica is declared only when its index name is configured."""
+        assert utils._build_algolia_replicas('enterprise_catalog_recently_published_desc') == [
+            utils.algolia_replica_index,
+            'virtual(enterprise_catalog_recently_published_desc)',
+        ]
+        # Unconfigured (empty / None) -> only the base replica, never virtual(None).
+        assert utils._build_algolia_replicas('') == [utils.algolia_replica_index]
+        assert utils._build_algolia_replicas(None) == [utils.algolia_replica_index]
+
+    def test_algolia_object_includes_recently_published_timestamp(self):
+        """The course Algolia object carries recently_published_timestamp (and is_new_content)."""
+        course_metadata = ContentMetadataFactory(content_type=COURSE)
+        algolia_object = utils._algolia_object_from_product(
+            course_metadata.json_metadata, utils.ALGOLIA_FIELDS,
+        )
+        expected = utils.get_course_recently_published_timestamp(course_metadata.json_metadata)
+        assert algolia_object['recently_published_timestamp'] == expected
+        assert 'is_new_content' in algolia_object
+
     @ddt.data(
         (
             {

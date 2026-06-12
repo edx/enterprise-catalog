@@ -451,11 +451,11 @@ def configure_algolia_index(algolia_client):
     Configures the settings for an Algolia index.
     """
     algolia_client.set_index_settings(ALGOLIA_INDEX_SETTINGS)
-    algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, primary_index=False)
+    algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=ALGOLIA_REPLICA_INDEX_NAME)
     if ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME:
-        algolia_client.set_replica_index_settings(
+        algolia_client.set_index_settings(
             ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
-            ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME,
+            index_name=ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME,
         )
 
 

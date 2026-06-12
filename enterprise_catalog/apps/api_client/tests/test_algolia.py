@@ -87,28 +87,40 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         with self.assertRaises(ImproperlyConfigured):
             client._get_index()
 
-    def test_set_replica_index_settings_targets_named_replica(self):
+    def test_set_index_settings_targets_primary_by_default(self):
         """
-        ``set_replica_index_settings`` applies settings to the replica resolved by name.
+        ``set_index_settings()`` with no name applies settings to the cached primary index.
+        """
+        client = self._build_client()
+        settings_payload = {'customRanking': ['asc(created)']}
+
+        client.set_index_settings(settings_payload)
+
+        client.algolia_index.set_settings.assert_called_once_with(settings_payload)
+        client._client.init_index.assert_not_called()  # primary is cached, not re-initialized
+
+    def test_set_index_settings_targets_named_replica(self):
+        """
+        ``set_index_settings(index_name=...)`` applies settings to the replica resolved by name.
         """
         client = self._build_client()
         replica = mock.MagicMock(name='recently_published_replica')
         client._client.init_index.return_value = replica
         settings_payload = {'customRanking': ['desc(recently_published_timestamp)']}
 
-        client.set_replica_index_settings(settings_payload, 'enterprise_catalog_recently_published_desc')
+        client.set_index_settings(settings_payload, index_name='enterprise_catalog_recently_published_desc')
 
         client._client.init_index.assert_called_once_with('enterprise_catalog_recently_published_desc')
         replica.set_settings.assert_called_once_with(settings_payload)
 
-    def test_set_replica_index_settings_noop_when_primary_uninitialized(self):
+    def test_set_index_settings_noop_when_primary_uninitialized(self):
         """
         With no primary index initialized, the call logs and returns without touching Algolia.
         """
         client = AlgoliaSearchClient()  # nothing initialized
-        client.set_replica_index_settings({'customRanking': []}, 'some_replica')  # must not raise
+        client.set_index_settings({'customRanking': []}, index_name='some_replica')  # must not raise
 
-    def test_set_replica_index_settings_reraises_algolia_exception(self):
+    def test_set_index_settings_reraises_algolia_exception(self):
         """
         An AlgoliaException from set_settings propagates to the caller.
         """
@@ -117,7 +129,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         replica.set_settings.side_effect = AlgoliaException('boom')
         client._client.init_index.return_value = replica
         with self.assertRaises(AlgoliaException):
-            client.set_replica_index_settings({'customRanking': []}, 'some_replica')
+            client.set_index_settings({'customRanking': []}, index_name='some_replica')
 
     @override_settings(ALGOLIA={
         'INDEX_NAME': 'enterprise_catalog',

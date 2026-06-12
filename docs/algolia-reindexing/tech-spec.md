@@ -690,6 +690,10 @@ Instead of updating each frontend's `ALGOLIA_INDEX_NAME` env var and deploying s
 
 **Summary**: Create Celery tasks for indexing batches of each content type (courses, programs, pathways).
 
+> **Note**: Video indexing was not part of the original Phase 3 scope. It was added during Phase 7
+> validation when a ~36k record gap was discovered. See [`docs/algolia-reindexing/videos.md`](videos.md)
+> for the full design.
+
 **Scope**:
 - Create `index_courses_batch_in_algolia` task
 - Create `index_programs_batch_in_algolia` task
@@ -897,13 +901,20 @@ The catalog-query-specific dispatcher task must handle membership removals (see 
 - Document any discrepancies and resolve
 
 **Artifacts**:
-- `scripts/compare_algolia_indices.py` — comparison script (exists in prototype branch)
+- `scripts/validate_algolia_indices.py` — fetches facet distributions and objectID sets from both
+  indices and produces a set-difference report; see script docstring for usage. The script lives on
+  the `aed/algolia-validation` branch (PR #121) and is not merged into this repo yet.
+
+**Findings**:
+- First validation run revealed a ~36k record gap: all `video` content type, none of the other
+  types. Videos come from the `Video` model (not `ContentMetadata`) and were not handled by the
+  incremental pipeline. See [`docs/algolia-reindexing/videos.md`](videos.md) for the fix design.
 
 **Acceptance Criteria**:
 - [ ] v2 index created with identical settings to v1
 - [ ] Full incremental reindex completes successfully
-- [ ] Comparison script reports record count match
-- [ ] Comparison script reports no content discrepancies (or discrepancies are understood/acceptable)
+- [ ] Validation script reports record count match (including videos once implemented)
+- [ ] Validation script reports no content discrepancies (or discrepancies are understood/acceptable)
 - [ ] Search behavior validated in staging environment
 
 **Verification**:

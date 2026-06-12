@@ -79,6 +79,8 @@ from enterprise_catalog.apps.search.models import ContentMetadataIndexingState
 
 logger = logging.getLogger(__name__)
 
+_SUPPORTED_CONTENT_TYPES = frozenset({COURSE, PROGRAM, LEARNER_PATHWAY})
+
 # TypeVar for the generic _chunked helper.
 _T = TypeVar('_T')
 
@@ -252,6 +254,8 @@ def dispatch_algolia_indexing(
     dry_run=False,
     include_failed=True,
     index_name=None,
+    content_types=None,
+    use_apply=False,
 ):
     """
     Dispatch Phase 4a incremental Algolia indexing batch tasks.
@@ -259,6 +263,10 @@ def dispatch_algolia_indexing(
     When ``force=True``, dispatch every currently-indexable record. Otherwise,
     dispatch only records that have never been indexed, are stale, or have a
     recorded failure that should be retried.
+
+    ``content_types`` is an optional list of content type strings (e.g.
+    ``['course', 'program']``) that restricts which types are dispatched.
+    Defaults to all three types (course, program, learnerpathway).
 
     **Dispatch ordering matters for child-staleness propagation.**
 
@@ -285,6 +293,15 @@ def dispatch_algolia_indexing(
         mappings.all_indexable_content_keys,
     )
 
+    if content_types is not None:
+        unknown = set(content_types) - _SUPPORTED_CONTENT_TYPES
+        if unknown:
+            raise ValueError(
+                f"Unsupported content_types: {sorted(unknown)}. "
+                f"Must be one of {sorted(_SUPPORTED_CONTENT_TYPES)}."
+            )
+        indexable_keys_by_type = {k: v for k, v in indexable_keys_by_type.items() if k in content_types}
+
     content_keys_to_dispatch = _get_keys_to_dispatch_by_type(
         content_keys_by_type=indexable_keys_by_type,
         mappings=mappings,
@@ -308,7 +325,10 @@ def dispatch_algolia_indexing(
     }
 
     if not dry_run and ordered_groups:
-        chain(*ordered_groups).apply_async()
+        if use_apply:
+            chain(*ordered_groups).apply()
+        else:
+            chain(*ordered_groups).apply_async()
 
     logger.info('dispatch_algolia_indexing summary=%s', summary)
     return summary

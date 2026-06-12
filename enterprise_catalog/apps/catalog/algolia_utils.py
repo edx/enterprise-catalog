@@ -140,6 +140,7 @@ ALGOLIA_FIELDS = [
     'avg_course_rating',
     'course_bayesian_average',
     'transcript_languages',
+    'translation_languages',
     'is_new_content',
 ]
 
@@ -190,6 +191,7 @@ ALGOLIA_INDEX_SETTINGS = {
         'learning_type',
         'learning_type_v2',
         'transcript_languages',
+        'translation_languages',
         'is_new_content',
     ],
     'unretrievableAttributes': [
@@ -534,6 +536,59 @@ def get_course_transcript_languages(course):
 
     transcript_languages = advertised_course_run.get('transcript_languages_search_facet_names')
     return transcript_languages
+
+
+def get_course_translation_languages(course):
+    """
+    Gets human-readable AI translation languages associated with a course.
+
+    Arguments:
+        course (dict): a dict representing course metadata
+
+    Returns:
+        list: a sorted list of unique human-readable AI translation language labels.
+    """
+    course_runs = course.get("course_runs") or []
+    if not isinstance(course_runs, list) or not course_runs:
+        return []
+
+    labels = set()
+    adv_uuid = course.get("advertised_course_run_uuid")
+
+    # Find the advertised run using a generator expression if a valid UUID is set
+    advertised_run = None
+    if adv_uuid:
+        advertised_run = next(
+            (
+                run
+                for run in course_runs
+                if isinstance(run, dict) and (run.get("uuid") == adv_uuid or run.get("key") == adv_uuid)
+            ),
+            None,
+        )
+
+    # If the targeted advertised run exists, use only that; else fallback to all runs
+    runs_to_check = [advertised_run] if advertised_run else course_runs
+
+    for run in runs_to_check:
+        if not isinstance(run, dict):
+            continue
+
+        ai_languages = run.get("ai_languages")
+        if not isinstance(ai_languages, dict):
+            continue
+
+        translation_languages = ai_languages.get("translation_languages")
+        if not isinstance(translation_languages, list):
+            continue
+
+        for lang in translation_languages:
+            if isinstance(lang, dict):
+                label = lang.get("label")
+                if label:
+                    labels.add(label)
+
+    return sorted(labels)
 
 
 def get_course_availability(course):
@@ -1616,6 +1671,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'avg_course_rating': get_avg_course_rating(searchable_product),
             'course_bayesian_average': get_course_bayesian_average(searchable_product),
             'transcript_languages': get_course_transcript_languages(searchable_product),
+            'translation_languages': get_course_translation_languages(searchable_product),
             'metadata_language': searchable_product.get('metadata_language', 'en'),
             'is_new_content': is_course_new_content(searchable_product),
         })

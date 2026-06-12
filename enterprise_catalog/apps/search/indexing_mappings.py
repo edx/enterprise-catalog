@@ -98,8 +98,20 @@ def _compute_indexing_mappings():
     )
     all_indexable_content_keys = set(indexable_courses) | set(indexable_programs) | set(pathway_keys)
 
+    # Ensure every indexable program/pathway key has an entry in the mapping,
+    # even if it has no associated children. The legacy
+    # _get_algolia_products_for_batch does a bare dict lookup (not .get()) and
+    # raises KeyError for missing keys.
+    all_programs_to_course_keys = dict(program_to_courses)
+    for pk in indexable_programs:
+        all_programs_to_course_keys.setdefault(pk, set())
+
+    pathway_to_program_course_keys = dict(pathway_to_programs_courses)
+    for pk in pathway_keys:
+        pathway_to_program_course_keys.setdefault(pk, set())
+
     return IndexingMappings(
-        program_to_course_keys=dict(program_to_courses),
-        pathway_to_program_course_keys=dict(pathway_to_programs_courses),
+        program_to_course_keys=all_programs_to_course_keys,
+        pathway_to_program_course_keys=pathway_to_program_course_keys,
         all_indexable_content_keys=all_indexable_content_keys,
     )

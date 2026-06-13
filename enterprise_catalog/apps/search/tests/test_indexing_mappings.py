@@ -136,3 +136,55 @@ class TestComputeIndexingMappings(TestCase):
         )
         # Nonindexable courses must NOT be in the indexable set.
         self.assertNotIn('course-skipped', result.all_indexable_content_keys)
+
+    @mock.patch.object(mappings_module, 'ContentMetadata')
+    @mock.patch.object(mappings_module, 'partition_program_keys_for_indexing')
+    @mock.patch.object(mappings_module, 'partition_course_keys_for_indexing')
+    @mock.patch.object(mappings_module, '_precalculate_content_mappings')
+    def test_childless_program_gets_empty_course_set(
+        self,
+        mock_precalc,
+        mock_partition_courses,
+        mock_partition_programs,
+        mock_content_metadata,
+    ):
+        """
+        A program that has no course associations in _precalculate_content_mappings
+        (because it has no children) must still get an entry in program_to_course_keys
+        so that _get_algolia_products_for_batch doesn't raise KeyError.
+        """
+        # program-orphan is indexable but absent from _precalculate result
+        mock_precalc.return_value = ({}, {})
+        mock_partition_courses.return_value = ([], [])
+        mock_partition_programs.return_value = (['program-orphan'], [])
+        mock_content_metadata.objects.filter.return_value.values_list.return_value = []
+
+        result = mappings_module._compute_indexing_mappings()
+
+        self.assertIn('program-orphan', result.program_to_course_keys)
+        self.assertEqual(result.program_to_course_keys['program-orphan'], set())
+
+    @mock.patch.object(mappings_module, 'ContentMetadata')
+    @mock.patch.object(mappings_module, 'partition_program_keys_for_indexing')
+    @mock.patch.object(mappings_module, 'partition_course_keys_for_indexing')
+    @mock.patch.object(mappings_module, '_precalculate_content_mappings')
+    def test_childless_pathway_gets_empty_program_course_set(
+        self,
+        mock_precalc,
+        mock_partition_courses,
+        mock_partition_programs,
+        mock_content_metadata,
+    ):
+        """
+        A pathway absent from _precalculate_content_mappings (no children) must
+        still appear in pathway_to_program_course_keys with an empty set.
+        """
+        mock_precalc.return_value = ({}, {})
+        mock_partition_courses.return_value = ([], [])
+        mock_partition_programs.return_value = ([], [])
+        mock_content_metadata.objects.filter.return_value.values_list.return_value = ['pathway-orphan']
+
+        result = mappings_module._compute_indexing_mappings()
+
+        self.assertIn('pathway-orphan', result.pathway_to_program_course_keys)
+        self.assertEqual(result.pathway_to_program_course_keys['pathway-orphan'], set())

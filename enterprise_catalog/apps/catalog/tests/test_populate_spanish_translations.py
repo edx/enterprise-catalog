@@ -243,6 +243,44 @@ class PopulateSpanishTranslationsCommandTests(TestCase):
 
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.translate_object_fields'
+    )
+    def test_command_truncates_title_to_field_limit(self, mock_translate):
+        """Test that overlong translated titles are truncated to avoid DB DataError."""
+        max_title_length = ContentTranslation._meta.get_field('title').max_length
+        too_long_title = 't' * (max_title_length + 50)
+        mock_translate.return_value = {
+            'title': too_long_title,
+            'subtitle': 'Subtítulo',
+        }
+
+        call_command('populate_spanish_translations', all=True)
+
+        translation = ContentTranslation.objects.get(content_metadata=self.content1)
+        self.assertEqual(len(translation.title), max_title_length)
+        self.assertEqual(translation.title, too_long_title[:max_title_length])
+
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
+        'populate_spanish_translations.translate_object_fields'
+    )
+    def test_command_truncates_subtitle_to_field_limit(self, mock_translate):
+        """Test that overlong translated subtitles are truncated to avoid DB DataError."""
+        max_subtitle_length = ContentTranslation._meta.get_field('subtitle').max_length
+        too_long_subtitle = 's' * (max_subtitle_length + 50)
+        mock_translate.return_value = {
+            'title': 'Título',
+            'subtitle': too_long_subtitle,
+        }
+
+        call_command('populate_spanish_translations', all=True)
+
+        translation = ContentTranslation.objects.get(content_metadata=self.content1)
+        self.assertEqual(len(translation.subtitle), max_subtitle_length)
+        self.assertEqual(translation.subtitle, too_long_subtitle[:max_subtitle_length])
+
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.'
         'populate_spanish_translations._should_index_course'
     )
     @mock.patch(

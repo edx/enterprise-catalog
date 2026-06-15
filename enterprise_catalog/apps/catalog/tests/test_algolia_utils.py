@@ -280,20 +280,23 @@ class AlgoliaUtilsTests(TestCase):
             {'status': 'published', 'start': recent.isoformat()},
         ]}) == int(old.timestamp())
 
-    def test_build_algolia_replicas_includes_optional_replica_when_configured(self):
-        """An optional replica is declared only when its index name is configured."""
+    def test_build_algolia_replicas_only_includes_configured_replicas(self):
+        """Each replica (base + optional) is declared only when its index name is configured."""
         # pylint: disable=protected-access
-        replica_name = 'enterprise_catalog_recently_published_desc'
-        with override_settings(ALGOLIA={'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': replica_name}):
+        with override_settings(ALGOLIA={
+            'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
+            'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_published_desc',
+        }):
             assert utils._build_algolia_replicas() == [
-                utils.algolia_replica_index,
-                f'virtual({replica_name})',
+                'virtual(enterprise_catalog_duration_desc)',
+                'virtual(enterprise_catalog_recently_published_desc)',
             ]
-        # Unconfigured (empty) -> only the base replica, never virtual(None).
-        with override_settings(ALGOLIA={'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': ''}):
-            assert utils._build_algolia_replicas() == [utils.algolia_replica_index]
+        # Only the base replica configured -> only it is declared.
+        with override_settings(ALGOLIA={'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc'}):
+            assert utils._build_algolia_replicas() == ['virtual(enterprise_catalog_duration_desc)']
+        # Nothing configured -> no replicas at all, never virtual(None).
         with override_settings(ALGOLIA={}):
-            assert utils._build_algolia_replicas() == [utils.algolia_replica_index]
+            assert not utils._build_algolia_replicas()
 
     def test_algolia_object_includes_recently_published_timestamp(self):
         """The course Algolia object carries recently_published_timestamp (and is_new_content)."""
@@ -1050,15 +1053,16 @@ class AlgoliaUtilsTests(TestCase):
         Verify that `configure_algolia_index_settings` makes call to configure index settings.
         """
         algolia_client = utils.get_initialized_algolia_client()
-        utils.configure_algolia_index(algolia_client)
+        with override_settings(ALGOLIA={'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc'}):
+            utils.configure_algolia_index(algolia_client)
         set_index_settings = mock_search_client.return_value.set_index_settings
         set_index_settings.assert_any_call(utils.ALGOLIA_INDEX_SETTINGS)
         set_index_settings.assert_any_call(
             utils.ALGOLIA_REPLICA_INDEX_SETTINGS,
-            index_name=utils.ALGOLIA_REPLICA_INDEX_NAME,
+            index_name='enterprise_catalog_duration_desc',
         )
-        # No recently-published replica name is configured by default, so only the primary and
-        # base replica are configured -- the recency replica settings are never applied.
+        # Only the base replica is configured here (no optional replica name set), so the primary
+        # plus the single base replica are the only two set_index_settings calls.
         assert set_index_settings.call_count == 2
 
     @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')

@@ -49,13 +49,18 @@ Decision
 The replica is **config-gated on both sides** and is never queried unless its
 name is configured:
 
-* Backend: optional sort replicas are driven by a registry
-  (``OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS`` — the recency replica is the first
-  entry).  Each is declared on the primary index and configured **only** when its
-  ``settings.ALGOLIA`` index-name key is set; an unconfigured replica is skipped
-  entirely (no ``virtual(None)`` replica is created), so the code is inert until
-  ops provides a name.  Adding a future sort is a registry entry plus the field
-  its ``customRanking`` sorts on — not a change to the gating logic.
+* Backend: **all** sort replicas are driven by one registry
+  (``ALGOLIA_REPLICA_CONFIG_KEYS`` — the base duration replica first, then additive
+  sorts like recency).  Each is declared on the primary index, configured, and
+  added to the secured-key ``restrictIndices`` **only** when its ``settings.ALGOLIA``
+  index-name key is set; an unconfigured replica is skipped entirely (no
+  ``virtual(None)`` replica is created), so the code is inert until ops provides a
+  name.  This is the single source of truth for which replicas exist — adding a
+  future sort is a registry entry plus the field its ``customRanking`` sorts on,
+  not a change to the gating logic.  (The client's ``init_index`` /
+  ``index_exists`` still eagerly manage the primary + base-replica *handles* — that
+  is the required-core-pair lifecycle, a separate concern from which replicas get
+  declared/configured.)
 * MFE: the course search uses the replica only when its index-name config var is
   non-empty (and the flag + experiment gates pass); otherwise it falls back to
   the primary (relevance) index.

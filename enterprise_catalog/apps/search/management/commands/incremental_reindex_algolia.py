@@ -113,7 +113,6 @@ class Command(BaseCommand):
             # the underlying client must be set (init_index() would target the production index).
             algolia_client._client = sdk_client  # pylint: disable=protected-access
             algolia_client.algolia_index = sdk_client.init_index(index_name)
-            algolia_client.replica_index = sdk_client.init_index(replica_name)
             primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': [f'virtual({replica_name})']}
             algolia_client.set_index_settings(primary_settings)
             algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=replica_name)

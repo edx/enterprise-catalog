@@ -85,9 +85,6 @@ def _build_algolia_replicas():
     return replicas
 
 
-# Replicas declared on the primary index (see ``_build_algolia_replicas``).
-ALGOLIA_REPLICAS = _build_algolia_replicas()
-
 # keep attributes from content objects that we explicitly want in Algolia
 ALGOLIA_FIELDS = [
     'additional_information',
@@ -227,7 +224,6 @@ ALGOLIA_INDEX_SETTINGS = {
         'desc(course_bayesian_average)',
         'desc(recent_enrollment_count)',
     ],
-    'replicas': ALGOLIA_REPLICAS,
 }
 
 ALGOLIA_REPLICA_INDEX_SETTINGS = {
@@ -473,7 +469,12 @@ def configure_algolia_index(algolia_client):
     """
     Configures the settings for the primary Algolia index and its replicas.
     """
-    algolia_client.set_index_settings(ALGOLIA_INDEX_SETTINGS)
+    # Declare the replicas dynamically (from the current settings.ALGOLIA) rather than from an
+    # import-time global, so the set the primary declares stays consistent with the replicas
+    # _configured_replicas() actually configures below -- and so tests can vary it via
+    # override_settings.
+    primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': _build_algolia_replicas()}
+    algolia_client.set_index_settings(primary_settings)
     for index_name, index_settings in _configured_replicas():
         # A replica's settings failing to apply must never abort the reindex: log and continue so
         # the primary (relevance) index and the other replicas stay configured. The failed replica
@@ -482,7 +483,9 @@ def configure_algolia_index(algolia_client):
         try:
             algolia_client.set_index_settings(index_settings, index_name=index_name)
         except AlgoliaException:
-            LOGGER.exception(
+            # set_index_settings() already logged the traceback before re-raising, so log a
+            # single-line warning here rather than a second stack trace.
+            LOGGER.warning(
                 'Failed to configure replica index "%s"; continuing with the remaining indexes.',
                 index_name,
             )

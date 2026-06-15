@@ -106,6 +106,16 @@ Consequences
   intact, so a problem with one sort can never take down core search indexing.
   The worst case is that one replica lags its ranking until the next run — never a
   broken or empty primary index.
+* **Non-course records sort last, by design:** the replica is *virtual* over the
+  primary index, so it mirrors every record — programs, executive education, videos,
+  etc. — not just courses.  ``recently_released_timestamp`` is only computed in the
+  ``content_type == COURSE`` branch, so non-course records have no such attribute and
+  Algolia ranks them last under ``desc(recently_released_timestamp)``.  This is fine
+  because the consumer (the Learner Portal) points only its course ``<Index>`` at the
+  replica and filters by content type; the "newest courses first" sort is, by
+  contract, a course sort.  Were a future caller to query this replica for non-course
+  content, those records would all tie at the bottom — that caller would need its own
+  recency field.
 * **The waffle flag is the readiness contract:** enabling it asserts "the replica
   is live."  This keeps the safe path a single, instantly reversible toggle
   rather than per-request defensive logic in the search hot path.

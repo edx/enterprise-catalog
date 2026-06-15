@@ -1059,7 +1059,12 @@ class AlgoliaUtilsTests(TestCase):
         with override_settings(ALGOLIA={'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc'}):
             utils.configure_algolia_index(algolia_client)
         set_index_settings = mock_search_client.return_value.set_index_settings
-        set_index_settings.assert_any_call(utils.ALGOLIA_INDEX_SETTINGS)
+        # The primary index is declared with the dynamically-built replicas list (the single
+        # configured base replica here), not the bare ALGOLIA_INDEX_SETTINGS.
+        set_index_settings.assert_any_call({
+            **utils.ALGOLIA_INDEX_SETTINGS,
+            'replicas': ['virtual(enterprise_catalog_duration_desc)'],
+        })
         set_index_settings.assert_any_call(
             utils.ALGOLIA_REPLICA_INDEX_SETTINGS,
             index_name='enterprise_catalog_duration_desc',
@@ -1102,19 +1107,25 @@ class AlgoliaUtilsTests(TestCase):
             'REPLICA_INDEX_NAME': base_name,
             'RECENTLY_RELEASED_REPLICA_INDEX_NAME': recency_name,
         }):
-            with self.assertLogs(utils.LOGGER, level='ERROR') as error_logs:
+            # The per-replica handler logs a single-line WARNING (set_index_settings already logged
+            # the traceback before re-raising), so we don't double up stack traces.
+            with self.assertLogs(utils.LOGGER, level='WARNING') as warning_logs:
                 # Does not raise, even though the recency replica fails.
                 utils.configure_algolia_index(algolia_client)
         set_index_settings = mock_search_client.return_value.set_index_settings
-        # The primary (relevance) index and the base replica were still configured.
-        set_index_settings.assert_any_call(utils.ALGOLIA_INDEX_SETTINGS)
+        # The primary (relevance) index is declared with both replicas, and the base replica
+        # was still configured.
+        set_index_settings.assert_any_call({
+            **utils.ALGOLIA_INDEX_SETTINGS,
+            'replicas': [f'virtual({base_name})', f'virtual({recency_name})'],
+        })
         set_index_settings.assert_any_call(utils.ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=base_name)
         # The recency replica was attempted (and failed) -- logged, not swallowed silently.
         set_index_settings.assert_any_call(
             utils.ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
             index_name=recency_name,
         )
-        assert any(recency_name in message for message in error_logs.output)
+        assert any(recency_name in message for message in warning_logs.output)
 
     @ddt.data(
         (

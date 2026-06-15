@@ -3,6 +3,7 @@ from unittest import mock
 from uuid import uuid4
 
 import ddt
+from algoliasearch.exceptions import AlgoliaException
 from dateutil.relativedelta import relativedelta
 from django.test import TestCase, override_settings
 
@@ -1078,6 +1079,40 @@ class AlgoliaUtilsTests(TestCase):
             utils.ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
             index_name=replica_name,
         )
+
+    @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')
+    def test_configure_algolia_index_replica_failure_is_safe(self, mock_search_client):
+        """
+        One replica failing to configure must not abort the reindex: the primary and the other
+        replicas are still configured, the error is logged, and nothing propagates.
+        """
+        algolia_client = utils.get_initialized_algolia_client()
+        base_name = 'enterprise_catalog_duration_desc'
+        recency_name = 'enterprise_catalog_recently_published_desc'
+
+        def fail_only_for_recency(index_settings, index_name=None):  # pylint: disable=unused-argument
+            # Primary and base-replica calls succeed; only the recency replica raises.
+            if index_name == recency_name:
+                raise AlgoliaException('boom')
+
+        mock_search_client.return_value.set_index_settings.side_effect = fail_only_for_recency
+        with override_settings(ALGOLIA={
+            'REPLICA_INDEX_NAME': base_name,
+            'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': recency_name,
+        }):
+            with self.assertLogs(utils.LOGGER, level='ERROR') as error_logs:
+                # Does not raise, even though the recency replica fails.
+                utils.configure_algolia_index(algolia_client)
+        set_index_settings = mock_search_client.return_value.set_index_settings
+        # The primary (relevance) index and the base replica were still configured.
+        set_index_settings.assert_any_call(utils.ALGOLIA_INDEX_SETTINGS)
+        set_index_settings.assert_any_call(utils.ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=base_name)
+        # The recency replica was attempted (and failed) -- logged, not swallowed silently.
+        set_index_settings.assert_any_call(
+            utils.ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
+            index_name=recency_name,
+        )
+        assert any(recency_name in message for message in error_logs.output)
 
     @ddt.data(
         (

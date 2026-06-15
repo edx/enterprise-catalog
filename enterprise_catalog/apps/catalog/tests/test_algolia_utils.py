@@ -215,21 +215,22 @@ class AlgoliaUtilsTests(TestCase):
 
     def test_is_course_new_content(self):
         """
-        Verify the "new content" classification uses min published-run start within 12 months.
+        Verify the "new content" classification uses the earliest run start (any status) within 12 months.
         """
         now = localized_utcnow()
         recent = (now - timedelta(days=30)).isoformat()
         old = (now - timedelta(days=500)).isoformat()
 
         assert utils.is_course_new_content({'course_runs': []}) is False
-        assert utils.is_course_new_content({'course_runs': [{'status': 'unpublished', 'start': recent}]}) is False
+        # Run status is irrelevant: an unpublished run still counts toward the earliest start.
+        assert utils.is_course_new_content({'course_runs': [{'status': 'unpublished', 'start': recent}]}) is True
         assert utils.is_course_new_content({'course_runs': [{'status': 'published', 'start': old}]}) is False
         assert utils.is_course_new_content({'course_runs': [{'status': 'published', 'start': recent}]}) is True
-        # Regression: an old unpublished draft must not disqualify a course with a recent published run.
+        # An old run (even if unpublished/archived) IS the release date and disqualifies the course.
         assert utils.is_course_new_content({'course_runs': [
             {'status': 'unpublished', 'start': old},
             {'status': 'published', 'start': recent},
-        ]}) is True
+        ]}) is False
         # Boundary: just within 12 calendar months is True, just outside is False.
         assert utils.is_course_new_content({'course_runs': [
             {'status': 'published', 'start': (now - relativedelta(months=12) + timedelta(days=1)).isoformat()},

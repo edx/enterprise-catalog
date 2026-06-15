@@ -6,9 +6,17 @@ stale records, retry failures, and clean up orphaned index shards.
 """
 import uuid
 
+from config_models.models import ConfigurationModel
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
+from enterprise_catalog.apps.catalog.constants import (
+    COURSE,
+    LEARNER_PATHWAY,
+    PROGRAM,
+    VIDEO,
+)
 from enterprise_catalog.apps.catalog.models import ContentMetadata
 from enterprise_catalog.apps.catalog.utils import localized_utcnow
 
@@ -132,3 +140,111 @@ class ContentMetadataIndexingState(TimeStampedModel):
         empty timestamps on first access.
         """
         return cls.objects.get_or_create(content_metadata=content_metadata)
+
+
+_ALL_CONTENT_TYPES = [COURSE, PROGRAM, LEARNER_PATHWAY, VIDEO]
+
+
+class IncrementalReindexAlgoliaConfig(ConfigurationModel):
+    """
+    DB-driven configuration for the ``incremental_reindex_algolia`` management command.
+
+    When the most recent row has ``enabled=True``, the values stored here take
+    precedence over whatever flags are passed on the command line.  This lets
+    operators schedule a one-off ``--force-all`` run (or toggle ``--dry-run``)
+    without touching the cron arguments or triggering a deploy.
+
+    Flip ``enabled`` back to ``False`` on the next row to return to CLI-driven
+    defaults.
+
+    .. no_pii:
+    """
+
+    force_all = models.BooleanField(
+        default=False,
+        verbose_name=_('Force all'),
+        help_text=_(
+            'Reindex all indexable content regardless of staleness. '
+            'Equivalent to --force-all on the command line.'
+        ),
+    )
+    dry_run = models.BooleanField(
+        default=False,
+        verbose_name=_('Dry run'),
+        help_text=_(
+            'Log what would be dispatched without issuing any Algolia writes. '
+            'Equivalent to --dry-run on the command line.'
+        ),
+    )
+    no_async = models.BooleanField(
+        default=False,
+        verbose_name=_('No async'),
+        help_text=_(
+            'Run the dispatcher synchronously (blocks until complete). '
+            'Equivalent to --no-async on the command line.'
+        ),
+    )
+    index_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name=_('Index name'),
+        help_text=_(
+            'Target Algolia index name. Leave blank to use the command-line value or the default.'
+        ),
+    )
+    replica_index_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name=_('Replica index name'),
+        help_text=_(
+            'Algolia replica index name. Leave blank to use the command-line value or the default.'
+        ),
+    )
+    content_types = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name=_('Content types'),
+        help_text=(
+            f'Comma-separated subset of content types to reindex: '
+            f'{", ".join(_ALL_CONTENT_TYPES)}. '
+            f'Leave blank to reindex all types.'
+        ),
+    )
+
+    class Meta:
+        verbose_name = 'Incremental Reindex Algolia Config'
+        verbose_name_plural = 'Incremental Reindex Algolia Configs'
+
+    @classmethod
+    def current_options(cls):
+        """
+        Return a dict of command options from the current configuration row.
+
+        When the current row is disabled (or no row exists), returns an empty
+        dict so the caller falls back to command-line arguments unchanged.
+
+        Non-empty string fields only override their corresponding option when
+        they carry a value; blank means "leave the CLI value alone."
+        """
+        config = cls.current()
+        if not config.enabled:
+            return {}
+
+        opts = {
+            'force_all': config.force_all,
+            'dry_run': config.dry_run,
+            'no_async': config.no_async,
+        }
+        if config.index_name:
+            opts['index_name'] = config.index_name
+        if config.replica_index_name:
+            opts['replica_index_name'] = config.replica_index_name
+        if config.content_types:
+            parsed = [t.strip() for t in config.content_types.split(',') if t.strip()]
+            valid = [t for t in parsed if t in _ALL_CONTENT_TYPES]
+            if valid:
+                opts['content_types'] = valid
+        return opts

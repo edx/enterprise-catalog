@@ -20,6 +20,7 @@ from enterprise_catalog.apps.api_client.constants import (
     COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER,
     DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY,
     DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_TTL,
+    OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS,
 )
 from enterprise_catalog.apps.catalog.constants import (
     ALGOLIA_DEFAULT_TIMESTAMP,
@@ -65,29 +66,29 @@ ALGOLIA_UUID_BATCH_SIZE = 100
 
 ALGOLIA_JSON_METADATA_MAX_SIZE = 100000
 ALGOLIA_REPLICA_INDEX_NAME = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
-# Optional second replica that sorts courses by recency (newest-first). Only declared when a
-# name is configured (see settings.ALGOLIA); absent in local/test until ops sets it in the
-# deployment config.
-ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME = settings.ALGOLIA.get('RECENTLY_PUBLISHED_REPLICA_INDEX_NAME')
 
 algolia_replica_index = f'virtual({ALGOLIA_REPLICA_INDEX_NAME})'
 
 
-def _build_algolia_replicas(recently_published_replica_index_name):
+def _build_algolia_replicas():
     """
     Build the list of replica indexes to declare on the primary index.
 
-    The recency replica is only included when its name is configured, so deploying this code
-    before ops sets the name won't declare a ``virtual(None)`` replica on the primary index.
+    Always includes the base (duration) replica, plus a ``virtual(name)`` for each optional sort
+    replica (see ``OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS``) whose index name is configured.
+    Unconfigured optional replicas are omitted, so deploying this code before ops sets a name
+    won't declare a ``virtual(None)`` replica on the primary index.
     """
     replicas = [algolia_replica_index]
-    if recently_published_replica_index_name:
-        replicas.append(f'virtual({recently_published_replica_index_name})')
+    for config_key in OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS:
+        index_name = settings.ALGOLIA.get(config_key)
+        if index_name:
+            replicas.append(f'virtual({index_name})')
     return replicas
 
 
 # Replicas declared on the primary index (see ``_build_algolia_replicas``).
-ALGOLIA_REPLICAS = _build_algolia_replicas(ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME)
+ALGOLIA_REPLICAS = _build_algolia_replicas()
 
 # keep attributes from content objects that we explicitly want in Algolia
 ALGOLIA_FIELDS = [
@@ -256,6 +257,29 @@ ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS = {
         'desc(recent_enrollment_count)',
     ],
 }
+
+# Maps each optional-replica config key (see ``OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS``) to the
+# index settings applied to that replica. Adding a new sort replica means adding its key to the
+# shared tuple and its ``customRanking`` settings here (and computing the field it sorts on).
+OPTIONAL_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY = {
+    'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
+}
+
+
+def _configured_optional_replicas():
+    """
+    Return ``(index_name, index_settings)`` for each optional sort replica whose name is set.
+
+    Optional replicas are additive sort orders declared on the primary index only when ops sets
+    their index name in ``settings.ALGOLIA``. An unconfigured replica is skipped, so this is
+    inert until its name is provided.
+    """
+    configured = []
+    for config_key in OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS:
+        index_name = settings.ALGOLIA.get(config_key)
+        if index_name:
+            configured.append((index_name, OPTIONAL_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY[config_key]))
+    return configured
 
 
 def _should_index_course(course_metadata):
@@ -448,15 +472,12 @@ def new_search_client_or_error():
 
 def configure_algolia_index(algolia_client):
     """
-    Configures the settings for an Algolia index.
+    Configures the settings for the primary Algolia index and its replicas.
     """
     algolia_client.set_index_settings(ALGOLIA_INDEX_SETTINGS)
     algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=ALGOLIA_REPLICA_INDEX_NAME)
-    if ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME:
-        algolia_client.set_index_settings(
-            ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
-            index_name=ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME,
-        )
+    for index_name, index_settings in _configured_optional_replicas():
+        algolia_client.set_index_settings(index_settings, index_name=index_name)
 
 
 def get_algolia_object_id(content_type, uuid):

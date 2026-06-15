@@ -16,11 +16,12 @@ consumer switches sort by pointing its search at a different index name.  To
 offer a "newest courses first" sort we add a recency-sorted replica.
 
 * The primary index (``ALGOLIA['INDEX_NAME']``) keeps the relevance ranking.
-* A new replica (``ALGOLIA['RECENTLY_PUBLISHED_REPLICA_INDEX_NAME']``) leads its
-  ranking with ``desc(recently_published_timestamp)`` — a per-course Unix
-  timestamp of the *earliest published course-run start* (the same signal as the
-  ``is_new_content`` flag, via the shared ``_earliest_published_course_run_start``
-  helper).  Courses with no published run start get ``0`` so they sort last under
+* A new replica (``ALGOLIA['RECENTLY_RELEASED_REPLICA_INDEX_NAME']``) leads its
+  ranking with ``desc(recently_released_timestamp)`` — a per-course Unix
+  timestamp of the *earliest course-run start of any status* (the discovery course
+  release date, the same signal as the ``is_new_content`` flag, via the shared
+  ``_earliest_course_run_start`` helper — ENT-11386).  Courses with no run start
+  get ``0`` so they sort last under
   a descending ranking — deliberately not the far-future ``ALGOLIA_DEFAULT_TIMESTAMP``,
   which would float undated courses to the top.
 
@@ -36,7 +37,7 @@ The sort is rolled out across three repositories:
 Two facts shape the failure modes:
 
 * ``ALGOLIA`` is *replaced* (not merged) from the deployment YAML, so the replica
-  is only live once ops sets ``RECENTLY_PUBLISHED_REPLICA_INDEX_NAME`` in
+  is only live once ops sets ``RECENTLY_RELEASED_REPLICA_INDEX_NAME`` in
   ``edx-internal`` and a ``reindex_algolia`` run declares it on the primary.
 * An Algolia *virtual* replica exists as soon as it is declared on the primary
   index's settings (it mirrors the primary's records); it does not wait for a
@@ -93,7 +94,7 @@ Consequences
 
 * **Covered:** "replica name not configured" → the base (relevance) index is
   used.  This is handled explicitly in both the backend (conditional replica
-  declaration) and the MFE (the ``&& recentlyPublishedIndexName`` guard), so the
+  declaration) and the MFE (the ``&& recentlyReleasedIndexName`` guard), so the
   default-to-base behavior is guaranteed for the unconfigured case.
 * **Not covered in code:** "replica name configured but the Algolia index does
   not exist yet" → the MFE would query a missing index and surface an error /

@@ -248,7 +248,7 @@ class AlgoliaUtilsTests(TestCase):
             {'status': 'published', 'start': 'not-a-date'},
         ]}) is False
 
-    def test_get_course_recently_published_timestamp(self):
+    def test_get_course_recently_released_timestamp(self):
         """
         Verify the "newest courses" sort timestamp uses the earliest run start (any status).
         """
@@ -257,28 +257,28 @@ class AlgoliaUtilsTests(TestCase):
         old = now - timedelta(days=500)
 
         # No run start -> 0 so the course sorts last under a desc ranking.
-        assert utils.get_course_recently_published_timestamp({'course_runs': []}) == 0
+        assert utils.get_course_recently_released_timestamp({'course_runs': []}) == 0
         # Malformed ISO strings are silently ignored (treated as no date).
-        assert utils.get_course_recently_published_timestamp(
+        assert utils.get_course_recently_released_timestamp(
             {'course_runs': [{'status': 'published', 'start': 'not-a-date'}]}
         ) == 0
         # Run status is irrelevant: an unpublished run's start still counts.
-        assert utils.get_course_recently_published_timestamp(
+        assert utils.get_course_recently_released_timestamp(
             {'course_runs': [{'status': 'unpublished', 'start': recent.isoformat()}]}
         ) == int(recent.timestamp())
         # A run start -> its Unix timestamp, regardless of age (unlike is_new_content's 12-month window).
-        assert utils.get_course_recently_published_timestamp(
+        assert utils.get_course_recently_released_timestamp(
             {'course_runs': [{'status': 'published', 'start': recent.isoformat()}]}
         ) == int(recent.timestamp())
-        assert utils.get_course_recently_published_timestamp(
+        assert utils.get_course_recently_released_timestamp(
             {'course_runs': [{'status': 'published', 'start': old.isoformat()}]}
         ) == int(old.timestamp())
         # Earliest start wins across any status: an old unpublished run is the release date.
-        assert utils.get_course_recently_published_timestamp({'course_runs': [
+        assert utils.get_course_recently_released_timestamp({'course_runs': [
             {'status': 'unpublished', 'start': old.isoformat()},
             {'status': 'published', 'start': recent.isoformat()},
         ]}) == int(old.timestamp())
-        assert utils.get_course_recently_published_timestamp({'course_runs': [
+        assert utils.get_course_recently_released_timestamp({'course_runs': [
             {'status': 'published', 'start': old.isoformat()},
             {'status': 'published', 'start': recent.isoformat()},
         ]}) == int(old.timestamp())
@@ -288,11 +288,11 @@ class AlgoliaUtilsTests(TestCase):
         # pylint: disable=protected-access
         with override_settings(ALGOLIA={
             'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
-            'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_published_desc',
+            'RECENTLY_RELEASED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_released_desc',
         }):
             assert utils._build_algolia_replicas() == [
                 'virtual(enterprise_catalog_duration_desc)',
-                'virtual(enterprise_catalog_recently_published_desc)',
+                'virtual(enterprise_catalog_recently_released_desc)',
             ]
         # Only the base replica configured -> only it is declared.
         with override_settings(ALGOLIA={'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc'}):
@@ -301,15 +301,15 @@ class AlgoliaUtilsTests(TestCase):
         with override_settings(ALGOLIA={}):
             assert not utils._build_algolia_replicas()
 
-    def test_algolia_object_includes_recently_published_timestamp(self):
-        """The course Algolia object carries recently_published_timestamp (and is_new_content)."""
+    def test_algolia_object_includes_recently_released_timestamp(self):
+        """The course Algolia object carries recently_released_timestamp (and is_new_content)."""
         # pylint: disable=protected-access
         course_metadata = ContentMetadataFactory(content_type=COURSE)
         algolia_object = utils._algolia_object_from_product(
             course_metadata.json_metadata, utils.ALGOLIA_FIELDS,
         )
-        expected = utils.get_course_recently_published_timestamp(course_metadata.json_metadata)
-        assert algolia_object['recently_published_timestamp'] == expected
+        expected = utils.get_course_recently_released_timestamp(course_metadata.json_metadata)
+        assert algolia_object['recently_released_timestamp'] == expected
         assert 'is_new_content' in algolia_object
 
     @ddt.data(
@@ -1069,16 +1069,16 @@ class AlgoliaUtilsTests(TestCase):
         assert set_index_settings.call_count == 2
 
     @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')
-    def test_configure_algolia_index_configures_recently_published_replica(self, mock_search_client):
+    def test_configure_algolia_index_configures_recently_released_replica(self, mock_search_client):
         """
-        When a recently-published replica name is configured, its settings are applied too.
+        When a recently-released replica name is configured, its settings are applied too.
         """
         algolia_client = utils.get_initialized_algolia_client()
-        replica_name = 'enterprise_catalog_recently_published_desc'
-        with override_settings(ALGOLIA={'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': replica_name}):
+        replica_name = 'enterprise_catalog_recently_released_desc'
+        with override_settings(ALGOLIA={'RECENTLY_RELEASED_REPLICA_INDEX_NAME': replica_name}):
             utils.configure_algolia_index(algolia_client)
         mock_search_client.return_value.set_index_settings.assert_any_call(
-            utils.ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
+            utils.ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
             index_name=replica_name,
         )
 
@@ -1090,7 +1090,7 @@ class AlgoliaUtilsTests(TestCase):
         """
         algolia_client = utils.get_initialized_algolia_client()
         base_name = 'enterprise_catalog_duration_desc'
-        recency_name = 'enterprise_catalog_recently_published_desc'
+        recency_name = 'enterprise_catalog_recently_released_desc'
 
         def fail_only_for_recency(index_settings, index_name=None):  # pylint: disable=unused-argument
             # Primary and base-replica calls succeed; only the recency replica raises.
@@ -1100,7 +1100,7 @@ class AlgoliaUtilsTests(TestCase):
         mock_search_client.return_value.set_index_settings.side_effect = fail_only_for_recency
         with override_settings(ALGOLIA={
             'REPLICA_INDEX_NAME': base_name,
-            'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': recency_name,
+            'RECENTLY_RELEASED_REPLICA_INDEX_NAME': recency_name,
         }):
             with self.assertLogs(utils.LOGGER, level='ERROR') as error_logs:
                 # Does not raise, even though the recency replica fails.
@@ -1111,7 +1111,7 @@ class AlgoliaUtilsTests(TestCase):
         set_index_settings.assert_any_call(utils.ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=base_name)
         # The recency replica was attempted (and failed) -- logged, not swallowed silently.
         set_index_settings.assert_any_call(
-            utils.ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
+            utils.ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
             index_name=recency_name,
         )
         assert any(recency_name in message for message in error_logs.output)

@@ -104,13 +104,13 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         ``set_index_settings(index_name=...)`` applies settings to the replica resolved by name.
         """
         client = self._build_client()
-        replica = mock.MagicMock(name='recently_published_replica')
+        replica = mock.MagicMock(name='recently_released_replica')
         client._client.init_index.return_value = replica
-        settings_payload = {'customRanking': ['desc(recently_published_timestamp)']}
+        settings_payload = {'customRanking': ['desc(recently_released_timestamp)']}
 
-        client.set_index_settings(settings_payload, index_name='enterprise_catalog_recently_published_desc')
+        client.set_index_settings(settings_payload, index_name='enterprise_catalog_recently_released_desc')
 
-        client._client.init_index.assert_called_once_with('enterprise_catalog_recently_published_desc')
+        client._client.init_index.assert_called_once_with('enterprise_catalog_recently_released_desc')
         replica.set_settings.assert_called_once_with(settings_payload)
 
     def test_set_index_settings_noop_when_primary_uninitialized(self):
@@ -125,7 +125,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         An AlgoliaException from set_settings propagates to the caller.
         """
         client = self._build_client()
-        replica = mock.MagicMock(name='recently_published_replica')
+        replica = mock.MagicMock(name='recently_released_replica')
         replica.set_settings.side_effect = AlgoliaException('boom')
         client._client.init_index.return_value = replica
         with self.assertRaises(AlgoliaException):
@@ -134,7 +134,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
     @override_settings(ALGOLIA={
         'INDEX_NAME': 'enterprise_catalog',
         'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
-        'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_published_desc',
+        'RECENTLY_RELEASED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_released_desc',
         'SEARCH_API_KEY': 'fake-search-key',
     })
     @mock.patch('enterprise_catalog.apps.api_client.algolia.SearchClient.generate_secured_api_key')
@@ -150,7 +150,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         assert restrictions['restrictIndices'] == [
             'enterprise_catalog',
             'enterprise_catalog_duration_desc',
-            'enterprise_catalog_recently_published_desc',
+            'enterprise_catalog_recently_released_desc',
         ]
 
     @override_settings(ALGOLIA={

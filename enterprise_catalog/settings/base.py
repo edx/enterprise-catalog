@@ -441,8 +441,8 @@ ALGOLIA = {
     # its video search (SEARCH_INDEX_IDS.VIDEOS) at this index, so it is also the MFE's
     # ALGOLIA_REPLICA_INDEX_NAME env var.
     'REPLICA_INDEX_NAME': '',
-    # "Newest courses first" replica, sorted by desc(recently_published_timestamp).
-    'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': '',
+    # "Newest courses first" replica, sorted by desc(recently_released_timestamp).
+    'RECENTLY_RELEASED_REPLICA_INDEX_NAME': '',
     'APPLICATION_ID': '',
     'API_KEY': '',
 }

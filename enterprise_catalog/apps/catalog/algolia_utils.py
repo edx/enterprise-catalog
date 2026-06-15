@@ -162,7 +162,7 @@ ALGOLIA_FIELDS = [
     'transcript_languages',
     'translation_languages',
     'is_new_content',
-    'recently_published_timestamp',
+    'recently_released_timestamp',
 ]
 
 # default configuration for the index
@@ -242,12 +242,12 @@ ALGOLIA_REPLICA_INDEX_SETTINGS = {
 }
 
 # Replica that sorts courses by recency (newest-first). Leads with the precomputed
-# ``recently_published_timestamp`` (the course's earliest published run start) descending,
+# ``recently_released_timestamp`` (the course's earliest course-run start, any status) descending,
 # then falls back to the primary index's tie-breakers. Surfaced in the Learner Portal search
 # page as the "newest courses first" sort.
-ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS = {
+ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS = {
     'customRanking': [
-        'desc(recently_published_timestamp)',
+        'desc(recently_released_timestamp)',
         'asc(metadata_language)',
         'asc(visible_via_association)',
         'asc(created)',
@@ -261,7 +261,7 @@ ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS = {
 # and its ``customRanking`` settings here (and computing the field its ``customRanking`` sorts on).
 ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY = {
     'REPLICA_INDEX_NAME': ALGOLIA_REPLICA_INDEX_SETTINGS,
-    'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
+    'RECENTLY_RELEASED_REPLICA_INDEX_NAME': ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
 }
 
 
@@ -701,11 +701,11 @@ def is_course_archived(course):
     return len(availability_list) == 0 or 'Archived' in availability_list
 
 
-def _earliest_published_course_run_start(course):
+def _earliest_course_run_start(course):
     """
     The earliest course-run start as a timezone-aware datetime, or None.
 
-    Shared by the "new content" facet and the "recently published" sort timestamp so both key off
+    Shared by the "new content" facet and the "newest courses" sort timestamp so both key off
     the same signal: a course's earliest run start across runs of *any* status, matching the
     Discovery course release date (ENT-11386). Earlier runs that were later unpublished/archived
     still count, so a recent re-run can't make a long-standing course look new.
@@ -721,14 +721,14 @@ def _earliest_published_course_run_start(course):
 
 def is_course_new_content(course):
     """True if the course's earliest run start (any status) is within the last 12 months (ENT-11386)."""
-    earliest_start = _earliest_published_course_run_start(course)
+    earliest_start = _earliest_course_run_start(course)
     if earliest_start is None:
         return False
     now = localized_utcnow()
     return now - relativedelta(months=12) <= earliest_start <= now
 
 
-def get_course_recently_published_timestamp(course):
+def get_course_recently_released_timestamp(course):
     """
     Unix timestamp (int) of the course's earliest course-run start (any status), used as the
     custom-ranking attribute for the "newest courses first" Algolia replica.
@@ -737,7 +737,7 @@ def get_course_recently_published_timestamp(course):
     default to 0 so they sort last under a desc ranking -- ``ALGOLIA_DEFAULT_TIMESTAMP`` (a
     far-future sentinel) is deliberately NOT used, since it would float undated courses to the top.
     """
-    earliest_start = _earliest_published_course_run_start(course)
+    earliest_start = _earliest_course_run_start(course)
     return int(earliest_start.timestamp()) if earliest_start else 0
 
 
@@ -1769,7 +1769,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'translation_languages': get_course_translation_languages(searchable_product),
             'metadata_language': searchable_product.get('metadata_language', 'en'),
             'is_new_content': is_course_new_content(searchable_product),
-            'recently_published_timestamp': get_course_recently_published_timestamp(searchable_product),
+            'recently_released_timestamp': get_course_recently_released_timestamp(searchable_product),
         })
     elif searchable_product.get('content_type') == PROGRAM:
         # Build course metadata cache once for all program functions that need it

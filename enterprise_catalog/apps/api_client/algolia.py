@@ -108,7 +108,7 @@ class AlgoliaSearchClient:
         Set settings on an Algolia index, defaulting to the primary index.
 
         Pass ``index_name`` to target a replica instead -- the base ``REPLICA_INDEX_NAME``
-        replica, the "recently published" sort replica, etc. A replica must already be
+        replica, the "newest courses" sort replica, etc. A replica must already be
         declared on the primary index's ``replicas`` setting (Algolia creates replica
         indices when the primary index's settings are saved).
 

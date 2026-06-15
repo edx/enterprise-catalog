@@ -8,7 +8,7 @@ search at a different index name.
 
 All replicas are driven by **one registry**, so adding a sort is mostly additive. This guide
 walks through it end to end. See ``docs/decisions/0014-newest-courses-sort-replica.rst`` for
-the design rationale, and treat the **recently-published ("newest first") replica** as the
+the design rationale, and treat the **recently-released ("newest first") replica** as the
 canonical example to copy.
 
 The mental model: names vs. definitions
@@ -46,7 +46,7 @@ Backend steps (this service)
     ALGOLIA = {
         'INDEX_NAME': '',
         'REPLICA_INDEX_NAME': '',                       # base replica, desc(duration); MFE video search
-        'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': '',     # "newest first", desc(recently_published_timestamp)
+        'RECENTLY_RELEASED_REPLICA_INDEX_NAME': '',     # "newest first", desc(recently_released_timestamp)
         # "price: low to high", asc(first_enrollable_paid_seat_price)
         'PRICE_ASC_REPLICA_INDEX_NAME': '',
         'APPLICATION_ID': '',
@@ -65,7 +65,7 @@ import it without a circular dependency.)
 
     ALGOLIA_REPLICA_CONFIG_KEYS = (
         'REPLICA_INDEX_NAME',
-        'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME',
+        'RECENTLY_RELEASED_REPLICA_INDEX_NAME',
         'PRICE_ASC_REPLICA_INDEX_NAME',
     )
 
@@ -75,7 +75,7 @@ price example reuses ``first_enrollable_paid_seat_price``), skip this step. If i
 signal, in ``enterprise_catalog/apps/catalog/algolia_utils.py``:
 
 * write a ``get_course_<signal>(course)`` helper that returns the numeric value (see
-  ``get_course_recently_published_timestamp`` — note it returns ``0`` for "no value" so those
+  ``get_course_recently_released_timestamp`` — note it returns ``0`` for "no value" so those
   records sort last under a ``desc`` ranking; pick a sentinel that sorts your missing values to
   the *end* of *your* order);
 * add the field name to ``ALGOLIA_FIELDS``;
@@ -108,7 +108,7 @@ pagination stays deterministic:
 
     ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY = {
         'REPLICA_INDEX_NAME': ALGOLIA_REPLICA_INDEX_SETTINGS,
-        'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
+        'RECENTLY_RELEASED_REPLICA_INDEX_NAME': ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
         'PRICE_ASC_REPLICA_INDEX_NAME': ALGOLIA_PRICE_ASC_REPLICA_INDEX_SETTINGS,
     }
 

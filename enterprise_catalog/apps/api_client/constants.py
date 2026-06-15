@@ -28,7 +28,7 @@ DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_TTL = 60 * 120  # 2 hours
 # *which* replicas exist, shared by the indexer and the secured-API-key restriction.
 ALGOLIA_REPLICA_CONFIG_KEYS = (
     'REPLICA_INDEX_NAME',                      # base replica, desc(duration); MFE video search uses it
-    'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME',   # "newest courses first", desc(recently_published_timestamp)
+    'RECENTLY_RELEASED_REPLICA_INDEX_NAME',   # "newest courses first", desc(recently_released_timestamp)
 )
 
 COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER = 15

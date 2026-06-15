@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 from enterprise_catalog.apps.api_client.constants import (
-    OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS,
+    ALGOLIA_REPLICA_CONFIG_KEYS,
 )
 from enterprise_catalog.apps.catalog.utils import batch, localized_utcnow
 
@@ -50,15 +50,15 @@ class AlgoliaSearchClient:
         return settings.ALGOLIA.get('REPLICA_INDEX_NAME')
 
     @property
-    def optional_replica_index_names(self):
+    def replica_index_names(self):
         """
-        Configured index names of all optional sort replicas (empty when none are set).
+        Configured index names of every sort replica (base + additive), empty when none are set.
 
-        Driven by ``OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS``; an unconfigured replica is omitted,
-        so the secured API key only grants access to replicas that actually exist.
+        Driven by ``ALGOLIA_REPLICA_CONFIG_KEYS``; an unconfigured replica is omitted, so the
+        secured API key only grants access to replicas that actually exist.
         """
         names = []
-        for config_key in OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS:
+        for config_key in ALGOLIA_REPLICA_CONFIG_KEYS:
             index_name = settings.ALGOLIA.get(config_key)
             if index_name:
                 names.append(index_name)
@@ -443,9 +443,7 @@ class AlgoliaSearchClient:
         indices = []
         if self.algolia_index_name:
             indices.append(self.algolia_index_name)
-        if self.algolia_replica_index_name:
-            indices.append(self.algolia_replica_index_name)
-        indices.extend(self.optional_replica_index_names)
+        indices.extend(self.replica_index_names)
         if indices:
             restrictions |= {'restrictIndices': indices}
 

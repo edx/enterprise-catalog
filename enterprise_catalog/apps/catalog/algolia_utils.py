@@ -16,11 +16,11 @@ from pytz import UTC
 
 from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 from enterprise_catalog.apps.api_client.constants import (
+    ALGOLIA_REPLICA_CONFIG_KEYS,
     COURSE_REVIEW_BASE_AVG_REVIEW_SCORE,
     COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER,
     DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY,
     DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_TTL,
-    OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS,
 )
 from enterprise_catalog.apps.catalog.constants import (
     ALGOLIA_DEFAULT_TIMESTAMP,
@@ -65,22 +65,19 @@ LOGGER = logging.getLogger(__name__)
 ALGOLIA_UUID_BATCH_SIZE = 100
 
 ALGOLIA_JSON_METADATA_MAX_SIZE = 100000
-ALGOLIA_REPLICA_INDEX_NAME = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
-
-algolia_replica_index = f'virtual({ALGOLIA_REPLICA_INDEX_NAME})'
 
 
 def _build_algolia_replicas():
     """
     Build the list of replica indexes to declare on the primary index.
 
-    Always includes the base (duration) replica, plus a ``virtual(name)`` for each optional sort
-    replica (see ``OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS``) whose index name is configured.
-    Unconfigured optional replicas are omitted, so deploying this code before ops sets a name
-    won't declare a ``virtual(None)`` replica on the primary index.
+    Declares a ``virtual(name)`` for each replica in the registry (``ALGOLIA_REPLICA_CONFIG_KEYS``
+    -- the base duration replica plus any additive sort replica) whose index name is configured.
+    Unconfigured replicas are omitted, so deploying this code before ops sets a name won't declare
+    a ``virtual(None)`` replica on the primary index.
     """
-    replicas = [algolia_replica_index]
-    for config_key in OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS:
+    replicas = []
+    for config_key in ALGOLIA_REPLICA_CONFIG_KEYS:
         index_name = settings.ALGOLIA.get(config_key)
         if index_name:
             replicas.append(f'virtual({index_name})')
@@ -258,27 +255,28 @@ ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS = {
     ],
 }
 
-# Maps each optional-replica config key (see ``OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS``) to the
-# index settings applied to that replica. Adding a new sort replica means adding its key to the
-# shared tuple and its ``customRanking`` settings here (and computing the field it sorts on).
-OPTIONAL_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY = {
+# Maps each replica config key (see ``ALGOLIA_REPLICA_CONFIG_KEYS``) to the index settings
+# applied to that replica. Adding a new sort replica means adding its key to the shared tuple
+# and its ``customRanking`` settings here (and computing the field its ``customRanking`` sorts on).
+ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY = {
+    'REPLICA_INDEX_NAME': ALGOLIA_REPLICA_INDEX_SETTINGS,
     'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,
 }
 
 
-def _configured_optional_replicas():
+def _configured_replicas():
     """
-    Return ``(index_name, index_settings)`` for each optional sort replica whose name is set.
+    Return ``(index_name, index_settings)`` for each replica whose index name is configured.
 
-    Optional replicas are additive sort orders declared on the primary index only when ops sets
-    their index name in ``settings.ALGOLIA``. An unconfigured replica is skipped, so this is
-    inert until its name is provided.
+    Covers every replica in the registry -- the base duration replica and any additive sort
+    replica (``ALGOLIA_REPLICA_CONFIG_KEYS``). An unconfigured replica is skipped, so this is
+    inert until its name is provided in ``settings.ALGOLIA``.
     """
     configured = []
-    for config_key in OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS:
+    for config_key in ALGOLIA_REPLICA_CONFIG_KEYS:
         index_name = settings.ALGOLIA.get(config_key)
         if index_name:
-            configured.append((index_name, OPTIONAL_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY[config_key]))
+            configured.append((index_name, ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY[config_key]))
     return configured
 
 
@@ -475,8 +473,7 @@ def configure_algolia_index(algolia_client):
     Configures the settings for the primary Algolia index and its replicas.
     """
     algolia_client.set_index_settings(ALGOLIA_INDEX_SETTINGS)
-    algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=ALGOLIA_REPLICA_INDEX_NAME)
-    for index_name, index_settings in _configured_optional_replicas():
+    for index_name, index_settings in _configured_replicas():
         algolia_client.set_index_settings(index_settings, index_name=index_name)
 
 

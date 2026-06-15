@@ -18,6 +18,18 @@ DISCOVERY_CATALOG_QUERY_CACHE_KEY_TPL = 'catalog_query:{id}'
 DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY = 'average_course_review'
 DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_TTL = 60 * 120  # 2 hours
 
+# Algolia API Client Constants
+# settings.ALGOLIA keys that name each *optional* sort replica index (the primary index and
+# its base ``REPLICA_INDEX_NAME`` replica are always present; these are additive sort orders
+# such as "newest first"). A replica is only declared, configured, and made queryable when its
+# key holds a non-empty index name, so listing a key here is inert until ops sets the name.
+# Adding a new sort = add its key here, map it to index settings in ``algolia_utils``, and
+# compute the field its ``customRanking`` sorts on. This is the single source of truth for
+# *which* optional replicas exist, shared by the indexer and the secured-API-key restriction.
+OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS = (
+    'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME',
+)
+
 COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER = 15
 
 # As of 1/26/24 this is calculated from Snowflake:

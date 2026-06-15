@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import ddt
 from dateutil.relativedelta import relativedelta
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from enterprise_catalog.apps.catalog import algolia_utils as utils
 from enterprise_catalog.apps.catalog.algolia_utils import _get_course_run
@@ -282,16 +282,20 @@ class AlgoliaUtilsTests(TestCase):
             {'status': 'published', 'start': recent.isoformat()},
         ]}) == int(old.timestamp())
 
-    def test_build_algolia_replicas_includes_recency_replica_when_configured(self):
-        """The recency replica is declared only when its index name is configured."""
+    def test_build_algolia_replicas_includes_optional_replica_when_configured(self):
+        """An optional replica is declared only when its index name is configured."""
         # pylint: disable=protected-access
-        assert utils._build_algolia_replicas('enterprise_catalog_recently_published_desc') == [
-            utils.algolia_replica_index,
-            'virtual(enterprise_catalog_recently_published_desc)',
-        ]
-        # Unconfigured (empty / None) -> only the base replica, never virtual(None).
-        assert utils._build_algolia_replicas('') == [utils.algolia_replica_index]
-        assert utils._build_algolia_replicas(None) == [utils.algolia_replica_index]
+        replica_name = 'enterprise_catalog_recently_published_desc'
+        with override_settings(ALGOLIA={'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': replica_name}):
+            assert utils._build_algolia_replicas() == [
+                utils.algolia_replica_index,
+                f'virtual({replica_name})',
+            ]
+        # Unconfigured (empty) -> only the base replica, never virtual(None).
+        with override_settings(ALGOLIA={'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': ''}):
+            assert utils._build_algolia_replicas() == [utils.algolia_replica_index]
+        with override_settings(ALGOLIA={}):
+            assert utils._build_algolia_replicas() == [utils.algolia_replica_index]
 
     def test_algolia_object_includes_recently_published_timestamp(self):
         """The course Algolia object carries recently_published_timestamp (and is_new_content)."""
@@ -1066,7 +1070,7 @@ class AlgoliaUtilsTests(TestCase):
         """
         algolia_client = utils.get_initialized_algolia_client()
         replica_name = 'enterprise_catalog_recently_published_desc'
-        with mock.patch.object(utils, 'ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_NAME', replica_name):
+        with override_settings(ALGOLIA={'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': replica_name}):
             utils.configure_algolia_index(algolia_client)
         mock_search_client.return_value.set_index_settings.assert_any_call(
             utils.ALGOLIA_RECENTLY_PUBLISHED_REPLICA_INDEX_SETTINGS,

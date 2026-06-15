@@ -49,9 +49,13 @@ Decision
 The replica is **config-gated on both sides** and is never queried unless its
 name is configured:
 
-* Backend: the replica is declared on the primary index and its settings are
-  applied **only** when ``RECENTLY_PUBLISHED_REPLICA_INDEX_NAME`` is set;
-  otherwise it is a no-op (no ``virtual(None)`` replica is created).
+* Backend: optional sort replicas are driven by a registry
+  (``OPTIONAL_ALGOLIA_REPLICA_CONFIG_KEYS`` — the recency replica is the first
+  entry).  Each is declared on the primary index and configured **only** when its
+  ``settings.ALGOLIA`` index-name key is set; an unconfigured replica is skipped
+  entirely (no ``virtual(None)`` replica is created), so the code is inert until
+  ops provides a name.  Adding a future sort is a registry entry plus the field
+  its ``customRanking`` sorts on — not a change to the gating logic.
 * MFE: the course search uses the replica only when its index-name config var is
   non-empty (and the flag + experiment gates pass); otherwise it falls back to
   the primary (relevance) index.

@@ -432,9 +432,16 @@ LICENSE_MANAGER_BASE_URL = os.environ.get('LICENSE_MANAGER_BASE_URL', '')
 STUDIO_BASE_URL = os.environ.get('STUDIO_BASE_URL', '')
 
 # Algolia
+# Index-name keys are populated per-environment from the deployment config (edx-internal); the
+# whole ALGOLIA dict is *replaced* there, not merged. Each replica is declared/configured only
+# when its key holds a non-empty name (see ALGOLIA_REPLICA_CONFIG_KEYS).
 ALGOLIA = {
     'INDEX_NAME': '',
+    # Base replica, sorted by duration descending (desc(duration)). The learner-portal MFE points
+    # its video search (SEARCH_INDEX_IDS.VIDEOS) at this index, so it is also the MFE's
+    # ALGOLIA_REPLICA_INDEX_NAME env var.
     'REPLICA_INDEX_NAME': '',
+    # "Newest courses first" replica, sorted by desc(recently_published_timestamp).
     'RECENTLY_PUBLISHED_REPLICA_INDEX_NAME': '',
     'APPLICATION_ID': '',
     'API_KEY': '',

@@ -61,6 +61,12 @@ name is configured:
   ``index_exists`` still eagerly manage the primary + base-replica *handles* — that
   is the required-core-pair lifecycle, a separate concern from which replicas get
   declared/configured.)
+* Backend (fail-safe): configuring each replica in ``configure_algolia_index`` is
+  wrapped so that any ``AlgoliaException`` is logged and skipped.  One replica
+  failing to configure never aborts the reindex — the primary (relevance) index
+  and the other replicas are still configured.  The failed replica keeps its prior
+  settings (or, when brand new, mirrors the primary's relevance ranking) until the
+  next successful run, so the degraded state is still the safe base sort.
 * MFE: the course search uses the replica only when its index-name config var is
   non-empty (and the flag + experiment gates pass); otherwise it falls back to
   the primary (relevance) index.
@@ -94,6 +100,11 @@ Consequences
   empty results rather than falling back.  This is a transient,
   operator-controlled window mitigated by the rollout order and the kill-switch
   flag, not by code.
+* **Reindex degrades gracefully:** if configuring a replica fails, the error is
+  logged and the reindex continues with the primary index and the other replicas
+  intact, so a problem with one sort can never take down core search indexing.
+  The worst case is that one replica lags its ranking until the next run — never a
+  broken or empty primary index.
 * **The waffle flag is the readiness contract:** enabling it asserts "the replica
   is live."  This keeps the safe path a single, instantly reversible toggle
   rather than per-request defensive logic in the search hot path.

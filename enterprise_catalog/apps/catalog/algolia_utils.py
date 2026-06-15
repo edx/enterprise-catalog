@@ -3,6 +3,7 @@ import datetime
 import logging
 import time
 
+from algoliasearch.exceptions import AlgoliaException
 from algoliasearch.search_client import SearchClient
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
@@ -474,7 +475,17 @@ def configure_algolia_index(algolia_client):
     """
     algolia_client.set_index_settings(ALGOLIA_INDEX_SETTINGS)
     for index_name, index_settings in _configured_replicas():
-        algolia_client.set_index_settings(index_settings, index_name=index_name)
+        # A replica's settings failing to apply must never abort the reindex: log and continue so
+        # the primary (relevance) index and the other replicas stay configured. The failed replica
+        # keeps its prior settings (or, if brand new, mirrors the primary's relevance ranking)
+        # until the next successful run, so the safe fallback is the base sort. See ADR 0014.
+        try:
+            algolia_client.set_index_settings(index_settings, index_name=index_name)
+        except AlgoliaException:
+            LOGGER.exception(
+                'Failed to configure replica index "%s"; continuing with the remaining indexes.',
+                index_name,
+            )
 
 
 def get_algolia_object_id(content_type, uuid):

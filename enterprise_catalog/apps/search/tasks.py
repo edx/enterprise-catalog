@@ -64,6 +64,8 @@ from enterprise_catalog.apps.api.tasks import (
 )
 from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 from enterprise_catalog.apps.catalog.algolia_utils import (
+    ALGOLIA_FIELDS,
+    create_algolia_objects,
     get_initialized_algolia_client,
 )
 from enterprise_catalog.apps.catalog.constants import (
@@ -221,6 +223,20 @@ def index_videos_batch_in_algolia(
     """
     Index a batch of Video records into Algolia.
 
+    Videos are stored in the ``Video`` model (keyed by ``edx_video_id``), not in
+    ``ContentMetadata``.  The ContentMetadata-backed tasks (courses, programs,
+    pathways) delegate object-building to ``_get_algolia_products_for_batch``,
+    which is built entirely around ``ContentMetadata`` querysets and cannot handle
+    ``Video`` records.  This task therefore builds objects directly:
+
+    1. ``add_video_to_algolia_objects`` — builds the base product dict (objectID,
+       title, catalog/customer UUIDs, etc.) from the ``Video`` model.
+    2. ``create_algolia_objects`` — enriches each dict with DB-derived fields
+       (org, partners, logo_image_urls, image_url, course_run_key,
+       transcript_summary, video_skills, duration) via ``_algolia_object_from_product``
+       and filters the result down to ``ALGOLIA_FIELDS``.  This mirrors the final
+       step that ``_get_algolia_products_for_batch`` performs for other content types.
+
     Unlike the ContentMetadata-backed tasks, this does not write
     ContentMetadataIndexingState rows — video staleness is proxied through
     the parent course's state.
@@ -277,6 +293,9 @@ def index_videos_batch_in_algolia(
             'index_videos_batch_in_algolia: no Algolia objects generated for pks=%s', video_pks,
         )
         return {'content_type': VIDEO, 'indexed': 0, 'skipped': len(video_pks)}
+
+    # Step 2: DB enrichment + ALGOLIA_FIELDS filter (see docstring).
+    algolia_objects = create_algolia_objects(algolia_objects, ALGOLIA_FIELDS)
 
     algolia_client = get_initialized_algolia_client()
     algolia_client.save_objects_batch(algolia_objects, index_name=index_name)

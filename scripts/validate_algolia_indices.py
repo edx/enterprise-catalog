@@ -1,15 +1,38 @@
 """
 Validate parity between two Algolia indices (v1 vs v2).
 
-Two subcommands:
+Subcommands (may be combined on one invocation in any order):
 
-  fetch    — Hit the Algolia API, save raw results to scripts/data/algolia_validation/.
-             Expensive (browses the full index); safe to skip if cached data exists.
+  fetch              Hit the Algolia API, save raw results to scripts/data/algolia_validation/.
+                     Expensive (browses the full index); safe to skip if cached data exists.
 
-  analyze  — Read saved data and print analysis. No API calls; fast to re-run.
+  analyze            Read saved facet/ID data and print analysis. No API calls; fast to re-run.
 
-You can chain them:
-  python scripts/validate_algolia_indices.py fetch analyze --v1 enterprise_catalog --v2 enterprise_catalog_v2
+  fetch-level-type   Browse both indices and save objectID + level_type + content_type + title
+                     for every record. Prerequisite for the level-type subcommand.
+
+  level-type         Compare level_type values record-by-record and report mismatches.
+
+  fetch-spot-check   Fetch --sample-size (default 50) full records from both indices.
+                     Reads the existing object-ID data to pick IDs that appear in both.
+                     Prerequisite for the spot-check subcommand.
+
+  spot-check         Compare every field of the sampled records between v1 and v2.
+
+Examples:
+
+  # Fetch everything and run all analyses in one shot:
+  python scripts/validate_algolia_indices.py \\
+    fetch fetch-level-type fetch-spot-check \\
+    analyze level-type spot-check \\
+    --v1 enterprise_catalog --v2 enterprise_catalog_v2
+
+  # Re-run analyses against cached data (no API calls):
+  python scripts/validate_algolia_indices.py analyze level-type spot-check
+
+  # Fetch a larger spot-check sample:
+  python scripts/validate_algolia_indices.py fetch-spot-check spot-check \\
+    --v1 enterprise_catalog --v2 enterprise_catalog_v2 --sample-size 200
 
 Credentials are read from scripts/.env (or the file given by --env-file).
 Required vars: ALGOLIA_APPLICATION_ID and ALGOLIA_ADMIN_API_KEY (or ALGOLIA_API_KEY).
@@ -27,8 +50,10 @@ Run from the project root, inside the app container:
 import argparse
 import json
 import os
+import random
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 
 try:
@@ -133,6 +158,30 @@ def fetch_object_ids(index):
     }
 
 
+def _browse_fields(index, fields):
+    """
+    Browse the entire index returning a dict keyed by objectID.
+    Each value is a dict of the requested fields (None for missing).
+    """
+    records = {}
+    for hit in index.browse_objects({'attributesToRetrieve': fields}):
+        oid = hit['objectID']
+        records[oid] = {f: hit.get(f) for f in fields if f != 'objectID'}
+        if len(records) % 25_000 == 0:
+            print(f'    ... {len(records):,} records fetched', flush=True)
+    return records
+
+
+def _batch_get_objects(index, object_ids, batch_size=500):
+    """Fetch full records for object_ids in batches via getObjects."""
+    records = []
+    for i in range(0, len(object_ids), batch_size):
+        batch = object_ids[i:i + batch_size]
+        result = index.get_objects(batch)
+        records.extend(r for r in result.get('results', []) if r is not None)
+    return records
+
+
 # ---------------------------------------------------------------------------
 # Subcommand: fetch
 # ---------------------------------------------------------------------------
@@ -163,6 +212,111 @@ def cmd_fetch(args):
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: fetch-level-type
+# ---------------------------------------------------------------------------
+
+def cmd_fetch_level_type(args):
+    """
+    Browse both indices, pulling objectID + level_type + content_type + title
+    for every record. Stores a dict keyed by objectID for fast comparison.
+    Expect ~2-3 minutes per index (~370k records).
+    """
+    _load_dotenv(args.env_file)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    client = _algolia_client()
+
+    for label, index_name in [('v1', args.v1), ('v2', args.v2)]:
+        print(f'\n[{label}] {index_name} — browsing level_type fields...')
+        index = client.init_index(index_name)
+        records = _browse_fields(index, ['objectID', 'level_type', 'content_type', 'title'])
+        path = DATA_DIR / f'{label}_level_type.json'
+        path.write_text(json.dumps({
+            'count': len(records),
+            'records': records,
+            'fetched_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        }))
+        size_kb = path.stat().st_size // 1024
+        print(f'  Saved → {path}  ({len(records):,} records, {size_kb:,} KB)')
+
+    print()
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: fetch-spot-check
+# ---------------------------------------------------------------------------
+
+def cmd_fetch_spot_check(args):
+    """
+    Pull a stratified random sample of full records from both indices.
+    Stratifies across content_type by sampling proportionally from each
+    type found in the level_type data (if available) or falling back to
+    a flat random sample from the ID intersection.
+    """
+    _load_dotenv(args.env_file)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    sample_size = args.sample_size
+
+    # Prefer stratified sample using level_type data (has content_type per ID).
+    lt_path_v1 = DATA_DIR / 'v1_level_type.json'
+    ids_path_v1 = DATA_DIR / 'v1_object_ids.json'
+    ids_path_v2 = DATA_DIR / 'v2_object_ids.json'
+
+    if lt_path_v1.exists():
+        lt_data = json.loads(lt_path_v1.read_text())
+        lt_path_v2 = DATA_DIR / 'v2_level_type.json'
+        in_both_set = set(lt_data['records'])
+        if lt_path_v2.exists():
+            in_both_set &= set(json.loads(lt_path_v2.read_text())['records'])
+        # Group by content_type
+        by_type = defaultdict(list)
+        for oid, rec in lt_data['records'].items():
+            if oid in in_both_set:
+                by_type[rec.get('content_type') or '_unknown'].append(oid)
+        # Proportional allocation
+        total_in_both = len(in_both_set)
+        sample_ids = []
+        for ctype, ids in sorted(by_type.items()):
+            n = max(1, round(sample_size * len(ids) / total_in_both))
+            random.seed(42)
+            sample_ids.extend(random.sample(ids, min(n, len(ids))))
+        # Trim to requested size
+        random.seed(42)
+        if len(sample_ids) > sample_size:
+            sample_ids = random.sample(sample_ids, sample_size)
+        print(f'Stratified sample: {len(sample_ids)} records across {len(by_type)} content types')
+        for ctype, ids in sorted(by_type.items()):
+            count = sum(1 for oid in sample_ids if lt_data['records'].get(oid, {}).get('content_type') == ctype)
+            print(f'  {ctype}: {count}')
+    elif ids_path_v1.exists() and ids_path_v2.exists():
+        v1_ids = set(json.loads(ids_path_v1.read_text())['object_ids'])
+        v2_ids = set(json.loads(ids_path_v2.read_text())['object_ids'])
+        in_both = sorted(v1_ids & v2_ids)
+        random.seed(42)
+        sample_ids = random.sample(in_both, min(sample_size, len(in_both)))
+        print(f'Flat random sample: {len(sample_ids)} records (no content_type stratification)')
+    else:
+        sys.exit(
+            'No object-ID or level-type data found.\n'
+            'Run `fetch --v1 <name> --v2 <name>` or `fetch-level-type` first.'
+        )
+
+    client = _algolia_client()
+    for label, index_name in [('v1', args.v1), ('v2', args.v2)]:
+        print(f'\n[{label}] {index_name} — fetching {len(sample_ids)} full records...')
+        index = client.init_index(index_name)
+        records = _batch_get_objects(index, sample_ids)
+        path = DATA_DIR / f'{label}_sample.json'
+        path.write_text(json.dumps({
+            'sample_size': len(sample_ids),
+            'records': records,
+            'fetched_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        }, indent=2))
+        print(f'  Saved → {path}  ({len(records)} records)')
+
+    print()
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: analyze
 # ---------------------------------------------------------------------------
 
@@ -184,6 +338,178 @@ def cmd_analyze():
     _print_facet_analysis(v1_facets, v2_facets)
     _print_id_diff_analysis(v1_ids_data, v2_ids_data)
 
+
+# ---------------------------------------------------------------------------
+# Subcommand: level-type
+# ---------------------------------------------------------------------------
+
+def cmd_level_type():
+    """
+    Compare level_type values record-by-record between v1 and v2.
+    Reports a breakdown of (v1_value → v2_value) transition counts with
+    samples, then saves the full mismatch list to level_type_mismatches.json.
+    """
+    for label in ('v1', 'v2'):
+        p = DATA_DIR / f'{label}_level_type.json'
+        if not p.exists():
+            sys.exit(
+                f'Missing {p}\n'
+                'Run `fetch-level-type --v1 <name> --v2 <name>` first.'
+            )
+
+    v1_data = json.loads((DATA_DIR / 'v1_level_type.json').read_text())
+    v2_data = json.loads((DATA_DIR / 'v2_level_type.json').read_text())
+    v1_records = v1_data['records']
+    v2_records = v2_data['records']
+
+    in_both = set(v1_records) & set(v2_records)
+
+    mismatches = []
+    for oid in in_both:
+        v1_lt = v1_records[oid].get('level_type')
+        v2_lt = v2_records[oid].get('level_type')
+        if v1_lt != v2_lt:
+            mismatches.append({
+                'objectID': oid,
+                'v1_level_type': v1_lt,
+                'v2_level_type': v2_lt,
+                'content_type': v1_records[oid].get('content_type') or v2_records[oid].get('content_type'),
+                'title': (v1_records[oid].get('title') or v2_records[oid].get('title') or ''),
+            })
+
+    groups = defaultdict(list)
+    for m in mismatches:
+        groups[(m['v1_level_type'], m['v2_level_type'])].append(m)
+
+    print()
+    print('=' * 72)
+    print('LEVEL_TYPE MISMATCH ANALYSIS')
+    print('=' * 72)
+    print(f'Records in both indices:          {len(in_both):>10,}')
+    print(f'Records with level_type mismatch: {len(mismatches):>10,}  '
+          f'({len(mismatches)/len(in_both)*100:.2f}%)')
+    print()
+
+    SAMPLE = 10
+    for (v1_lt, v2_lt), group in sorted(groups.items(), key=lambda x: -len(x[1])):
+        print(f'  v1={v1_lt!r:<20}  →  v2={v2_lt!r:<20}  ({len(group):,} records)')
+        for m in group[:SAMPLE]:
+            title_preview = (m['title'] or '')[:60]
+            print(f'    [{m["content_type"] or "?":20}] {m["objectID"]}  "{title_preview}"')
+        if len(group) > SAMPLE:
+            print(f'    ... and {len(group) - SAMPLE:,} more')
+        print()
+
+    out_path = DATA_DIR / 'level_type_mismatches.json'
+    out_path.write_text(json.dumps(mismatches, indent=2))
+    print(f'Full mismatch list saved → {out_path}')
+    print(f'\nv1 fetched at: {v1_data.get("fetched_at", "unknown")}')
+    print(f'v2 fetched at: {v2_data.get("fetched_at", "unknown")}')
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: spot-check
+# ---------------------------------------------------------------------------
+
+def cmd_spot_check():
+    """
+    Compare every field of the sampled records between v1 and v2.
+    Prints a summary table of fields with differences, sorted by frequency,
+    then shows up to 3 concrete examples per differing field.
+    """
+    for label in ('v1', 'v2'):
+        p = DATA_DIR / f'{label}_sample.json'
+        if not p.exists():
+            sys.exit(
+                f'Missing {p}\n'
+                'Run `fetch-spot-check --v1 <name> --v2 <name>` first.'
+            )
+
+    v1_data = json.loads((DATA_DIR / 'v1_sample.json').read_text())
+    v2_data = json.loads((DATA_DIR / 'v2_sample.json').read_text())
+    v1_by_id = {r['objectID']: r for r in v1_data['records']}
+    v2_by_id = {r['objectID']: r for r in v2_data['records']}
+    in_both = sorted(set(v1_by_id) & set(v2_by_id))
+
+    all_fields = set()
+    for oid in in_both:
+        all_fields |= set(v1_by_id[oid]) | set(v2_by_id[oid])
+    all_fields.discard('objectID')
+
+    field_diffs = defaultdict(list)
+    for oid in in_both:
+        for field in all_fields:
+            v1_val = v1_by_id[oid].get(field)
+            v2_val = v2_by_id[oid].get(field)
+            if v1_val != v2_val:
+                field_diffs[field].append({
+                    'objectID': oid,
+                    'content_type': v1_by_id[oid].get('content_type') or v2_by_id[oid].get('content_type'),
+                    'v1': v1_val,
+                    'v2': v2_val,
+                })
+
+    print()
+    print('=' * 72)
+    print('SPOT CHECK — FIELD COMPARISON')
+    print('=' * 72)
+    print(f'Records compared:          {len(in_both)}')
+    print(f'Total distinct fields:     {len(all_fields)}')
+    print(f'Fields with any diff:      {len(field_diffs)}')
+    print(f'Fields always matching:    {len(all_fields) - len(field_diffs)}')
+    print()
+
+    if not field_diffs:
+        print('All fields match for every sampled record.')
+    else:
+        print(f'{"Field":<45} {"Diffs":>5}  {"Diff%":>6}')
+        print('-' * 60)
+        for field, diffs in sorted(field_diffs.items(), key=lambda x: -len(x[1])):
+            pct = len(diffs) / len(in_both) * 100
+            print(f'{field:<45} {len(diffs):>5}  {pct:>5.1f}%')
+
+        SAMPLE = 3
+        print()
+        print(f'SAMPLE DIFFS PER FIELD (up to {SAMPLE} per field, most-differing first):')
+        print('-' * 72)
+        for field, diffs in sorted(field_diffs.items(), key=lambda x: -len(x[1])):
+            print(f'\n{field}  ({len(diffs)} diffs):')
+            for d in diffs[:SAMPLE]:
+                v1_str = _truncate(d['v1'])
+                v2_str = _truncate(d['v2'])
+                print(f'  [{d["content_type"] or "?":20}] {d["objectID"]}')
+                print(f'    v1: {v1_str}')
+                print(f'    v2: {v2_str}')
+
+    out_path = DATA_DIR / 'spot_check_diffs.json'
+    out_path.write_text(json.dumps({
+        'summary': {
+            'records_compared': len(in_both),
+            'fields_seen': len(all_fields),
+            'fields_with_diffs': len(field_diffs),
+            'diff_counts': {f: len(d) for f, d in field_diffs.items()},
+        },
+        'diffs_by_field': {
+            field: [{'objectID': d['objectID'], 'content_type': d['content_type'], 'v1': d['v1'], 'v2': d['v2']}
+                    for d in diffs]
+            for field, diffs in field_diffs.items()
+        },
+    }, indent=2, default=str))
+    print(f'\nFull diff saved → {out_path}')
+    print(f'\nv1 fetched at: {v1_data.get("fetched_at", "unknown")}')
+    print(f'v2 fetched at: {v2_data.get("fetched_at", "unknown")}')
+
+
+def _truncate(val, max_len=120):
+    s = json.dumps(val, default=str)
+    if len(s) > max_len:
+        return s[:max_len] + '…'
+    return s
+
+
+# ---------------------------------------------------------------------------
+# analyze helpers (unchanged)
+# ---------------------------------------------------------------------------
 
 def _print_facet_analysis(v1, v2):
     print()
@@ -278,55 +604,56 @@ def _print_id_diff_analysis(v1_data, v2_data):
 # CLI
 # ---------------------------------------------------------------------------
 #
-# Supports three invocation patterns:
-#
-#   fetch only:
-#     python scripts/validate_algolia_indices.py fetch --v1 NAME --v2 NAME
-#
-#   analyze only (uses cached data from a prior fetch):
-#     python scripts/validate_algolia_indices.py analyze
-#
-#   fetch then analyze in one shot:
-#     python scripts/validate_algolia_indices.py fetch --v1 NAME --v2 NAME analyze
-#
-# Implemented by scanning sys.argv for the literal tokens 'fetch' and
-# 'analyze' before handing the remainder to per-subcommand parsers. Standard
-# argparse mutually-exclusive subcommands can't express "run both in order",
-# and a dedicated sub-framework is overkill.
+# Scans sys.argv for known subcommand tokens, then hands remaining tokens
+# (flags) to a shared argparse parser so --v1 / --v2 / --env-file /
+# --sample-size are available to any fetch-type subcommand.
+
+_SUBCOMMAND_TOKENS = {
+    'fetch', 'analyze',
+    'fetch-level-type', 'level-type',
+    'fetch-spot-check', 'spot-check',
+}
+
 
 def _split_argv():
-    """
-    Returns (do_fetch, do_analyze, fetch_argv) by scanning sys.argv[1:].
-    fetch_argv contains everything that isn't the literal tokens 'fetch' /
-    'analyze', so the fetch sub-parser can handle --v1 / --v2 / --env-file.
-    """
     tokens = sys.argv[1:]
-    do_fetch = 'fetch' in tokens
-    do_analyze = 'analyze' in tokens
-    fetch_argv = [t for t in tokens if t not in ('fetch', 'analyze')]
-    return do_fetch, do_analyze, fetch_argv
+    active = {t for t in tokens if t in _SUBCOMMAND_TOKENS}
+    flag_argv = [t for t in tokens if t not in _SUBCOMMAND_TOKENS]
+    return active, flag_argv
 
 
 def main():
-    do_fetch, do_analyze, fetch_argv = _split_argv()
+    active, flag_argv = _split_argv()
 
-    if not do_fetch and not do_analyze:
+    if not active:
         print(__doc__)
-        print('error: specify at least one subcommand: fetch, analyze, or both')
+        print('error: specify at least one subcommand:', ', '.join(sorted(_SUBCOMMAND_TOKENS)))
         sys.exit(1)
 
+    needs_fetch_args = active & {'fetch', 'fetch-level-type', 'fetch-spot-check'}
     fetch_args = None
-    if do_fetch:
+    if needs_fetch_args:
         fetch_parser = argparse.ArgumentParser(add_help=False)
         fetch_parser.add_argument('--v1', required=True)
         fetch_parser.add_argument('--v2', required=True)
         fetch_parser.add_argument('--env-file', default='scripts/.env')
-        fetch_args, _ = fetch_parser.parse_known_args(fetch_argv)
+        fetch_parser.add_argument('--sample-size', type=int, default=50,
+                                  help='Number of records for fetch-spot-check (default: 50)')
+        fetch_args, _ = fetch_parser.parse_known_args(flag_argv)
 
-    if do_fetch:
+    # Run subcommands in a sensible order: fetches before analyses.
+    if 'fetch' in active:
         cmd_fetch(fetch_args)
-    if do_analyze:
+    if 'fetch-level-type' in active:
+        cmd_fetch_level_type(fetch_args)
+    if 'fetch-spot-check' in active:
+        cmd_fetch_spot_check(fetch_args)
+    if 'analyze' in active:
         cmd_analyze()
+    if 'level-type' in active:
+        cmd_level_type()
+    if 'spot-check' in active:
+        cmd_spot_check()
 
 
 if __name__ == '__main__':

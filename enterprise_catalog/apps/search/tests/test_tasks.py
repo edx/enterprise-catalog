@@ -11,6 +11,7 @@ from algoliasearch.exceptions import AlgoliaException
 from django.test import TestCase
 from django.test.utils import override_settings
 
+from enterprise_catalog.apps.catalog.algolia_utils import ALGOLIA_FIELDS
 from enterprise_catalog.apps.catalog.constants import (
     COURSE,
     COURSE_RUN,
@@ -1835,21 +1836,56 @@ class TestIndexVideoBatchInAlgolia(TestCase):
         self.assertEqual(result['indexed'], 1)
         self.mock_algolia_client.save_objects_batch.assert_called_once()
 
+    def test_create_algolia_objects_enriches_before_save(self):
+        """
+        create_algolia_objects is called with the raw objects produced by
+        add_video_to_algolia_objects and ALGOLIA_FIELDS, and its return value
+        (not the raw list) is what reaches save_objects_batch.
+
+        This enforces that the DB-derived video fields (org, partners,
+        logo_image_urls, image_url, course_run_key, transcript_summary,
+        video_skills, duration) are populated before the objects are indexed.
+        """
+        enriched = [{'objectID': f'{self.video.edx_video_id}-obj', 'org': 'TestOrg'}]
+        with self.mock_membership, self.mock_add_video, self.mock_get_client, \
+             mock.patch(
+                 'enterprise_catalog.apps.search.tasks.create_algolia_objects',
+                 return_value=enriched,
+             ) as mock_enrich:
+            search_tasks.index_videos_batch_in_algolia(
+                video_pks=[self.video.edx_video_id],
+                index_name='test-index',
+            )
+
+        mock_enrich.assert_called_once()
+        raw_objects_arg, algolia_fields_arg = mock_enrich.call_args[0]
+        self.assertEqual(
+            list(raw_objects_arg),
+            [{'objectID': f'{self.video.edx_video_id}-obj'}],
+        )
+        self.assertIs(algolia_fields_arg, ALGOLIA_FIELDS)
+        self.mock_algolia_client.save_objects_batch.assert_called_once_with(
+            enriched, index_name='test-index',
+        )
+
     def test_no_algolia_objects_generated_returns_early(self):
         """
         When add_video_to_algolia_objects produces no objects (e.g. the video
         has no catalog membership), the task returns early without calling
-        save_objects_batch.
+        create_algolia_objects or save_objects_batch.
         """
         with self.mock_membership, mock.patch(
             'enterprise_catalog.apps.search.tasks.add_video_to_algolia_objects',
-        ):
+        ), mock.patch(
+            'enterprise_catalog.apps.search.tasks.create_algolia_objects',
+        ) as mock_enrich:
             result = search_tasks.index_videos_batch_in_algolia(
                 video_pks=[self.video.edx_video_id],
             )
 
         self.assertEqual(result['indexed'], 0)
         self.assertEqual(result['skipped'], 1)  # len(video_pks)
+        mock_enrich.assert_not_called()
         self.mock_algolia_client.save_objects_batch.assert_not_called()
 
     def test_algolia_exception_propagates_for_retry(self):

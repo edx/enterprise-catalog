@@ -8,6 +8,7 @@ from algoliasearch.search_client import SearchClient
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _
@@ -267,13 +268,26 @@ def _configured_replicas():
 
     Covers every replica in the registry -- the base duration replica and any additive sort
     replica (``ALGOLIA_REPLICA_CONFIG_KEYS``). An unconfigured replica is skipped, so this is
-    inert until its name is provided in ``settings.ALGOLIA``.
+    inert until its name is provided in ``settings.ALGOLIA``. A configured replica whose key has
+    no settings mapped (registry drift -- a key added to ``ALGOLIA_REPLICA_CONFIG_KEYS`` without a
+    matching entry in ``ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY``) is likewise skipped, with
+    an error logged, rather than raising a ``KeyError`` that would abort the whole reindex.
     """
     configured = []
     for config_key in ALGOLIA_REPLICA_CONFIG_KEYS:
         index_name = settings.ALGOLIA.get(config_key)
-        if index_name:
-            configured.append((index_name, ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY[config_key]))
+        if not index_name:
+            continue
+        index_settings = ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY.get(config_key)
+        if index_settings is None:
+            LOGGER.error(
+                'Algolia replica config key "%s" is configured (index "%s") but has no settings '
+                'mapped in ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY; skipping it.',
+                config_key,
+                index_name,
+            )
+            continue
+        configured.append((index_name, index_settings))
     return configured
 
 
@@ -469,6 +483,15 @@ def configure_algolia_index(algolia_client):
     """
     Configures the settings for the primary Algolia index and its replicas.
     """
+    if not algolia_client.algolia_index:
+        # init_index() logs and returns without setting algolia_index when a required name
+        # (INDEX_NAME / REPLICA_INDEX_NAME) or credential is missing. set_index_settings() would
+        # then silently no-op for every index, making a misconfigured reindex look successful.
+        # Since ALGOLIA is replaced (not merged) per-environment, fail loudly here instead.
+        raise ImproperlyConfigured(
+            'Cannot configure Algolia index: the primary index is not initialized. Check the '
+            'ALGOLIA settings (INDEX_NAME, REPLICA_INDEX_NAME, APPLICATION_ID, API_KEY).'
+        )
     # Declare the replicas dynamically (from the current settings.ALGOLIA) rather than from an
     # import-time global, so the set the primary declares stays consistent with the replicas
     # _configured_replicas() actually configures below -- and so tests can vary it via

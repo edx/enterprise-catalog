@@ -5,6 +5,7 @@ from uuid import uuid4
 import ddt
 from algoliasearch.exceptions import AlgoliaException
 from dateutil.relativedelta import relativedelta
+from django.core.exceptions import ImproperlyConfigured
 from django.test import TestCase, override_settings
 
 from enterprise_catalog.apps.catalog import algolia_utils as utils
@@ -1126,6 +1127,40 @@ class AlgoliaUtilsTests(TestCase):
             index_name=recency_name,
         )
         assert any(recency_name in message for message in warning_logs.output)
+
+    def test_configured_replicas_skips_config_key_without_settings_mapping(self):
+        """
+        A configured replica whose key has no settings mapped (registry drift) is skipped with an
+        error logged -- never a KeyError that would abort the reindex. The well-formed replicas
+        are still returned.
+        """
+        # pylint: disable=protected-access
+        bogus_key = 'BOGUS_REPLICA_INDEX_NAME'  # in the registry tuple, but not in the settings map
+        registry = utils.ALGOLIA_REPLICA_CONFIG_KEYS + (bogus_key,)
+        with mock.patch.object(utils, 'ALGOLIA_REPLICA_CONFIG_KEYS', registry):
+            with override_settings(ALGOLIA={
+                'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
+                bogus_key: 'enterprise_catalog_bogus_desc',
+            }):
+                with self.assertLogs(utils.LOGGER, level='ERROR') as error_logs:
+                    configured = utils._configured_replicas()
+        # The well-formed base replica is returned; the unmapped key is skipped (not raised on).
+        assert ('enterprise_catalog_duration_desc', utils.ALGOLIA_REPLICA_INDEX_SETTINGS) in configured
+        assert all(index_name != 'enterprise_catalog_bogus_desc' for index_name, _ in configured)
+        assert any(bogus_key in message for message in error_logs.output)
+
+    @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')
+    def test_configure_algolia_index_raises_when_primary_uninitialized(self, mock_search_client):
+        """
+        If the primary index was never initialized (e.g. init_index() bailed on a missing
+        INDEX_NAME), configuring fails fast instead of silently applying no settings.
+        """
+        algolia_client = utils.get_initialized_algolia_client()
+        algolia_client.algolia_index = None  # simulate init_index() bailing on missing config
+        with self.assertRaises(ImproperlyConfigured):
+            utils.configure_algolia_index(algolia_client)
+        # Nothing was configured -- we refuse rather than report a no-op reindex as successful.
+        mock_search_client.return_value.set_index_settings.assert_not_called()
 
     @ddt.data(
         (

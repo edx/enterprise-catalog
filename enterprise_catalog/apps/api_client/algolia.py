@@ -126,9 +126,14 @@ class AlgoliaSearchClient:
         try:
             self._get_index(index_name).set_settings(index_settings)
         except AlgoliaException as exc:
+            # With no index_name, the target is the cached handle (self.algolia_index), which a
+            # caller may have wired to an alternate index (e.g. the incremental reindex command's
+            # --index-name path). Report that handle's actual name rather than the configured
+            # primary name (algolia_index_name), which could be stale or empty for that caller.
+            effective_index_name = index_name or getattr(self.algolia_index, 'name', None) or self.algolia_index_name
             logger.exception(
                 'Unable to set settings for Algolia\'s %s index due to an exception.',
-                index_name or self.algolia_index_name,
+                effective_index_name,
             )
             raise exc
 

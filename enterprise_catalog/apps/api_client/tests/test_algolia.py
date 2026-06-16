@@ -131,6 +131,29 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         with self.assertRaises(AlgoliaException):
             client.set_index_settings({'customRanking': []}, index_name='some_replica')
 
+    def test_set_index_settings_failure_logs_effective_index_name(self):
+        """
+        When no index_name is given but the cached handle is wired to an alternate index, the
+        failure log reports that handle's actual name -- not the (possibly stale/empty) configured
+        primary name. Mirrors the incremental reindex command's --index-name path.
+        """
+        client = self._build_client()
+        # The cached handle is wired to an alternate index, as the incremental command does. Use a
+        # name with no substring overlap with PRIMARY_INDEX_NAME so the assertions can't false-pass.
+        wired_index_name = 'some_alternate_index'
+        client.algolia_index.name = wired_index_name
+        client.algolia_index.set_settings.side_effect = AlgoliaException('boom')
+
+        with self.assertLogs('enterprise_catalog.apps.api_client.algolia', level='ERROR') as logs:
+            with self.assertRaises(AlgoliaException):
+                client.set_index_settings({'customRanking': []})  # no index_name -> targets the handle
+
+        # Assert on the formatted message only; the captured traceback contains the package path
+        # ("enterprise_catalog/...") which would otherwise collide with PRIMARY_INDEX_NAME.
+        message = logs.records[0].getMessage()
+        self.assertIn(wired_index_name, message)
+        self.assertNotIn(self.PRIMARY_INDEX_NAME, message)
+
     @override_settings(ALGOLIA={
         'INDEX_NAME': 'enterprise_catalog',
         'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',

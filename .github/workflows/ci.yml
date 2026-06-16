@@ -28,7 +28,7 @@ jobs:
         docker exec -e TOXENV=py312-${{ matrix.django-version }} -u root enterprise.catalog.app /edx/app/enterprise_catalog/enterprise_catalog/validate.sh
     - name: Code Coverage
       if: matrix.python-version == '3.12' && matrix.django-version=='django52'
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false

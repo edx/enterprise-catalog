@@ -12,24 +12,22 @@ Context
 The enterprise Learner Portal search page sorts a single Algolia index by
 relevance.  Algolia does not re-sort an index at query time, so each alternate
 sort order is a separate *replica* index with its own ``customRanking``; the
-consumer switches sort by pointing its search at a different index name.  We
-already maintain one such replica — the base ``ALGOLIA['REPLICA_INDEX_NAME']``,
-which the Learner Portal points its video search at.
+consumer switches sort by pointing its search at a different index name.
 
-Two facts about this machinery constrain how any new replica can be rolled out:
+The fundamental design of the enterprise-catalog logic assumes we will only ever
+provision *one* replica: there is a single setting
+(``ALGOLIA['REPLICA_INDEX_NAME']`` — the base "duration" replica the Learner
+Portal points its video search at) and a single Python function that provisions
+that one replica.
 
-* ``ALGOLIA`` is *replaced* (not merged) from the deployment YAML, so a replica
-  is only live once ops sets its index-name key in ``edx-internal`` and a
-  ``reindex_algolia`` run declares it on the primary.
-* An Algolia *virtual* replica exists as soon as it is declared on the primary
-  index's settings (it mirrors the primary's records); it does not wait for a
-  populated record set.  So once this service is deployed and ``reindex_algolia``
-  has run, the replica exists.
+``ALGOLIA`` is also *replaced* (not merged) from the deployment YAML, so a replica
+is only live once ops sets its index-name key in ``edx-internal`` and a
+``reindex_algolia`` run declares it on the primary.
 
 We want to offer learners a "newest courses first" sort.  The problem is how to
-add that sort — and roll it out across the repositories that together own
-enterprise search — without a partially-configured replica degrading or breaking
-the existing relevance search.
+add a *second* replica — and roll it out across the repositories that together
+own enterprise search — without a partially-configured replica degrading or
+breaking the existing relevance search.
 
 Decision
 --------
@@ -43,6 +41,11 @@ start get ``0`` so they sort last under a descending ranking — deliberately no
 the far-future ``ALGOLIA_DEFAULT_TIMESTAMP``, which would float undated courses to
 the top.  The primary index (``ALGOLIA['INDEX_NAME']``) keeps the relevance
 ranking.
+
+The replica is declared as an Algolia *virtual* replica (``virtual(name)``), so it
+mirrors the primary's records instead of duplicating them.  This is a deliberate
+cost/precision tradeoff versus a standard replica — see *Alternatives considered*
+and *Consequences*.
 
 The sort is rolled out across three repositories:
 
@@ -112,6 +115,10 @@ Consequences
   intact, so a problem with one sort can never take down core search indexing.
   The worst case is that one replica lags its ranking until the next run — never a
   broken or empty primary index.
+* **No added record cost:** because the replica is *virtual*, it mirrors the
+  primary's records rather than duplicating them, so adding it does not grow our
+  Algolia record count.  A standard (non-virtual) replica would roughly double the
+  indexed record count — and its cost — for each sort we add (see *Alternatives*).
 * **Non-course records sort last, by design:** the replica is *virtual* over the
   primary index, so it mirrors every record — programs, executive education, videos,
   etc. — not just courses.  ``recently_released_timestamp`` is only computed in the
@@ -142,3 +149,15 @@ Alternatives considered
 * **Always declare the replica (no config gate).**  Rejected: would create a
   ``virtual(None)`` replica on the primary index in environments where the name
   is unset, and would couple every environment to the rollout.
+* **A standard (non-virtual) replica instead of a virtual one.**  A standard
+  replica is a full, independent copy of the index that sorts strictly by its own
+  ``ranking``/``customRanking`` — a fully deterministic newest-first order
+  regardless of the search query.  We chose a *virtual* replica instead: a virtual
+  replica reuses the primary's records, so it adds no record count or cost (see
+  *Consequences*), whereas a standard replica roughly doubles our indexed record
+  count and its associated cost.  The accepted tradeoff is that a virtual replica
+  always keeps textual relevance as the top-priority sort factor, so under a text
+  query "newest first" is relevance-biased rather than strictly chronological (it
+  *is* strictly chronological when browsing with no query).  If a strictly
+  deterministic order under query later proves necessary, switching this one
+  replica to a standard replica is the documented escape hatch.

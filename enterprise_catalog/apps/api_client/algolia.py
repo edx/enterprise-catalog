@@ -10,9 +10,6 @@ from algoliasearch.search_client import SearchClient
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
-from enterprise_catalog.apps.api_client.constants import (
-    ALGOLIA_REPLICA_CONFIG_KEYS,
-)
 from enterprise_catalog.apps.catalog.utils import batch, localized_utcnow
 
 
@@ -52,16 +49,17 @@ class AlgoliaSearchClient:
     @property
     def replica_index_names(self):
         """
-        Configured index names of every sort replica (base + additive), empty when none are set.
+        Index names of every configured sort replica (base + additional), empty when none are set.
 
-        Driven by ``ALGOLIA_REPLICA_CONFIG_KEYS``; an unconfigured replica is omitted, so the
-        secured API key only grants access to replicas that actually exist.
+        The base replica is ``ALGOLIA['REPLICA_INDEX_NAME']`` (when set); the additional sort
+        replicas are the keys of ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']``. Used to scope the
+        secured API key to exactly the replicas that exist.
         """
         names = []
-        for config_key in ALGOLIA_REPLICA_CONFIG_KEYS:
-            index_name = settings.ALGOLIA.get(config_key)
-            if index_name:
-                names.append(index_name)
+        base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
+        if base_replica:
+            names.append(base_replica)
+        names.extend(settings.ALGOLIA.get('ADDITIONAL_REPLICA_INDEX_SETTINGS', {}).keys())
         return names
 
     def init_index(self):

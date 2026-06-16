@@ -284,12 +284,14 @@ class AlgoliaUtilsTests(TestCase):
             {'status': 'published', 'start': recent.isoformat()},
         ]}) == int(old.timestamp())
 
-    def test_get_algolia_replica_names_only_includes_configured_replicas(self):
-        """Each replica (base + optional) is declared only when its index name is configured."""
+    def test_get_algolia_replica_names_combines_base_and_additional_replicas(self):
+        """The base replica and every additional sort replica are declared as virtual replicas."""
         # pylint: disable=protected-access
         with override_settings(ALGOLIA={
             'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
-            'RECENTLY_RELEASED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_released_desc',
+            'ADDITIONAL_REPLICA_INDEX_SETTINGS': {
+                'enterprise_catalog_recently_released_desc': {'customRanking': []},
+            },
         }):
             assert utils._get_algolia_replica_names() == [
                 'virtual(enterprise_catalog_duration_desc)',
@@ -298,7 +300,13 @@ class AlgoliaUtilsTests(TestCase):
         # Only the base replica configured -> only it is declared.
         with override_settings(ALGOLIA={'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc'}):
             assert utils._get_algolia_replica_names() == ['virtual(enterprise_catalog_duration_desc)']
-        # Nothing configured -> no replicas at all, never virtual(None).
+        # An unset base replica is omitted (never virtual(None)); additional replicas still declare.
+        with override_settings(ALGOLIA={
+            'REPLICA_INDEX_NAME': '',
+            'ADDITIONAL_REPLICA_INDEX_SETTINGS': {'enterprise_catalog_recently_released_desc': {}},
+        }):
+            assert utils._get_algolia_replica_names() == ['virtual(enterprise_catalog_recently_released_desc)']
+        # Nothing configured -> no replicas at all.
         with override_settings(ALGOLIA={}):
             assert not utils._get_algolia_replica_names()
 
@@ -1075,16 +1083,19 @@ class AlgoliaUtilsTests(TestCase):
         assert set_index_settings.call_count == 2
 
     @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')
-    def test_configure_algolia_index_configures_recently_released_replica(self, mock_search_client):
+    def test_configure_algolia_index_configures_additional_replica(self, mock_search_client):
         """
-        When a recently-released replica name is configured, its settings are applied too.
+        Each entry in ADDITIONAL_REPLICA_INDEX_SETTINGS has its settings applied, keyed by index name.
         """
         algolia_client = utils.get_initialized_algolia_client()
         replica_name = 'enterprise_catalog_recently_released_desc'
-        with override_settings(ALGOLIA={'RECENTLY_RELEASED_REPLICA_INDEX_NAME': replica_name}):
+        recency_settings = {'customRanking': ['desc(recently_released_timestamp)']}
+        with override_settings(ALGOLIA={
+            'ADDITIONAL_REPLICA_INDEX_SETTINGS': {replica_name: recency_settings},
+        }):
             utils.configure_algolia_index(algolia_client)
         mock_search_client.return_value.set_index_settings.assert_any_call(
-            utils.ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
+            recency_settings,
             index_name=replica_name,
         )
 
@@ -1097,6 +1108,7 @@ class AlgoliaUtilsTests(TestCase):
         algolia_client = utils.get_initialized_algolia_client()
         base_name = 'enterprise_catalog_duration_desc'
         recency_name = 'enterprise_catalog_recently_released_desc'
+        recency_settings = {'customRanking': ['desc(recently_released_timestamp)']}
 
         def fail_only_for_recency(index_settings, index_name=None):  # pylint: disable=unused-argument
             # Primary and base-replica calls succeed; only the recency replica raises.
@@ -1106,7 +1118,7 @@ class AlgoliaUtilsTests(TestCase):
         mock_search_client.return_value.set_index_settings.side_effect = fail_only_for_recency
         with override_settings(ALGOLIA={
             'REPLICA_INDEX_NAME': base_name,
-            'RECENTLY_RELEASED_REPLICA_INDEX_NAME': recency_name,
+            'ADDITIONAL_REPLICA_INDEX_SETTINGS': {recency_name: recency_settings},
         }):
             # The per-replica handler logs a single-line WARNING (set_index_settings already logged
             # the traceback before re-raising), so we don't double up stack traces.
@@ -1122,32 +1134,8 @@ class AlgoliaUtilsTests(TestCase):
         })
         set_index_settings.assert_any_call(utils.ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=base_name)
         # The recency replica was attempted (and failed) -- logged, not swallowed silently.
-        set_index_settings.assert_any_call(
-            utils.ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
-            index_name=recency_name,
-        )
+        set_index_settings.assert_any_call(recency_settings, index_name=recency_name)
         assert any(recency_name in message for message in warning_logs.output)
-
-    def test_configured_replicas_skips_config_key_without_settings_mapping(self):
-        """
-        A configured replica whose key has no settings mapped (registry drift) is skipped with an
-        error logged -- never a KeyError that would abort the reindex. The well-formed replicas
-        are still returned.
-        """
-        # pylint: disable=protected-access
-        bogus_key = 'BOGUS_REPLICA_INDEX_NAME'  # in the registry tuple, but not in the settings map
-        registry = utils.ALGOLIA_REPLICA_CONFIG_KEYS + (bogus_key,)
-        with mock.patch.object(utils, 'ALGOLIA_REPLICA_CONFIG_KEYS', registry):
-            with override_settings(ALGOLIA={
-                'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
-                bogus_key: 'enterprise_catalog_bogus_desc',
-            }):
-                with self.assertLogs(utils.LOGGER, level='ERROR') as error_logs:
-                    configured = utils._configured_replicas()
-        # The well-formed base replica is returned; the unmapped key is skipped (not raised on).
-        assert ('enterprise_catalog_duration_desc', utils.ALGOLIA_REPLICA_INDEX_SETTINGS) in configured
-        assert all(index_name != 'enterprise_catalog_bogus_desc' for index_name, _ in configured)
-        assert any(bogus_key in message for message in error_logs.output)
 
     @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')
     def test_configure_algolia_index_raises_when_primary_uninitialized(self, mock_search_client):

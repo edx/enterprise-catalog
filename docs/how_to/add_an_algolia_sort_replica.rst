@@ -6,86 +6,58 @@ not re-sort an index at query time, so every alternate sort order is a separate 
 index with its own ``customRanking``; the consumer (the MFE) switches sort by pointing its
 search at a different index name.
 
-All replicas are driven by **one registry**, so adding a sort is mostly additive. This guide
-walks through it end to end. See ``docs/decisions/0014-newest-courses-sort-replica.rst`` for
-the design rationale, and treat the **recently-released ("newest first") replica** as the
-canonical example to copy.
+Beyond the base replica (``ALGOLIA['REPLICA_INDEX_NAME']``, used by the MFE video search),
+every additional sort replica is declared in **one place** -- the
+``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` map -- so adding a sort is mostly additive.
+This guide walks through it end to end. See
+``docs/decisions/0014-newest-courses-sort-replica.rst`` for the design rationale, and treat the
+**recently-released ("newest first") replica** as the canonical example to copy.
 
-The mental model: names vs. definitions
----------------------------------------
+The mental model: one settings-driven map
+------------------------------------------
 
-There are two layers, and the split matters:
+``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` maps an **index name** to that replica's
+**Algolia index settings** (its ``customRanking``). It is defined in ``settings/base.py`` as
+config-as-code: a replica's ranking sorts on a field the indexing code must compute, so the
+definition is intrinsically code, not deployment config.
 
-* **Index *names* live in Django settings** (``settings.ALGOLIA``), populated per-environment
-  from the deployment config (edx-internal). These vary by environment and are owned by ops.
-* **Replica *definitions* live in code** — which replicas exist (the registry) and how each is
-  ranked (``customRanking``). A replica's ranking sorts on a field that the indexing code must
-  compute, so the definition is intrinsically code, not config.
+``ALGOLIA`` is *merged* (not replaced) from the deployment config -- it is listed in
+``DICT_UPDATE_KEYS`` (``settings/production.py``) -- so an environment can override the per-env
+index names / credentials while the code-defined ``ADDITIONAL_REPLICA_INDEX_SETTINGS`` defaults are
+preserved.
 
-A replica is declared, configured, and made queryable **only when its index-name key holds a
-non-empty value**. With the name unset (the default everywhere until ops sets it), the new
-replica is completely inert — nothing is declared, no ``virtual(None)`` is created, and the
-secured API key does not reference it. This is what makes it safe to merge and deploy the code
-*before* ops turns it on.
+The backend declares and configures every replica in this map on each reindex, and the secured API
+key grants access to them. A sort is only *user-visible* once the MFE points a search at it, gated
+by a waffle flag / Optimizely experiment -- so the flag, not the map, controls exposure (see
+*Frontend* below and ADR 0014).
 
 Worked example
 --------------
 
-Suppose we want a **"price: low to high"** sort. We'll use the settings key
-``PRICE_ASC_REPLICA_INDEX_NAME`` and (in a given environment) an index named
+Suppose we want a **"price: low to high"** sort, using an index named
 ``enterprise_catalog_price_asc``.
 
 Backend steps (this service)
 ----------------------------
 
-**1. Declare the settings key.** In ``enterprise_catalog/settings/base.py``, add the key to the
-``ALGOLIA`` dict with an empty default and a one-line comment describing the sort:
-
-.. code-block:: python
-
-    ALGOLIA = {
-        'INDEX_NAME': '',
-        'REPLICA_INDEX_NAME': '',                       # base replica, desc(duration); MFE video search
-        'RECENTLY_RELEASED_REPLICA_INDEX_NAME': '',     # "newest first", desc(recently_released_timestamp)
-        # "price: low to high", asc(first_enrollable_paid_seat_price)
-        'PRICE_ASC_REPLICA_INDEX_NAME': '',
-        'APPLICATION_ID': '',
-        'API_KEY': '',
-    }
-
-The empty default keeps it inert until ops provides a real index name.
-
-**2. Register the key.** Add it to ``ALGOLIA_REPLICA_CONFIG_KEYS`` in
-``enterprise_catalog/apps/api_client/constants.py`` — the single source of truth for *which*
-replicas exist, shared by the indexer and the secured-key restriction. (It lives here, not in
-``settings``/``algolia_utils``, so both ``api_client.algolia`` and ``catalog.algolia_utils`` can
-import it without a circular dependency.)
-
-.. code-block:: python
-
-    ALGOLIA_REPLICA_CONFIG_KEYS = (
-        'REPLICA_INDEX_NAME',
-        'RECENTLY_RELEASED_REPLICA_INDEX_NAME',
-        'PRICE_ASC_REPLICA_INDEX_NAME',
-    )
-
-**3. Make sure the field you sort on is indexed.** A ``customRanking`` can only sort on a numeric
+**1. Make sure the field you sort on is indexed.** A ``customRanking`` can only sort on a numeric
 attribute that exists on the records. If your sort uses a field that is *already* indexed (the
 price example reuses ``first_enrollable_paid_seat_price``), skip this step. If it needs a new
 signal, in ``enterprise_catalog/apps/catalog/algolia_utils.py``:
 
 * write a ``get_course_<signal>(course)`` helper that returns the numeric value (see
-  ``get_course_recently_released_timestamp`` — note it returns ``0`` for "no value" so those
-  records sort last under a ``desc`` ranking; pick a sentinel that sorts your missing values to
-  the *end* of *your* order);
+  ``get_course_recently_released_timestamp`` -- note it returns ``0`` for "no value" so those
+  records sort last under a ``desc`` ranking; pick a sentinel that sorts your missing values to the
+  *end* of *your* order);
 * add the field name to ``ALGOLIA_FIELDS``;
 * set it on the course object in ``_algolia_object_from_product`` (the ``content_type == COURSE``
   branch).
 
-**4. Define the replica's ranking.** Still in ``algolia_utils.py``, add a settings dict. Lead with
-your sort criterion, then append the primary index's shared tie-breakers so records that tie on
-your criterion (and any "missing value" bucket) fall back to the relevance ordering and
-pagination stays deterministic:
+**2. Define the replica's ranking and register it.** In ``enterprise_catalog/settings/base.py``,
+add a settings constant and an entry in ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` keyed by
+the index name. Lead the ``customRanking`` with your sort criterion, then append the primary
+index's shared tie-breakers so records that tie on your criterion (and any "missing value" bucket)
+fall back to the relevance ordering and pagination stays deterministic:
 
 .. code-block:: python
 
@@ -101,33 +73,33 @@ pagination stays deterministic:
         ],
     }
 
-**5. Map the key to its settings.** Add an entry to
-``ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY`` in ``algolia_utils.py``:
-
-.. code-block:: python
-
-    ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY = {
-        'REPLICA_INDEX_NAME': ALGOLIA_REPLICA_INDEX_SETTINGS,
-        'RECENTLY_RELEASED_REPLICA_INDEX_NAME': ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
-        'PRICE_ASC_REPLICA_INDEX_NAME': ALGOLIA_PRICE_ASC_REPLICA_INDEX_SETTINGS,
+    ALGOLIA = {
+        'INDEX_NAME': '',
+        'REPLICA_INDEX_NAME': '',
+        'ADDITIONAL_REPLICA_INDEX_SETTINGS': {
+            'enterprise_catalog_recently_released_desc': ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
+            'enterprise_catalog_price_asc': ALGOLIA_PRICE_ASC_REPLICA_INDEX_SETTINGS,
+        },
+        'APPLICATION_ID': '',
+        'API_KEY': '',
     }
 
 **That is all the wiring.** You do **not** touch ``_get_algolia_replica_names``,
-``_configured_replicas``, ``configure_algolia_index``, or the secured-key
-``replica_index_names`` — they all loop the registry, so the new replica is automatically
-declared on the primary index, has its settings applied during a reindex, and is added to the
-secured API key's ``restrictIndices`` once its name is configured.
+``_configured_replicas``, ``configure_algolia_index``, or the secured-key ``replica_index_names``
+-- they all read ``ADDITIONAL_REPLICA_INDEX_SETTINGS``, so the new replica is automatically declared
+on the primary index, has its settings applied during a reindex, and is added to the secured API
+key's ``restrictIndices``.
 
 Tests
 -----
 
-* Extend the registry / configure tests in
+* Extend the configure / registry tests in
   ``enterprise_catalog/apps/catalog/tests/test_algolia_utils.py`` (e.g.
-  ``test_get_algolia_replica_names_only_includes_configured_replicas`` and
-  ``test_configure_algolia_index_configures_*``) to cover the new key, using
+  ``test_get_algolia_replica_names_combines_base_and_additional_replicas`` and
+  ``test_configure_algolia_index_configures_additional_replica``) to cover the new replica, using
   ``override_settings(ALGOLIA={...})``.
 * If you added a field computation, unit-test the ``get_course_<signal>`` helper.
-* The secured-key tests in ``api_client/tests/test_algolia.py`` already loop the registry; add
+* The secured-key tests in ``api_client/tests/test_algolia.py`` exercise ``restrictIndices``; add
   the new index name to the "all indices" expectation if you want explicit coverage.
 
 Deploy / ops
@@ -135,12 +107,13 @@ Deploy / ops
 
 Once the code is merged and deployed:
 
-#. Ops sets ``PRICE_ASC_REPLICA_INDEX_NAME`` (to e.g. ``enterprise_catalog_price_asc``) in the
-   ``ALGOLIA`` config in edx-internal. **The whole** ``ALGOLIA`` **dict is replaced, not merged**,
-   so the entire dict must be restated with the new key included.
-#. Run ``./manage.py reindex_algolia``. A *virtual* replica exists as soon as it is declared on
-   the primary index's settings (it mirrors the primary's records), so the replica is live after
-   one reindex — no separate population step.
+#. The replica's name and settings ship in code (``ADDITIONAL_REPLICA_INDEX_SETTINGS``), so no
+   edx-internal change is required to *declare* it. If an environment needs a different index name,
+   ops overrides ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` in edx-internal -- because
+   ``ALGOLIA`` is merged, only the keys ops sets are overridden.
+#. Run ``./manage.py reindex_algolia``. A *virtual* replica exists as soon as it is declared on the
+   primary index's settings (it mirrors the primary's records), so the replica is live after one
+   reindex -- no separate population step.
 
 Frontend (only if the MFE will use the sort)
 --------------------------------------------
@@ -149,19 +122,19 @@ The backend builds the replica regardless; a sort is only *user-visible* once th
 search at it. In ``frontend-app-learner-portal-enterprise``:
 
 * add an ``ALGOLIA_<NAME>_REPLICA_INDEX_NAME`` env var in ``src/index.tsx`` and
-  ``src/types/types.d.ts`` (mirror of the backend settings key);
-* point the relevant ``<Index indexName=...>`` at it (see ``SearchVideo.jsx``, which uses the
-  base replica, or ``SearchCourse.jsx`` for the recency replica);
-* if the sort changes default behavior, gate it behind a waffle flag and/or an Optimizely
-  experiment, exactly as the recency sort does (the flag doubles as a kill-switch — see ADR 0014).
+  ``src/types/types.d.ts`` whose value matches the backend index name;
+* point the relevant ``<Index indexName=...>`` at it (see ``SearchVideo.jsx``, which uses the base
+  replica, or ``SearchCourse.jsx`` for the recency replica);
+* gate it behind a waffle flag and/or an Optimizely experiment, exactly as the recency sort does
+  (the flag doubles as a kill-switch -- see ADR 0014).
 
-Safety properties you get for free
-----------------------------------
+Safety properties
+-----------------
 
-* **Inert by default.** No configured name → the replica is never declared, configured, or
-  queryable. Merge and deploy ahead of ops with no effect.
+* **Virtual replicas, no extra records.** Each replica is declared ``virtual(name)``, so it mirrors
+  the primary's records rather than duplicating them -- no added Algolia record count or cost.
 * **Fail-safe configuration.** ``configure_algolia_index`` wraps each replica's settings call so an
-  ``AlgoliaException`` is logged and skipped — one replica failing to configure never aborts the
+  ``AlgoliaException`` is logged and skipped -- one replica failing to configure never aborts the
   reindex, and the primary index plus the other replicas stay configured.
-* **No** ``virtual(None)``. Unconfigured keys are skipped entirely, never declared as a broken
-  ``virtual(None)`` replica on the primary index.
+* **Flag-gated exposure.** Declaring a replica does not make it user-visible; the MFE only queries
+  it when its waffle flag / experiment is on, so the flag is the kill-switch.

@@ -18,7 +18,6 @@ from pytz import UTC
 
 from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 from enterprise_catalog.apps.api_client.constants import (
-    ALGOLIA_REPLICA_CONFIG_KEYS,
     COURSE_REVIEW_BASE_AVG_REVIEW_SCORE,
     COURSE_REVIEW_BAYESIAN_CONFIDENCE_NUMBER,
     DISCOVERY_AVERAGE_COURSE_REVIEW_CACHE_KEY,
@@ -73,16 +72,17 @@ def _get_algolia_replica_names() -> list[str]:
     """
     Build the list of replica index names to declare on the primary index.
 
-    Returns a ``virtual(name)`` entry for each replica in the registry
-    (``ALGOLIA_REPLICA_CONFIG_KEYS`` -- the base duration replica plus any additive sort replica)
-    whose index name is configured. Unconfigured replicas are omitted, so deploying this code
-    before ops sets a name won't declare a ``virtual(None)`` replica on the primary index.
+    Returns a ``virtual(name)`` entry for the base replica (``ALGOLIA['REPLICA_INDEX_NAME']``, when
+    set) and for each additional sort replica (the keys of
+    ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']``). An unset base replica is omitted, so we never
+    declare a ``virtual(None)`` replica on the primary index.
     """
     replica_names = []
-    for config_key in ALGOLIA_REPLICA_CONFIG_KEYS:
-        index_name = settings.ALGOLIA.get(config_key)
-        if index_name:
-            replica_names.append(f'virtual({index_name})')
+    base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
+    if base_replica:
+        replica_names.append(f'virtual({base_replica})')
+    for index_name in settings.ALGOLIA.get('ADDITIONAL_REPLICA_INDEX_SETTINGS', {}):
+        replica_names.append(f'virtual({index_name})')
     return replica_names
 
 
@@ -238,55 +238,21 @@ ALGOLIA_REPLICA_INDEX_SETTINGS = {
     ],
 }
 
-# Replica that sorts courses by recency (newest-first). Leads with the precomputed
-# ``recently_released_timestamp`` (the course's earliest course-run start, any status) descending,
-# then falls back to the primary index's tie-breakers. Surfaced in the Learner Portal search
-# page as the "newest courses first" sort.
-ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS = {
-    'customRanking': [
-        'desc(recently_released_timestamp)',
-        'asc(metadata_language)',
-        'asc(visible_via_association)',
-        'asc(created)',
-        'desc(course_bayesian_average)',
-        'desc(recent_enrollment_count)',
-    ],
-}
-
-# Maps each replica config key (see ``ALGOLIA_REPLICA_CONFIG_KEYS``) to the index settings
-# applied to that replica. Adding a new sort replica means adding its key to the shared tuple
-# and its ``customRanking`` settings here (and computing the field its ``customRanking`` sorts on).
-ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY = {
-    'REPLICA_INDEX_NAME': ALGOLIA_REPLICA_INDEX_SETTINGS,
-    'RECENTLY_RELEASED_REPLICA_INDEX_NAME': ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
-}
-
-
 def _configured_replicas():
     """
-    Return ``(index_name, index_settings)`` for each replica whose index name is configured.
+    Return ``(index_name, index_settings)`` for each replica to configure.
 
-    Covers every replica in the registry -- the base duration replica and any additive sort
-    replica (``ALGOLIA_REPLICA_CONFIG_KEYS``). An unconfigured replica is skipped, so this is
-    inert until its name is provided in ``settings.ALGOLIA``. A configured replica whose key has
-    no settings mapped (registry drift -- a key added to ``ALGOLIA_REPLICA_CONFIG_KEYS`` without a
-    matching entry in ``ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY``) is likewise skipped, with
-    an error logged, rather than raising a ``KeyError`` that would abort the whole reindex.
+    Covers the base replica (``ALGOLIA['REPLICA_INDEX_NAME']`` with ``ALGOLIA_REPLICA_INDEX_SETTINGS``,
+    when set) and every additional sort replica declared in
+    ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` (an ``index_name -> settings`` map). Because each
+    additional replica carries its own settings, there is no separate settings lookup that can drift
+    out of sync; this is inert until at least one replica is configured.
     """
     configured = []
-    for config_key in ALGOLIA_REPLICA_CONFIG_KEYS:
-        index_name = settings.ALGOLIA.get(config_key)
-        if not index_name:
-            continue
-        index_settings = ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY.get(config_key)
-        if index_settings is None:
-            LOGGER.error(
-                'Algolia replica config key "%s" is configured (index "%s") but has no settings '
-                'mapped in ALGOLIA_REPLICA_INDEX_SETTINGS_BY_CONFIG_KEY; skipping it.',
-                config_key,
-                index_name,
-            )
-            continue
+    base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
+    if base_replica:
+        configured.append((base_replica, ALGOLIA_REPLICA_INDEX_SETTINGS))
+    for index_name, index_settings in settings.ALGOLIA.get('ADDITIONAL_REPLICA_INDEX_SETTINGS', {}).items():
         configured.append((index_name, index_settings))
     return configured
 

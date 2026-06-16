@@ -157,7 +157,9 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
     @override_settings(ALGOLIA={
         'INDEX_NAME': 'enterprise_catalog',
         'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
-        'RECENTLY_RELEASED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_released_desc',
+        'ADDITIONAL_REPLICA_INDEX_SETTINGS': {
+            'enterprise_catalog_recently_released_desc': {'customRanking': ['desc(recently_released_timestamp)']},
+        },
         'SEARCH_API_KEY': 'fake-search-key',
     })
     @mock.patch('enterprise_catalog.apps.api_client.algolia.SearchClient.generate_secured_api_key')

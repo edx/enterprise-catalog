@@ -20,9 +20,9 @@ provision *one* replica: there is a single setting
 Portal points its video search at) and a single Python function that provisions
 that one replica.
 
-``ALGOLIA`` is also *replaced* (not merged) from the deployment YAML, so a replica
-is only live once ops sets its index-name key in ``edx-internal`` and a
-``reindex_algolia`` run declares it on the primary.
+Historically the whole ``ALGOLIA`` dict has been *replaced* (not merged) from the
+deployment YAML, so anything code wants to keep in it — like a replica's ranking
+definition — would be lost unless ops restated it in ``edx-internal``.
 
 We want to offer learners a "newest courses first" sort.  The problem is how to
 add a *second* replica — and roll it out across the repositories that together
@@ -32,8 +32,9 @@ breaking the existing relevance search.
 Decision
 --------
 
-Add a recency-sorted replica (``ALGOLIA['RECENTLY_RELEASED_REPLICA_INDEX_NAME']``)
-that leads its ranking with ``desc(recently_released_timestamp)`` — a per-course
+Add a recency-sorted replica (the ``enterprise_catalog_recently_released_desc``
+entry in ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']``) that leads its ranking
+with ``desc(recently_released_timestamp)`` — a per-course
 Unix timestamp of the *earliest course-run start of any status* (the Discovery
 course release date, the same signal as the ``is_new_content`` flag, via the
 shared ``_earliest_course_run_start`` helper — ENT-11386).  Courses with no run
@@ -56,21 +57,21 @@ The sort is rolled out across three repositories:
    the replica when the flag is on *and* the Optimizely "newest" experiment
    variant is active for the user.
 
-The replica is **config-gated on both sides** and is never queried unless its
-name is configured:
+The design generalizes the old one-replica assumption to a settings-driven map, and
+gates *user exposure* with the waffle flag rather than gating *declaration* on ops:
 
-* Backend: **all** sort replicas are driven by one registry
-  (``ALGOLIA_REPLICA_CONFIG_KEYS`` — the base duration replica first, then additive
-  sorts like recency).  Each is declared on the primary index, configured, and
-  added to the secured-key ``restrictIndices`` **only** when its ``settings.ALGOLIA``
-  index-name key is set; an unconfigured replica is skipped entirely (no
-  ``virtual(None)`` replica is created), so the code is inert until ops provides a
-  name.  This is the single source of truth for which replicas exist — adding a
-  future sort is a registry entry plus the field its ``customRanking`` sorts on,
-  not a change to the gating logic.  (The client's ``init_index`` /
-  ``index_exists`` still eagerly manage the primary + base-replica *handles* — that
-  is the required-core-pair lifecycle, a separate concern from which replicas get
-  declared/configured.)
+* Backend: additional sort replicas are declared in
+  ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` — an ``index_name -> index settings``
+  map defined in ``settings/base.py`` as config-as-code (the ``customRanking`` is code,
+  since it sorts on a field the indexer computes).  ``ALGOLIA`` is added to
+  ``DICT_UPDATE_KEYS`` so the deployment YAML is now *merged*, not replaced: ops can
+  override per-environment index names and credentials while these code-defined replica
+  settings are preserved.  One map is the single source of truth — its entries are
+  declared on the primary index, configured during a reindex, and added to the secured-key
+  ``restrictIndices`` — so adding a future sort is one new entry plus the field its
+  ``customRanking`` sorts on.  (The base ``REPLICA_INDEX_NAME`` keeps its own
+  per-environment key and its required-core-pair lifecycle in ``init_index`` /
+  ``index_exists``.)
 * Backend (fail-safe): configuring each replica in ``configure_algolia_index`` is
   wrapped so that any ``AlgoliaException`` is logged and skipped.  One replica
   failing to configure never aborts the reindex — the primary (relevance) index
@@ -101,15 +102,18 @@ search time and silently falls back to the primary index.
 Consequences
 ------------
 
-* **Covered:** "replica name not configured" → the base (relevance) index is
-  used.  This is handled explicitly in both the backend (conditional replica
-  declaration) and the MFE (the ``&& recentlyReleasedIndexName`` guard), so the
-  default-to-base behavior is guaranteed for the unconfigured case.
-* **Not covered in code:** "replica name configured but the Algolia index does
-  not exist yet" → the MFE would query a missing index and surface an error /
-  empty results rather than falling back.  This is a transient,
-  operator-controlled window mitigated by the rollout order and the kill-switch
-  flag, not by code.
+* **Exposure is MFE/flag-gated, not declaration-gated:** the backend now declares the
+  replica in every environment (it ships in ``ADDITIONAL_REPLICA_INDEX_SETTINGS``), so
+  "is it declared" is no longer the gate.  The course search falls back to the primary
+  (relevance) index whenever the MFE's replica env var is unset or the flag/experiment is
+  off (the ``&& recentlyReleasedIndexName`` guard), so user exposure is controlled by the
+  MFE env var + waffle flag.  Because the replica is *virtual* (no extra records), always
+  declaring it costs nothing.
+* **Not covered in code:** "the replica is pointed at by the MFE but its Algolia index
+  does not exist yet" (e.g. the MFE env var is set before this service has been deployed
+  and reindexed) → the MFE would query a missing index and surface an error / empty
+  results rather than falling back.  This is a transient, operator-controlled window
+  mitigated by the rollout order and the kill-switch flag, not by code.
 * **Reindex degrades gracefully:** if configuring a replica fails, the error is
   logged and the reindex continues with the primary index and the other replicas
   intact, so a problem with one sort can never take down core search indexing.

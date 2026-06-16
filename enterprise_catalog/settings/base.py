@@ -432,18 +432,42 @@ LICENSE_MANAGER_BASE_URL = os.environ.get('LICENSE_MANAGER_BASE_URL', '')
 STUDIO_BASE_URL = os.environ.get('STUDIO_BASE_URL', '')
 
 # Algolia
-# Index-name keys are populated per-environment from the deployment config (edx-internal); the
-# whole ALGOLIA dict is *replaced* there, not merged. Each replica is declared/configured only
-# when its key holds a non-empty name (see ALGOLIA_REPLICA_CONFIG_KEYS).
+# The per-environment index names and credentials (INDEX_NAME, REPLICA_INDEX_NAME, APPLICATION_ID,
+# API_KEY) are populated from the deployment config (edx-internal). ALGOLIA is listed in
+# DICT_UPDATE_KEYS (see settings/production.py), so the deployment YAML is *merged* into this dict
+# rather than replacing it -- per-environment keys override the defaults below while code-defined
+# defaults like ADDITIONAL_REPLICA_INDEX_SETTINGS are preserved.
+
+# customRanking for the "newest courses first" sort replica. Defined here as config-as-code and
+# referenced from ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS'] below. Leads with the precomputed
+# recently_released_timestamp (a course's earliest course-run start, any status) descending, then
+# the primary index's relevance tie-breakers.
+ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS = {
+    'customRanking': [
+        'desc(recently_released_timestamp)',
+        'asc(metadata_language)',
+        'asc(visible_via_association)',
+        'asc(created)',
+        'desc(course_bayesian_average)',
+        'desc(recent_enrollment_count)',
+    ],
+}
+
 ALGOLIA = {
     'INDEX_NAME': '',
     # Base replica: the long-standing sort the learner-portal MFE points its video search
     # (SEARCH_INDEX_IDS.VIDEOS) at -- the MFE's ALGOLIA_REPLICA_INDEX_NAME env var. Its
-    # customRanking lives in ALGOLIA_REPLICA_INDEX_SETTINGS.
+    # customRanking lives in ALGOLIA_REPLICA_INDEX_SETTINGS (apps/catalog/algolia_utils.py).
     'REPLICA_INDEX_NAME': '',
-    # "Newest courses first" replica, surfaced as a sort option on the learner-portal course
-    # search. Its customRanking lives in ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS.
-    'RECENTLY_RELEASED_REPLICA_INDEX_NAME': '',
+    # Additional sort replicas beyond the base one, mapped index_name -> Algolia index settings.
+    # This is the single source of truth for which extra replicas exist: each entry is declared on
+    # the primary index, has its settings applied during a reindex, and is added to the secured API
+    # key. The learner-portal only points its course <Index> at the "newest first" replica when the
+    # enterprise.search_default_sort_newest waffle flag + Optimizely experiment are on, so the flag
+    # -- not the mere presence of an entry here -- gates user-facing exposure.
+    'ADDITIONAL_REPLICA_INDEX_SETTINGS': {
+        'enterprise_catalog_recently_released_desc': ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
+    },
     'APPLICATION_ID': '',
     'API_KEY': '',
 }

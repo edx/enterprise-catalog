@@ -13,9 +13,12 @@ from django.test.utils import override_settings
 
 from enterprise_catalog.apps.catalog.constants import (
     COURSE,
+    COURSE_RUN,
     LEARNER_PATHWAY,
     PROGRAM,
+    VIDEO,
 )
+from enterprise_catalog.apps.catalog.models import EnterpriseCatalog
 from enterprise_catalog.apps.catalog.tests.factories import (
     CatalogQueryFactory,
     ContentMetadataFactory,
@@ -28,11 +31,15 @@ from enterprise_catalog.apps.search.tasks import (
     BatchSummary,
     IndexingDecision,
     RecordOutcome,
+    _build_objects_by_content_key,
     _chunked,
     _extract_program_keys,
+    _finalize_decision,
+    _get_catalog_membership_by_key,
     _get_content_modified_by_key,
     _get_indexable_keys_by_content_type,
     _get_indexing_state_by_key,
+    _get_video_pks_for_dispatch,
     _group_aggregation_keys_by_content_type,
     _has_newer_child_index,
     _index_content_batch,
@@ -46,6 +53,7 @@ from enterprise_catalog.apps.search.tasks import (
 from enterprise_catalog.apps.search.tests.factories import (
     ContentMetadataIndexingStateFactory,
 )
+from enterprise_catalog.apps.video_catalog.tests.factories import VideoFactory
 
 
 def _algolia_object(content_key, content_type=COURSE, shard_index=0):
@@ -737,6 +745,9 @@ class TestDispatchAlgoliaIndexing(TestCase):
         self.mock_pathway_si = mock.patch.object(
             search_tasks.index_pathways_batch_in_algolia, 'si',
         ).start()
+        self.mock_video_si = mock.patch.object(
+            search_tasks.index_videos_batch_in_algolia, 'si',
+        ).start()
         # Prevent actual Celery chain/group dispatch
         self.mock_group = mock.patch.object(search_tasks, 'group').start()
         self.mock_chain = mock.patch.object(search_tasks, 'chain').start()
@@ -774,12 +785,33 @@ class TestDispatchAlgoliaIndexing(TestCase):
                 COURSE: {'records': 1, 'batches': 1},
                 PROGRAM: {'records': 1, 'batches': 1},
                 LEARNER_PATHWAY: {'records': 1, 'batches': 1},
+                VIDEO: {'records': 0, 'batches': 0},
             },
         })
         self.mock_invalidate_cache.assert_called_once_with()
         self.mock_course_si.assert_not_called()
         self.mock_program_si.assert_not_called()
         self.mock_pathway_si.assert_not_called()
+
+    def test_dry_run_with_video_records_does_not_dispatch_video_tasks(self):
+        """
+        dry_run=True with video records in the DB reports the correct summary
+        but never calls index_videos_batch_in_algolia.si(). Covers the
+        ``if not dry_run:`` False branch in _build_ordered_groups for videos.
+        """
+        course = ContentMetadataFactory(content_type=COURSE, content_key='course-video-dryrun')
+        course_run = ContentMetadataFactory(
+            content_type=COURSE_RUN,
+            parent_content_key=course.content_key,
+        )
+        VideoFactory(parent_content_metadata=course_run)
+        self._set_mappings(all_indexable_content_keys=[course.content_key])
+
+        result = dispatch_algolia_indexing(force=True, dry_run=True)
+
+        self.assertEqual(result['dispatched'][VIDEO]['records'], 1)
+        self.assertEqual(result['dispatched'][VIDEO]['batches'], 1)
+        self.mock_video_si.assert_not_called()
 
     def test_force_false_does_not_invalidate_cache(self):
         course = ContentMetadataFactory(content_type=COURSE, content_key='course-no-force')
@@ -993,6 +1025,7 @@ class TestDispatchAlgoliaIndexing(TestCase):
             COURSE: {'records': 0, 'batches': 0},
             PROGRAM: {'records': 0, 'batches': 0},
             LEARNER_PATHWAY: {'records': 0, 'batches': 0},
+            VIDEO: {'records': 0, 'batches': 0},
         })
         self.mock_course_si.assert_not_called()
         self.mock_program_si.assert_not_called()
@@ -1172,6 +1205,63 @@ class TestDispatchAlgoliaIndexing(TestCase):
         self.mock_course_si.assert_not_called()
         self.mock_program_si.assert_not_called()
         self.mock_pathway_si.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # video dispatch wiring
+    # ------------------------------------------------------------------
+
+    def test_videos_dispatched_as_fourth_group_on_force(self):
+        """
+        ``force=True`` dispatches every Video as a fourth group after pathways,
+        keyed by ``edx_video_id`` (not content_key), regardless of whether the
+        parent course is otherwise stale. Pins the ``_build_ordered_groups``
+        video-group wiring at the dispatcher level.
+        """
+        course = ContentMetadataFactory(content_type=COURSE, content_key='course-with-video')
+        course_run = ContentMetadataFactory(
+            content_type=COURSE_RUN, parent_content_key=course.content_key,
+        )
+        video = VideoFactory(parent_content_metadata=course_run)
+        self._set_mappings(all_indexable_content_keys=[course.content_key])
+
+        result = dispatch_algolia_indexing(force=True)
+
+        self.assertEqual(result['dispatched'][VIDEO], {'records': 1, 'batches': 1})
+        self.mock_video_si.assert_called_once_with(
+            video_pks=[video.edx_video_id],
+            index_name=None,
+        )
+
+    def test_video_only_run_still_derives_videos_from_stale_courses(self):
+        """
+        A ``content_types=['video']`` run with ``force=False`` must still
+        compute course staleness and dispatch the videos whose parent course is
+        stale — even though COURSE itself is filtered out of the dispatch set.
+
+        This pins the reason the ``content_types`` filter is applied *after*
+        ``_get_keys_to_dispatch_by_type``: video staleness piggybacks on the
+        full stale-course set, so filtering COURSE out beforehand would starve
+        the video derivation and dispatch nothing.
+        """
+        # A never-indexed (therefore stale) course, its run, and a video.
+        course = ContentMetadataFactory(content_type=COURSE, content_key='course-stale-for-video')
+        course_run = ContentMetadataFactory(
+            content_type=COURSE_RUN, parent_content_key=course.content_key,
+        )
+        video = VideoFactory(parent_content_metadata=course_run)
+        self._set_mappings(all_indexable_content_keys=[course.content_key])
+
+        result = dispatch_algolia_indexing(force=False, content_types=[VIDEO])
+
+        # COURSE is filtered out of dispatch, but its staleness still drove the
+        # video derivation.
+        self.assertEqual(result['dispatched'][COURSE], {'records': 0, 'batches': 0})
+        self.assertEqual(result['dispatched'][VIDEO], {'records': 1, 'batches': 1})
+        self.mock_course_si.assert_not_called()
+        self.mock_video_si.assert_called_once_with(
+            video_pks=[video.edx_video_id],
+            index_name=None,
+        )
 
     # ------------------------------------------------------------------
     # use_apply
@@ -1410,6 +1500,7 @@ class TestDispatchAlgoliaIndexingForCatalogQuery(TestCase):
                 COURSE: {'records': 3, 'batches': 2},
                 PROGRAM: {'records': 1, 'batches': 1},
                 LEARNER_PATHWAY: {'records': 1, 'batches': 1},
+                VIDEO: {'records': 0, 'batches': 0},
             },
         })
         self.mock_invalidate_cache.assert_not_called()
@@ -1545,6 +1636,236 @@ class TestDispatchAlgoliaIndexingForCatalogQuery(TestCase):
         self.mock_invalidate_cache.assert_not_called()
 
 
+class TestGetVideoPksForDispatch(TestCase):
+    """
+    Tests for ``_get_video_pks_for_dispatch``.
+    """
+
+    def setUp(self):
+        # A course-run ContentMetadata with parent_content_key pointing to a course.
+        self.course_key = 'course-v1:Org+Course+Run'
+        self.course_run = ContentMetadataFactory(
+            content_type=COURSE_RUN,
+            parent_content_key=self.course_key,
+        )
+        self.video = VideoFactory(parent_content_metadata=self.course_run)
+
+    def test_force_returns_all_video_pks(self):
+        pks = _get_video_pks_for_dispatch(stale_course_keys=[], force=True)
+        self.assertIn(self.video.edx_video_id, pks)
+
+    def test_force_false_with_matching_stale_course(self):
+        pks = _get_video_pks_for_dispatch(
+            stale_course_keys=[self.course_key],
+            force=False,
+        )
+        self.assertIn(self.video.edx_video_id, pks)
+
+    def test_force_false_with_no_matching_stale_course(self):
+        pks = _get_video_pks_for_dispatch(
+            stale_course_keys=['some-other-course'],
+            force=False,
+        )
+        self.assertNotIn(self.video.edx_video_id, pks)
+
+    def test_force_false_with_empty_stale_courses_returns_empty(self):
+        pks = _get_video_pks_for_dispatch(stale_course_keys=[], force=False)
+        self.assertEqual(pks, [])
+
+
+class TestGetCatalogMembershipByKey(TestCase):
+    """
+    Tests for ``_get_catalog_membership_by_key``.
+    """
+
+    def test_empty_course_keys_returns_empty_dicts(self):
+        customer_uuids, catalog_uuids, catalog_queries = _get_catalog_membership_by_key([])
+        self.assertEqual(dict(customer_uuids), {})
+        self.assertEqual(dict(catalog_uuids), {})
+        self.assertEqual(dict(catalog_queries), {})
+
+    def test_course_with_catalog_membership_is_resolved(self):
+        catalog_query = CatalogQueryFactory()
+        enterprise_catalog = EnterpriseCatalog.objects.create(
+            enterprise_uuid=uuid4(),
+            catalog_query=catalog_query,
+            title='Test Catalog',
+        )
+
+        course_key = 'course-v1:Org+Membership+2024'
+        course = ContentMetadataFactory(content_type='course', content_key=course_key)
+        course.catalog_queries.set([catalog_query])
+
+        customer_uuids, catalog_uuids, catalog_queries = _get_catalog_membership_by_key(
+            [course_key]
+        )
+
+        self.assertIn(str(enterprise_catalog.enterprise_uuid), customer_uuids[course_key])
+        self.assertIn(str(enterprise_catalog.uuid), catalog_uuids[course_key])
+        expected_query_tuple = (str(catalog_query.uuid), catalog_query.title)
+        self.assertIn(expected_query_tuple, catalog_queries[course_key])
+
+    def test_course_run_membership_accumulates_under_parent_course_key(self):
+        """
+        Membership attached to a COURSE_RUN record (not the course itself) is
+        accumulated under the parent course's content_key. This is the branch
+        that actually matters for videos: a video's parent is always a
+        course-run, and catalog queries may be associated at the run level.
+
+        Exercises the ``Q(parent_content_key__in=..., content_type=COURSE_RUN)``
+        leg of ``_get_catalog_membership_by_key``, which the course-level test
+        above does not touch.
+        """
+        catalog_query = CatalogQueryFactory()
+        enterprise_catalog = EnterpriseCatalog.objects.create(
+            enterprise_uuid=uuid4(),
+            catalog_query=catalog_query,
+            title='Run-Level Catalog',
+        )
+
+        course_key = 'course-v1:Org+RunMembership+2024'
+        # No COURSE record carries the query — only the course-run does.
+        course_run = ContentMetadataFactory(
+            content_type=COURSE_RUN,
+            parent_content_key=course_key,
+        )
+        course_run.catalog_queries.set([catalog_query])
+
+        customer_uuids, catalog_uuids, catalog_queries = _get_catalog_membership_by_key(
+            [course_key]
+        )
+
+        # Membership keyed by the parent course, sourced entirely from the run.
+        self.assertIn(str(enterprise_catalog.enterprise_uuid), customer_uuids[course_key])
+        self.assertIn(str(enterprise_catalog.uuid), catalog_uuids[course_key])
+        self.assertIn(
+            (str(catalog_query.uuid), catalog_query.title),
+            catalog_queries[course_key],
+        )
+
+
+class TestIndexVideoBatchInAlgolia(TestCase):
+    """
+    Tests for ``index_videos_batch_in_algolia``.
+    """
+    # pylint: disable=no-value-for-parameter
+
+    def setUp(self):
+        self.course_key = 'course-v1:Org+Video+2024'
+        self.course_run = ContentMetadataFactory(
+            content_type=COURSE_RUN,
+            parent_content_key=self.course_key,
+        )
+        self.video = VideoFactory(parent_content_metadata=self.course_run)
+
+        self.mock_algolia_client = mock.MagicMock()
+        self.mock_membership = mock.patch(
+            'enterprise_catalog.apps.search.tasks._get_catalog_membership_by_key',
+            return_value=(
+                {self.course_key: {'customer-uuid-1'}},
+                {self.course_key: {'catalog-uuid-1'}},
+                {self.course_key: {('query-uuid-1', 'Query Title')}},
+            ),
+        )
+        self.mock_add_video = mock.patch(
+            'enterprise_catalog.apps.search.tasks.add_video_to_algolia_objects',
+            side_effect=lambda v, products, *a, **kw: products.update(
+                {f'{v.edx_video_id}-obj': {'objectID': f'{v.edx_video_id}-obj'}}
+            ),
+        )
+        self.mock_get_client = mock.patch(
+            'enterprise_catalog.apps.search.tasks.get_initialized_algolia_client',
+            return_value=self.mock_algolia_client,
+        )
+
+    def test_happy_path_calls_save_objects_batch(self):
+        with self.mock_membership, self.mock_add_video, self.mock_get_client:
+            result = search_tasks.index_videos_batch_in_algolia(
+                video_pks=[self.video.edx_video_id],
+                index_name='test-index',
+            )
+
+        self.assertEqual(result['indexed'], 1)
+        self.assertEqual(result['skipped'], 0)
+        self.mock_algolia_client.save_objects_batch.assert_called_once()
+        _, call_kwargs = self.mock_algolia_client.save_objects_batch.call_args
+        self.assertEqual(call_kwargs['index_name'], 'test-index')
+
+    def test_empty_video_pks_returns_early_without_db_query(self):
+        with mock.patch(
+            'enterprise_catalog.apps.search.tasks._get_catalog_membership_by_key'
+        ) as mock_membership:
+            result = search_tasks.index_videos_batch_in_algolia(video_pks=[])
+
+        self.assertEqual(result['indexed'], 0)
+        mock_membership.assert_not_called()
+
+    def test_unknown_video_pks_returns_without_algolia_call(self):
+        with self.mock_membership, self.mock_get_client:
+            result = search_tasks.index_videos_batch_in_algolia(
+                video_pks=['nonexistent-video-id'],
+            )
+
+        self.assertEqual(result['indexed'], 0)
+        self.assertEqual(result['skipped'], 1)
+        self.mock_algolia_client.save_objects_batch.assert_not_called()
+
+    def test_video_with_no_parent_content_metadata_is_skipped(self):
+        """
+        A video whose parent_content_metadata is None (dangling FK via DO_NOTHING)
+        is counted as skipped and does not call add_video_to_algolia_objects.
+        The valid sibling in the same batch still produces an Algolia object.
+        """
+        mock_orphan = mock.MagicMock()
+        mock_orphan.edx_video_id = 'orphan-vid'
+        mock_orphan.parent_content_metadata = None
+
+        mock_valid = mock.MagicMock()
+        mock_valid.edx_video_id = self.video.edx_video_id
+        mock_valid.parent_content_metadata = self.course_run
+
+        with mock.patch.object(search_tasks.Video, 'objects') as mock_mgr:
+            mock_mgr.filter.return_value.select_related.return_value = [mock_orphan, mock_valid]
+            with self.mock_membership, self.mock_add_video, self.mock_get_client:
+                result = search_tasks.index_videos_batch_in_algolia(
+                    video_pks=['orphan-vid', self.video.edx_video_id],
+                )
+
+        self.assertEqual(result['skipped'], 1)
+        self.assertEqual(result['indexed'], 1)
+        self.mock_algolia_client.save_objects_batch.assert_called_once()
+
+    def test_no_algolia_objects_generated_returns_early(self):
+        """
+        When add_video_to_algolia_objects produces no objects (e.g. the video
+        has no catalog membership), the task returns early without calling
+        save_objects_batch.
+        """
+        with self.mock_membership, mock.patch(
+            'enterprise_catalog.apps.search.tasks.add_video_to_algolia_objects',
+        ):
+            result = search_tasks.index_videos_batch_in_algolia(
+                video_pks=[self.video.edx_video_id],
+            )
+
+        self.assertEqual(result['indexed'], 0)
+        self.assertEqual(result['skipped'], 1)  # len(video_pks)
+        self.mock_algolia_client.save_objects_batch.assert_not_called()
+
+    def test_algolia_exception_propagates_for_retry(self):
+        """
+        ``AlgoliaException`` from ``save_objects_batch`` propagates out of the
+        task so that ``_LoggedTaskWithRetry.autoretry_for`` can catch it and
+        schedule a retry.
+        """
+        self.mock_algolia_client.save_objects_batch.side_effect = AlgoliaException('algolia boom')
+        with self.mock_membership, self.mock_add_video, self.mock_get_client:
+            with self.assertRaises(AlgoliaException):
+                search_tasks.index_videos_batch_in_algolia(
+                    video_pks=[self.video.edx_video_id],
+                )
+
+
 class TestRecordOutcome(TestCase):
     """
     Pinning tests for the ``RecordOutcome`` StrEnum.
@@ -1675,3 +1996,80 @@ class TestIndexingDecisionConstructors(TestCase):
         decision.outcome = RecordOutcome.FAILED
         self.assertEqual(decision.desired_outcome, RecordOutcome.INDEXED)
         self.assertEqual(decision.outcome, RecordOutcome.FAILED)
+
+    def test_explicitly_set_outcome_is_not_overwritten_by_post_init(self):
+        """
+        Constructing IndexingDecision directly with outcome= already set
+        leaves that value untouched — __post_init__ only fills in the default
+        when outcome is None. Covers the ``outcome is not None`` branch.
+        """
+        decision = IndexingDecision(
+            content_key='c-1',
+            desired_outcome=RecordOutcome.INDEXED,
+            outcome=RecordOutcome.FAILED,
+        )
+        self.assertEqual(decision.desired_outcome, RecordOutcome.INDEXED)
+        self.assertEqual(decision.outcome, RecordOutcome.FAILED)
+
+
+class TestBuildObjectsByContentKey(TestCase):
+    """
+    Tests for ``_build_objects_by_content_key``.
+    """
+
+    def test_objects_with_mismatched_aggregation_key_are_dropped(self):
+        """
+        The legacy generator sometimes includes objects for related content
+        (e.g. courses pulled into a program batch). Objects whose
+        aggregation_key doesn't match any of the batch's content keys are
+        silently dropped. Covers the ``agg_key not in aggregation_key_to_content_key``
+        branch.
+        """
+        target_key = 'course-v1:Org+Target+Run'
+        mappings = IndexingMappings(
+            program_to_course_keys={},
+            pathway_to_program_course_keys={},
+            all_indexable_content_keys={target_key},
+        )
+        unrelated_obj = {
+            'objectID': 'unrelated-0',
+            'aggregation_key': 'course:unrelated-key',
+        }
+        target_obj = {
+            'objectID': 'target-0',
+            'aggregation_key': f'course:{target_key}',
+        }
+
+        with mock.patch(
+            'enterprise_catalog.apps.search.tasks._get_algolia_products_for_batch',
+            return_value=[unrelated_obj, target_obj],
+        ):
+            result = _build_objects_by_content_key([target_key], COURSE, mappings)
+
+        self.assertEqual(result[target_key], [target_obj])
+        self.assertNotIn('unrelated-key', result)
+
+
+class TestFinalizeDecision(TestCase):
+    """
+    Direct unit tests for ``_finalize_decision``.
+    """
+
+    def test_unknown_outcome_is_a_silent_noop(self):
+        """
+        ``_finalize_decision`` silently falls through when outcome is not one
+        of the four RecordOutcome members. Covers the False branch of the
+        final ``elif`` (outcome == INDEXED).
+        """
+        results = BatchSummary(content_type=COURSE)
+        decision = IndexingDecision.skipped(
+            content_key='c-1', content=None, state=None,
+        )
+        decision.outcome = 'unexpected'
+
+        _finalize_decision(decision, results)
+
+        self.assertEqual(results.indexed, 0)
+        self.assertEqual(results.skipped, 0)
+        self.assertEqual(results.removed, 0)
+        self.assertEqual(results.failed, 0)

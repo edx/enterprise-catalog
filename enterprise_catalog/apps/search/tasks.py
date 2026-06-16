@@ -54,18 +54,24 @@ from celery import chain, group, shared_task
 from celery_utils.logged_task import LoggedTask
 from django.conf import settings
 from django.db import IntegrityError
+from django.db.models import Prefetch, Q
 from django.db.utils import OperationalError
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
-from enterprise_catalog.apps.api.tasks import _get_algolia_products_for_batch
+from enterprise_catalog.apps.api.tasks import (
+    _get_algolia_products_for_batch,
+    add_video_to_algolia_objects,
+)
 from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 from enterprise_catalog.apps.catalog.algolia_utils import (
     get_initialized_algolia_client,
 )
 from enterprise_catalog.apps.catalog.constants import (
     COURSE,
+    COURSE_RUN,
     LEARNER_PATHWAY,
     PROGRAM,
+    VIDEO,
 )
 from enterprise_catalog.apps.catalog.models import CatalogQuery, ContentMetadata
 from enterprise_catalog.apps.catalog.utils import _partition_aggregation_key
@@ -75,11 +81,14 @@ from enterprise_catalog.apps.search.indexing_mappings import (
     invalidate_indexing_mappings_cache,
 )
 from enterprise_catalog.apps.search.models import ContentMetadataIndexingState
+from enterprise_catalog.apps.video_catalog.models import Video
 
 
 logger = logging.getLogger(__name__)
 
-_SUPPORTED_CONTENT_TYPES = frozenset({COURSE, PROGRAM, LEARNER_PATHWAY})
+_SUPPORTED_CONTENT_TYPES = frozenset({COURSE, PROGRAM, LEARNER_PATHWAY, VIDEO})
+
+VIDEO_BATCH_SIZE = 20
 
 # TypeVar for the generic _chunked helper.
 _T = TypeVar('_T')
@@ -152,6 +161,7 @@ class _LoggedTaskWithRetry(LoggedTask):  # pylint: disable=abstract-method
     boundary.
     """
     autoretry_for = (
+        AlgoliaException,
         RequestsConnectionError,
         IntegrityError,
         OperationalError,
@@ -202,6 +212,83 @@ def index_pathways_batch_in_algolia(
     return asdict(_index_content_batch(content_keys, LEARNER_PATHWAY, index_name=index_name, force=force))
 
 
+@shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
+def index_videos_batch_in_algolia(
+    self,  # pylint: disable=unused-argument
+    video_pks,
+    index_name=None,
+):
+    """
+    Index a batch of Video records into Algolia.
+
+    Unlike the ContentMetadata-backed tasks, this does not write
+    ContentMetadataIndexingState rows — video staleness is proxied through
+    the parent course's state.
+    """
+    if not video_pks:
+        logger.info('index_videos_batch_in_algolia: empty video_pks; skipping.')
+        return {'content_type': VIDEO, 'indexed': 0, 'skipped': 0}
+
+    videos = list(
+        Video.objects.filter(edx_video_id__in=video_pks)
+        .select_related('parent_content_metadata')
+    )
+    if not videos:
+        logger.info('index_videos_batch_in_algolia: no Video rows found for pks=%s', video_pks)
+        return {'content_type': VIDEO, 'indexed': 0, 'skipped': len(video_pks)}
+
+    # PKs dispatched but absent from the DB are skipped from the start so the
+    # returned counts stay consistent with the dispatcher's dispatched totals.
+    skipped = len(video_pks) - len(videos)
+
+    parent_course_keys = list({
+        v.parent_content_metadata.parent_content_key
+        for v in videos
+        if v.parent_content_metadata
+    })
+    customer_uuids_by_key, catalog_uuids_by_key, catalog_queries_by_key = (
+        _get_catalog_membership_by_key(parent_course_keys)
+    )
+
+    algolia_products_by_object_id = {}
+    for video in videos:
+        if not video.parent_content_metadata:
+            logger.warning(
+                'index_videos_batch_in_algolia: video %s has no parent_content_metadata; skipping.',
+                video.edx_video_id,
+            )
+            skipped += 1
+            continue
+        course_key = video.parent_content_metadata.parent_content_key
+        before = len(algolia_products_by_object_id)
+        add_video_to_algolia_objects(
+            video,
+            algolia_products_by_object_id,
+            customer_uuids_by_key[course_key],
+            catalog_uuids_by_key[course_key],
+            catalog_queries_by_key[course_key],
+        )
+        if len(algolia_products_by_object_id) == before:
+            skipped += 1
+
+    algolia_objects = list(algolia_products_by_object_id.values())
+    if not algolia_objects:
+        logger.info(
+            'index_videos_batch_in_algolia: no Algolia objects generated for pks=%s', video_pks,
+        )
+        return {'content_type': VIDEO, 'indexed': 0, 'skipped': len(video_pks)}
+
+    algolia_client = get_initialized_algolia_client()
+    algolia_client.save_objects_batch(algolia_objects, index_name=index_name)
+
+    indexed = len(video_pks) - skipped
+    logger.info(
+        'index_videos_batch_in_algolia: indexed=%d videos, skipped=%d, objects=%d',
+        indexed, skipped, len(algolia_objects),
+    )
+    return {'content_type': VIDEO, 'indexed': indexed, 'skipped': skipped}
+
+
 def _build_ordered_groups(
     records_by_type: dict[str, list[str]],
     batch_size: int,
@@ -211,7 +298,7 @@ def _build_ordered_groups(
 ) -> tuple[list, dict]:
     """
     Materialize per-type content-key batches into an ordered list of Celery
-    ``group``\\s (courses → programs → pathways) and a summary count dict.
+    ``group``\\s (courses → programs → pathways → videos) and a summary count dict.
 
     Tasks use ``.si()`` (immutable signatures) so each task's kwargs are fixed
     at dispatch time and Celery does not forward the previous group's return
@@ -220,7 +307,7 @@ def _build_ordered_groups(
 
     Returns:
         ordered_groups: list of ``group`` objects, one per non-empty content
-            type, in courses → programs → pathways order.
+            type, in courses → programs → pathways → videos order.
         dispatched_summary: ``{content_type: {'records': int, 'batches': int}}``
     """
     task_by_content_type = {
@@ -244,6 +331,21 @@ def _build_ordered_groups(
         dispatched_summary[content_type] = {'records': record_count, 'batches': batch_count}
         if tasks:
             ordered_groups.append(group(tasks))
+
+    # Video group — appended after pathways. Uses edx_video_id PKs, not content_keys,
+    # and its own fixed batch size since scale is independent of the general batch size.
+    video_tasks, video_batch_count, video_record_count = [], 0, 0
+    for batch in _chunked(records_by_type.get(VIDEO, []), VIDEO_BATCH_SIZE):
+        video_batch_count += 1
+        video_record_count += len(batch)
+        if not dry_run:
+            video_tasks.append(
+                index_videos_batch_in_algolia.si(video_pks=batch, index_name=index_name)
+            )
+    dispatched_summary[VIDEO] = {'records': video_record_count, 'batches': video_batch_count}
+    if video_tasks:
+        ordered_groups.append(group(video_tasks))
+
     return ordered_groups, dispatched_summary
 
 
@@ -300,7 +402,6 @@ def dispatch_algolia_indexing(
                 f"Unsupported content_types: {sorted(unknown)}. "
                 f"Must be one of {sorted(_SUPPORTED_CONTENT_TYPES)}."
             )
-        indexable_keys_by_type = {k: v for k, v in indexable_keys_by_type.items() if k in content_types}
 
     content_keys_to_dispatch = _get_keys_to_dispatch_by_type(
         content_keys_by_type=indexable_keys_by_type,
@@ -308,6 +409,12 @@ def dispatch_algolia_indexing(
         force=force,
         include_failed=include_failed,
     )
+
+    # Filter to requested content types AFTER computing dispatch sets so that
+    # video staleness (which piggybacks on course staleness) is always derived
+    # from the full stale-course set, even during video-only runs.
+    if content_types is not None:
+        content_keys_to_dispatch = {k: v for k, v in content_keys_to_dispatch.items() if k in content_types}
 
     ordered_groups, dispatched_summary = _build_ordered_groups(
         records_by_type=content_keys_to_dispatch,
@@ -405,6 +512,16 @@ def dispatch_algolia_indexing_for_catalog_query(
         )
         for content_type in (COURSE, PROGRAM, LEARNER_PATHWAY)
     }
+    # Videos are dispatched for any course being reindexed in this run,
+    # including added/removed-membership courses, since catalog facets change.
+    # Always scope to this catalog query's courses — force=True is not passed
+    # because _get_video_pks_for_dispatch(force=True) returns ALL videos, which
+    # would escape the catalog-query boundary. records_to_dispatch[COURSE] already
+    # contains the full course set when force=True.
+    records_to_dispatch[VIDEO] = _get_video_pks_for_dispatch(
+        stale_course_keys=records_to_dispatch[COURSE],
+        force=False,
+    )
 
     ordered_groups, dispatched_summary = _build_ordered_groups(
         records_by_type=records_to_dispatch,
@@ -756,6 +873,69 @@ def _get_course_keys_for_dispatch(
     return keys_to_dispatch
 
 
+def _get_video_pks_for_dispatch(stale_course_keys: list[str], force: bool) -> list[str]:
+    """
+    Return edx_video_id PKs for Video records that should be dispatched.
+
+    With ``force=True`` every Video row is returned. Otherwise, only videos
+    whose parent course content_key appears in ``stale_course_keys`` are
+    returned — video staleness is proxied through the parent course's state.
+    """
+    if force:
+        return list(Video.objects.values_list('edx_video_id', flat=True))
+    if not stale_course_keys:
+        return []
+    return list(
+        Video.objects.filter(
+            parent_content_metadata__parent_content_key__in=stale_course_keys
+        ).values_list('edx_video_id', flat=True)
+    )
+
+
+def _get_catalog_membership_by_key(
+    course_keys: list[str],
+) -> tuple[dict, dict, dict]:
+    """
+    Return ``(customer_uuids_by_key, catalog_uuids_by_key, catalog_queries_by_key)``
+    for the given course content_keys.
+
+    Membership is accumulated from both the course ContentMetadata record and
+    all of its course-run children, matching the lookup pattern used by
+    ``add_video_to_algolia_objects`` in the monolithic reindex path.
+    """
+    customer_uuids_by_key: dict = defaultdict(set)
+    catalog_uuids_by_key: dict = defaultdict(set)
+    catalog_queries_by_key: dict = defaultdict(set)
+
+    if not course_keys:
+        return customer_uuids_by_key, catalog_uuids_by_key, catalog_queries_by_key
+
+    metadata_qs = ContentMetadata.objects.filter(
+        Q(content_key__in=course_keys, content_type=COURSE)
+        | Q(parent_content_key__in=course_keys, content_type=COURSE_RUN)
+    ).prefetch_related(
+        Prefetch(
+            'catalog_queries',
+            queryset=CatalogQuery.objects.prefetch_related('enterprise_catalogs'),
+        )
+    )
+    for metadata in metadata_qs:
+        course_key = (
+            metadata.content_key
+            if metadata.content_type == COURSE
+            else metadata.parent_content_key
+        )
+        for catalog_query in metadata.catalog_queries.all():
+            catalog_queries_by_key[course_key].add(
+                (str(catalog_query.uuid), catalog_query.title)
+            )
+            for catalog in catalog_query.enterprise_catalogs.all():
+                catalog_uuids_by_key[course_key].add(str(catalog.uuid))
+                customer_uuids_by_key[course_key].add(str(catalog.enterprise_uuid))
+
+    return customer_uuids_by_key, catalog_uuids_by_key, catalog_queries_by_key
+
+
 def _get_catalog_query_content_keys_by_type(catalog_query: CatalogQuery) -> dict[str, list[str]]:
     """
     Return current catalog membership grouped by content type.
@@ -793,12 +973,13 @@ def _get_keys_to_dispatch_by_type(
     indexed more recently than the program itself.
     Pathways add an analogous check against their child programs.
     """
+    course_keys = _get_course_keys_for_dispatch(
+        content_keys=content_keys_by_type.get(COURSE, []),
+        force=force,
+        include_failed=include_failed,
+    )
     return {
-        COURSE: _get_course_keys_for_dispatch(
-            content_keys=content_keys_by_type.get(COURSE, []),
-            force=force,
-            include_failed=include_failed,
-        ),
+        COURSE: course_keys,
         PROGRAM: _get_program_keys_for_dispatch(
             content_keys=content_keys_by_type.get(PROGRAM, []),
             program_to_course_keys=mappings.program_to_course_keys,
@@ -810,6 +991,10 @@ def _get_keys_to_dispatch_by_type(
             pathway_to_program_course_keys=mappings.pathway_to_program_course_keys,
             force=force,
             include_failed=include_failed,
+        ),
+        VIDEO: _get_video_pks_for_dispatch(
+            stale_course_keys=course_keys,
+            force=force,
         ),
     }
 

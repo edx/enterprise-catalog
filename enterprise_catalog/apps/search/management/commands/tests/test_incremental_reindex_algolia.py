@@ -13,6 +13,10 @@ from enterprise_catalog.apps.catalog.constants import (
     COURSE,
     LEARNER_PATHWAY,
     PROGRAM,
+    VIDEO,
+)
+from enterprise_catalog.apps.search.models import (
+    IncrementalReindexAlgoliaConfig,
 )
 
 
@@ -282,3 +286,102 @@ class IncrementalReindexAlgoliaCommandTests(TestCase):
         mock_task.apply_async.return_value.get.return_value = _SAMPLE_SUMMARY
         output = self._call('--index-name', 'enterprise_catalog_v2')
         assert 'enterprise_catalog_v2' in output
+
+    # ------------------------------------------------------------------
+    # Config model override
+    # ------------------------------------------------------------------
+
+    @mock.patch(TASK_PATH)
+    @mock.patch(f'{_CMD}.IncrementalReindexAlgoliaConfig')
+    def test_config_model_disabled_does_not_override_cli(self, mock_config_cls, mock_task):
+        """When the config model is disabled, CLI args are used unchanged."""
+        mock_config_cls.current_options.return_value = {}
+        mock_task.apply_async.return_value.get.return_value = _SAMPLE_SUMMARY
+        self._call('--index-name', 'enterprise_catalog_v2')
+        _, kwargs = mock_task.apply_async.call_args
+        self.assertFalse(kwargs['kwargs']['force'])
+
+    @mock.patch(TASK_PATH)
+    @mock.patch(f'{_CMD}.IncrementalReindexAlgoliaConfig')
+    def test_config_model_force_all_overrides_cli(self, mock_config_cls, mock_task):
+        """When the config model is enabled with force_all=True, force=True is passed to the task."""
+        mock_config_cls.current_options.return_value = {'force_all': True}
+        mock_task.apply_async.return_value.get.return_value = _SAMPLE_SUMMARY
+        self._call('--index-name', 'enterprise_catalog_v2')
+        _, kwargs = mock_task.apply_async.call_args
+        self.assertTrue(kwargs['kwargs']['force'])
+
+    @mock.patch(TASK_PATH)
+    @mock.patch(f'{_CMD}.IncrementalReindexAlgoliaConfig')
+    def test_config_model_content_types_overrides_cli(self, mock_config_cls, mock_task):
+        """When the config model specifies content_types, they override the CLI --content-type arg."""
+        mock_config_cls.current_options.return_value = {'content_types': [VIDEO]}
+        mock_task.apply_async.return_value.get.return_value = _SAMPLE_SUMMARY
+        # CLI passes COURSE; config should win and dispatch VIDEO only
+        self._call('--content-type', COURSE, '--index-name', 'enterprise_catalog_v2')
+        _, kwargs = mock_task.apply_async.call_args
+        self.assertEqual(kwargs['kwargs']['content_types'], [VIDEO])
+
+    @mock.patch(TASK_PATH)
+    @mock.patch(f'{_CMD}.IncrementalReindexAlgoliaConfig')
+    def test_config_model_override_printed_to_stdout(self, mock_config_cls, mock_task):
+        """The command prints a warning when config model overrides are active."""
+        mock_config_cls.current_options.return_value = {'force_all': True}
+        mock_task.apply_async.return_value.get.return_value = _SAMPLE_SUMMARY
+        output = self._call('--index-name', 'enterprise_catalog_v2')
+        self.assertIn('Config model override', output)
+
+
+@ddt.ddt
+class TestIncrementalReindexAlgoliaConfig(TestCase):
+    """
+    Unit tests for IncrementalReindexAlgoliaConfig.current_options().
+    """
+
+    def _make_config(self, enabled=True, **kwargs):
+        config = IncrementalReindexAlgoliaConfig(**kwargs)
+        config.enabled = enabled
+        return config
+
+    @mock.patch.object(IncrementalReindexAlgoliaConfig, 'current')
+    def test_disabled_config_returns_empty_dict(self, mock_current):
+        mock_current.return_value = self._make_config(enabled=False)
+        self.assertEqual(IncrementalReindexAlgoliaConfig.current_options(), {})
+
+    @mock.patch.object(IncrementalReindexAlgoliaConfig, 'current')
+    def test_enabled_config_returns_boolean_fields(self, mock_current):
+        mock_current.return_value = self._make_config(
+            enabled=True, force_all=True, dry_run=False, no_async=True,
+        )
+        opts = IncrementalReindexAlgoliaConfig.current_options()
+        self.assertTrue(opts['force_all'])
+        self.assertFalse(opts['dry_run'])
+        self.assertTrue(opts['no_async'])
+
+    @ddt.data('index_name', 'replica_index_name')
+    @mock.patch.object(IncrementalReindexAlgoliaConfig, 'current')
+    def test_blank_string_field_excluded_from_opts(self, field, mock_current):
+        mock_current.return_value = self._make_config(enabled=True, **{field: ''})
+        self.assertNotIn(field, IncrementalReindexAlgoliaConfig.current_options())
+
+    @ddt.data('index_name', 'replica_index_name')
+    @mock.patch.object(IncrementalReindexAlgoliaConfig, 'current')
+    def test_non_blank_string_field_included_in_opts(self, field, mock_current):
+        mock_current.return_value = self._make_config(enabled=True, **{field: 'my_index'})
+        self.assertEqual(IncrementalReindexAlgoliaConfig.current_options()[field], 'my_index')
+
+    @ddt.data(
+        (f'{COURSE}, {VIDEO}', {COURSE, VIDEO}),
+        (f'{COURSE}, bogus_type', {COURSE}),
+    )
+    @ddt.unpack
+    @mock.patch.object(IncrementalReindexAlgoliaConfig, 'current')
+    def test_content_types_parsed_from_csv(self, csv_input, expected, mock_current):
+        mock_current.return_value = self._make_config(enabled=True, content_types=csv_input)
+        self.assertEqual(set(IncrementalReindexAlgoliaConfig.current_options()['content_types']), expected)
+
+    @ddt.data('bogus, also_bogus', '')
+    @mock.patch.object(IncrementalReindexAlgoliaConfig, 'current')
+    def test_content_types_omitted_when_empty_or_all_invalid(self, csv_input, mock_current):
+        mock_current.return_value = self._make_config(enabled=True, content_types=csv_input)
+        self.assertNotIn('content_types', IncrementalReindexAlgoliaConfig.current_options())

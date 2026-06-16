@@ -21,6 +21,9 @@ from enterprise_catalog.apps.catalog.constants import (
     PROGRAM,
     VIDEO,
 )
+from enterprise_catalog.apps.search.models import (
+    IncrementalReindexAlgoliaConfig,
+)
 from enterprise_catalog.apps.search.tasks import dispatch_algolia_indexing
 
 
@@ -82,6 +85,15 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        config_overrides = IncrementalReindexAlgoliaConfig.current_options()
+        if config_overrides:
+            self.stdout.write(
+                self.style.WARNING(
+                    f'Config model override active: {config_overrides}'
+                )
+            )
+        options.update(config_overrides)
+
         content_types = options['content_types']  # None means all types
         index_name = options['index_name']
         replica_index_name = options['replica_index_name']

@@ -12,18 +12,37 @@ Context
 The enterprise Learner Portal search page sorts a single Algolia index by
 relevance.  Algolia does not re-sort an index at query time, so each alternate
 sort order is a separate *replica* index with its own ``customRanking``; the
-consumer switches sort by pointing its search at a different index name.  To
-offer a "newest courses first" sort we add a recency-sorted replica.
+consumer switches sort by pointing its search at a different index name.  We
+already maintain one such replica — the base ``ALGOLIA['REPLICA_INDEX_NAME']``,
+which the Learner Portal points its video search at.
 
-* The primary index (``ALGOLIA['INDEX_NAME']``) keeps the relevance ranking.
-* A new replica (``ALGOLIA['RECENTLY_RELEASED_REPLICA_INDEX_NAME']``) leads its
-  ranking with ``desc(recently_released_timestamp)`` — a per-course Unix
-  timestamp of the *earliest course-run start of any status* (the discovery course
-  release date, the same signal as the ``is_new_content`` flag, via the shared
-  ``_earliest_course_run_start`` helper — ENT-11386).  Courses with no run start
-  get ``0`` so they sort last under
-  a descending ranking — deliberately not the far-future ``ALGOLIA_DEFAULT_TIMESTAMP``,
-  which would float undated courses to the top.
+Two facts about this machinery constrain how any new replica can be rolled out:
+
+* ``ALGOLIA`` is *replaced* (not merged) from the deployment YAML, so a replica
+  is only live once ops sets its index-name key in ``edx-internal`` and a
+  ``reindex_algolia`` run declares it on the primary.
+* An Algolia *virtual* replica exists as soon as it is declared on the primary
+  index's settings (it mirrors the primary's records); it does not wait for a
+  populated record set.  So once this service is deployed and ``reindex_algolia``
+  has run, the replica exists.
+
+We want to offer learners a "newest courses first" sort.  The problem is how to
+add that sort — and roll it out across the repositories that together own
+enterprise search — without a partially-configured replica degrading or breaking
+the existing relevance search.
+
+Decision
+--------
+
+Add a recency-sorted replica (``ALGOLIA['RECENTLY_RELEASED_REPLICA_INDEX_NAME']``)
+that leads its ranking with ``desc(recently_released_timestamp)`` — a per-course
+Unix timestamp of the *earliest course-run start of any status* (the Discovery
+course release date, the same signal as the ``is_new_content`` flag, via the
+shared ``_earliest_course_run_start`` helper — ENT-11386).  Courses with no run
+start get ``0`` so they sort last under a descending ranking — deliberately not
+the far-future ``ALGOLIA_DEFAULT_TIMESTAMP``, which would float undated courses to
+the top.  The primary index (``ALGOLIA['INDEX_NAME']``) keeps the relevance
+ranking.
 
 The sort is rolled out across three repositories:
 
@@ -33,19 +52,6 @@ The sort is rolled out across three repositories:
 #. **frontend-app-learner-portal-enterprise** points the course ``<Index>`` at
    the replica when the flag is on *and* the Optimizely "newest" experiment
    variant is active for the user.
-
-Two facts shape the failure modes:
-
-* ``ALGOLIA`` is *replaced* (not merged) from the deployment YAML, so the replica
-  is only live once ops sets ``RECENTLY_RELEASED_REPLICA_INDEX_NAME`` in
-  ``edx-internal`` and a ``reindex_algolia`` run declares it on the primary.
-* An Algolia *virtual* replica exists as soon as it is declared on the primary
-  index's settings (it mirrors the primary's records); it does not wait for a
-  populated record set.  So once this service is deployed and ``reindex_algolia``
-  has run, the replica exists.
-
-Decision
---------
 
 The replica is **config-gated on both sides** and is never queried unless its
 name is configured:

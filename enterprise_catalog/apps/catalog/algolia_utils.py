@@ -68,21 +68,21 @@ ALGOLIA_UUID_BATCH_SIZE = 100
 ALGOLIA_JSON_METADATA_MAX_SIZE = 100000
 
 
-def _build_algolia_replicas():
+def _get_algolia_replica_names() -> list[str]:
     """
-    Build the list of replica indexes to declare on the primary index.
+    Build the list of replica index names to declare on the primary index.
 
-    Declares a ``virtual(name)`` for each replica in the registry (``ALGOLIA_REPLICA_CONFIG_KEYS``
-    -- the base duration replica plus any additive sort replica) whose index name is configured.
-    Unconfigured replicas are omitted, so deploying this code before ops sets a name won't declare
-    a ``virtual(None)`` replica on the primary index.
+    Returns a ``virtual(name)`` entry for each replica in the registry
+    (``ALGOLIA_REPLICA_CONFIG_KEYS`` -- the base duration replica plus any additive sort replica)
+    whose index name is configured. Unconfigured replicas are omitted, so deploying this code
+    before ops sets a name won't declare a ``virtual(None)`` replica on the primary index.
     """
-    replicas = []
+    replica_names = []
     for config_key in ALGOLIA_REPLICA_CONFIG_KEYS:
         index_name = settings.ALGOLIA.get(config_key)
         if index_name:
-            replicas.append(f'virtual({index_name})')
-    return replicas
+            replica_names.append(f'virtual({index_name})')
+    return replica_names
 
 
 # keep attributes from content objects that we explicitly want in Algolia
@@ -473,7 +473,7 @@ def configure_algolia_index(algolia_client):
     # import-time global, so the set the primary declares stays consistent with the replicas
     # _configured_replicas() actually configures below -- and so tests can vary it via
     # override_settings.
-    primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': _build_algolia_replicas()}
+    primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': _get_algolia_replica_names()}
     algolia_client.set_index_settings(primary_settings)
     for index_name, index_settings in _configured_replicas():
         # A replica's settings failing to apply must never abort the reindex: log and continue so
@@ -731,7 +731,7 @@ def is_course_new_content(course):
     return now - relativedelta(months=12) <= earliest_start <= now
 
 
-def get_course_recently_released_timestamp(course):
+def get_course_recently_released_timestamp(course) -> int:
     """
     Unix timestamp (int) of the course's earliest course-run start (any status), used as the
     custom-ranking attribute for the "newest courses first" Algolia replica.

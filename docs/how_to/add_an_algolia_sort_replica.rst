@@ -112,7 +112,7 @@ pagination stays deterministic:
         'PRICE_ASC_REPLICA_INDEX_NAME': ALGOLIA_PRICE_ASC_REPLICA_INDEX_SETTINGS,
     }
 
-**That is all the wiring.** You do **not** touch ``_build_algolia_replicas``,
+**That is all the wiring.** You do **not** touch ``_get_algolia_replica_names``,
 ``_configured_replicas``, ``configure_algolia_index``, or the secured-key
 ``replica_index_names`` — they all loop the registry, so the new replica is automatically
 declared on the primary index, has its settings applied during a reindex, and is added to the
@@ -123,7 +123,7 @@ Tests
 
 * Extend the registry / configure tests in
   ``enterprise_catalog/apps/catalog/tests/test_algolia_utils.py`` (e.g.
-  ``test_build_algolia_replicas_only_includes_configured_replicas`` and
+  ``test_get_algolia_replica_names_only_includes_configured_replicas`` and
   ``test_configure_algolia_index_configures_*``) to cover the new key, using
   ``override_settings(ALGOLIA={...})``.
 * If you added a field computation, unit-test the ``get_course_<signal>`` helper.

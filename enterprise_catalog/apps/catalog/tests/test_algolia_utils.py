@@ -283,23 +283,23 @@ class AlgoliaUtilsTests(TestCase):
             {'status': 'published', 'start': recent.isoformat()},
         ]}) == int(old.timestamp())
 
-    def test_build_algolia_replicas_only_includes_configured_replicas(self):
+    def test_get_algolia_replica_names_only_includes_configured_replicas(self):
         """Each replica (base + optional) is declared only when its index name is configured."""
         # pylint: disable=protected-access
         with override_settings(ALGOLIA={
             'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
             'RECENTLY_RELEASED_REPLICA_INDEX_NAME': 'enterprise_catalog_recently_released_desc',
         }):
-            assert utils._build_algolia_replicas() == [
+            assert utils._get_algolia_replica_names() == [
                 'virtual(enterprise_catalog_duration_desc)',
                 'virtual(enterprise_catalog_recently_released_desc)',
             ]
         # Only the base replica configured -> only it is declared.
         with override_settings(ALGOLIA={'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc'}):
-            assert utils._build_algolia_replicas() == ['virtual(enterprise_catalog_duration_desc)']
+            assert utils._get_algolia_replica_names() == ['virtual(enterprise_catalog_duration_desc)']
         # Nothing configured -> no replicas at all, never virtual(None).
         with override_settings(ALGOLIA={}):
-            assert not utils._build_algolia_replicas()
+            assert not utils._get_algolia_replica_names()
 
     def test_algolia_object_includes_recently_released_timestamp(self):
         """The course Algolia object carries recently_released_timestamp (and is_new_content)."""

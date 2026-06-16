@@ -437,11 +437,12 @@ STUDIO_BASE_URL = os.environ.get('STUDIO_BASE_URL', '')
 # when its key holds a non-empty name (see ALGOLIA_REPLICA_CONFIG_KEYS).
 ALGOLIA = {
     'INDEX_NAME': '',
-    # Base replica, sorted by duration descending (desc(duration)). The learner-portal MFE points
-    # its video search (SEARCH_INDEX_IDS.VIDEOS) at this index, so it is also the MFE's
-    # ALGOLIA_REPLICA_INDEX_NAME env var.
+    # Base replica: the long-standing sort the learner-portal MFE points its video search
+    # (SEARCH_INDEX_IDS.VIDEOS) at -- the MFE's ALGOLIA_REPLICA_INDEX_NAME env var. Its
+    # customRanking lives in ALGOLIA_REPLICA_INDEX_SETTINGS.
     'REPLICA_INDEX_NAME': '',
-    # "Newest courses first" replica, sorted by desc(recently_released_timestamp).
+    # "Newest courses first" replica, surfaced as a sort option on the learner-portal course
+    # search. Its customRanking lives in ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS.
     'RECENTLY_RELEASED_REPLICA_INDEX_NAME': '',
     'APPLICATION_ID': '',
     'API_KEY': '',

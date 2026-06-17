@@ -19,6 +19,14 @@ Subcommands (may be combined on one invocation in any order):
 
   spot-check         Compare every field of the sampled records between v1 and v2.
 
+  fetch-id-diff      Fetch and display the full records for object IDs that appear
+                     only in v1 or only in v2.  Reads id_diff.json written by 'analyze'
+                     and saves results to id_diff_records.json.
+
+  search-ranking     Run a fixed set of representative queries against both indices
+                     and compare the top-10 results side-by-side.  Flags queries where
+                     the top-5 overlap is low (< 3/5).  Saves results to search_ranking.json.
+
 Examples:
 
   # Fetch everything and run all analyses in one shot:
@@ -74,6 +82,26 @@ DATA_DIR = SCRIPT_DIR / 'data' / 'algolia_validation'
 # ---------------------------------------------------------------------------
 # Facets to compare — chosen for signal value; excludes high-cardinality UUID
 # fields that would produce thousands of facet buckets.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Queries for search-ranking subcommand
+# ---------------------------------------------------------------------------
+
+RANKING_QUERIES = [
+    "ai",
+    "law",
+    "python",
+    "project management",
+    "sql",
+    "cybersecurity",
+    "introduction to project management",
+    "inteligencia artificial",
+    "instructional design",
+]
+
+RANKING_TOP_N = 10
+
 # ---------------------------------------------------------------------------
 
 FACET_FIELDS = [
@@ -601,6 +629,176 @@ def _print_id_diff_analysis(v1_data, v2_data):
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: fetch-id-diff
+# ---------------------------------------------------------------------------
+
+def cmd_fetch_id_diff(args):
+    """
+    Fetch full records for the object IDs that appear only in v1 or only in v2,
+    using the id_diff.json written by the 'analyze' subcommand.
+
+    Prints a human-readable summary and saves the full records to
+    id_diff_records.json for deeper inspection.
+
+    Videos are excluded from v1-only / v2-only accounting because they are
+    indexed under a separate Video model (keyed by edx_video_id) rather than
+    ContentMetadata.  A video present in v1 but absent from v2 (or vice versa)
+    most likely reflects a new video added or removed since the last full
+    reindex, not a bug in the incremental indexer.
+    """
+    diff_path = DATA_DIR / 'id_diff.json'
+    if not diff_path.exists():
+        sys.exit(
+            f'Missing {diff_path}\n'
+            "Run 'fetch analyze --v1 <name> --v2 <name>' first."
+        )
+
+    diff = json.loads(diff_path.read_text())
+    only_in_v1 = diff['only_in_v1']
+    only_in_v2 = diff['only_in_v2']
+
+    if not only_in_v1 and not only_in_v2:
+        print('No ID differences found — indices are in perfect parity.')
+        return
+
+    _load_dotenv(args.env_file)
+    client = _algolia_client()
+
+    DETAIL_FIELDS = ['objectID', 'aggregation_key', 'content_type', 'title',
+                     'content_key', 'status', 'availability']
+
+    results = {}
+    for label, index_name, oids in [
+        ('v1', args.v1, only_in_v1),
+        ('v2', args.v2, only_in_v2),
+    ]:
+        if not oids:
+            results[f'only_in_{label}'] = []
+            continue
+        print(f'\n[{label}] Fetching {len(oids)} records from {index_name}...')
+        index = client.init_index(index_name)
+        fetched = _batch_get_objects(index, oids)
+        by_id = {r['objectID']: r for r in fetched if r.get('objectID')}
+
+        records = []
+        for oid in oids:
+            rec = by_id.get(oid, {})
+            records.append({f: rec.get(f) for f in DETAIL_FIELDS})
+
+        results[f'only_in_{label}'] = records
+
+    print()
+    print('=' * 72)
+    print('ID DIFF — RECORD DETAILS')
+    print('=' * 72)
+
+    for label in ('v1', 'v2'):
+        key = f'only_in_{label}'
+        records = results[key]
+        if not records:
+            continue
+        print(f'\nRecords only in {label} ({len(records)}):')
+        print(f'  {"objectID":<55} {"content_type":<16} title')
+        print(f'  {"-"*55} {"-"*16} {"-"*30}')
+        for r in records:
+            oid = (r.get('objectID') or '')[:54]
+            ct = (r.get('content_type') or '?')[:15]
+            title = (r.get('title') or '')[:50]
+            print(f'  {oid:<55} {ct:<16} {title}')
+            if r.get('content_key'):
+                print(f'    content_key:     {r["content_key"]}')
+            if r.get('aggregation_key'):
+                print(f'    aggregation_key: {r["aggregation_key"]}')
+            if r.get('status'):
+                print(f'    status:          {r["status"]}')
+
+    out_path = DATA_DIR / 'id_diff_records.json'
+    out_path.write_text(json.dumps(results, indent=2))
+    print(f'\nFull records saved → {out_path}')
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: search-ranking
+# ---------------------------------------------------------------------------
+
+def cmd_search_ranking(args):
+    """
+    Run RANKING_QUERIES against both indices, compare the top-RANKING_TOP_N
+    results by objectID, and flag queries where the top-5 overlap is low.
+
+    Prints a side-by-side rank table per query plus a one-line summary, and
+    saves the full hit lists to search_ranking.json.
+    """
+    _load_dotenv(args.env_file)
+    client = _algolia_client()
+    v1_index = client.init_index(args.v1)
+    v2_index = client.init_index(args.v2)
+
+    search_params = {
+        'hitsPerPage': RANKING_TOP_N,
+        'attributesToRetrieve': ['objectID', 'title', 'content_type'],
+    }
+
+    print(f'\nRunning {len(RANKING_QUERIES)} queries (top {RANKING_TOP_N}) '
+          f'against both indices...')
+    all_results = {}
+    for query in RANKING_QUERIES:
+        v1_hits = v1_index.search(query, search_params)['hits']
+        v2_hits = v2_index.search(query, search_params)['hits']
+        all_results[query] = {'v1': v1_hits, 'v2': v2_hits}
+
+    print()
+    print('=' * 72)
+    print('SEARCH RANKING CHECK')
+    print('=' * 72)
+
+    summary = []
+    for query, data in all_results.items():
+        v1_hits = data['v1']
+        v2_hits = data['v2']
+        v1_ids = [h['objectID'] for h in v1_hits]
+        v2_ids = [h['objectID'] for h in v2_hits]
+        top5_overlap = len(set(v1_ids[:5]) & set(v2_ids[:5]))
+        top10_overlap = len(set(v1_ids) & set(v2_ids))
+
+        flag = '  ⚠ LOW OVERLAP' if top5_overlap < 3 else ''
+        print(f'\nQuery: "{query}"{flag}')
+        print(f'  {"#":<3} {"match":<6} {"v1 title":<38} {"v2 title":<38}')
+        print(f'  {"-"*3} {"-"*6} {"-"*38} {"-"*38}')
+        for i in range(RANKING_TOP_N):
+            v1_h = v1_hits[i] if i < len(v1_hits) else None
+            v2_h = v2_hits[i] if i < len(v2_hits) else None
+            v1_title = _truncate(v1_h.get('title') or v1_h['objectID'], 37) if v1_h else '—'
+            v2_title = _truncate(v2_h.get('title') or v2_h['objectID'], 37) if v2_h else '—'
+            same_rank = (v1_h and v2_h and v1_h['objectID'] == v2_h['objectID'])
+            in_v2 = v1_h and v1_h['objectID'] in v2_ids
+            marker = '✓ same' if same_rank else ('  ~v2' if in_v2 else '  —v2')
+            print(f'  {i+1:<3} {marker:<6} {v1_title:<38} {v2_title:<38}')
+
+        print(f'  top-5 overlap: {top5_overlap}/5   top-10 overlap: {top10_overlap}/10')
+        summary.append({
+            'query': query,
+            'top5_overlap': top5_overlap,
+            'top10_overlap': top10_overlap,
+            'flag': top5_overlap < 3,
+        })
+
+    print()
+    print('=' * 72)
+    print('SUMMARY')
+    print('=' * 72)
+    print(f'\n  {"Query":<42} {"Top-5":<8} Top-10')
+    print(f'  {"-"*42} {"-"*8} {"-"*8}')
+    for s in summary:
+        flag = '  ⚠' if s['flag'] else ''
+        print(f'  {s["query"]:<42} {s["top5_overlap"]}/5     {s["top10_overlap"]}/10{flag}')
+
+    out_path = DATA_DIR / 'search_ranking.json'
+    out_path.write_text(json.dumps(all_results, indent=2))
+    print(f'\nFull results saved → {out_path}')
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 #
@@ -612,6 +810,8 @@ _SUBCOMMAND_TOKENS = {
     'fetch', 'analyze',
     'fetch-level-type', 'level-type',
     'fetch-spot-check', 'spot-check',
+    'fetch-id-diff',
+    'search-ranking',
 }
 
 
@@ -630,7 +830,7 @@ def main():
         print('error: specify at least one subcommand:', ', '.join(sorted(_SUBCOMMAND_TOKENS)))
         sys.exit(1)
 
-    needs_fetch_args = active & {'fetch', 'fetch-level-type', 'fetch-spot-check'}
+    needs_fetch_args = active & {'fetch', 'fetch-level-type', 'fetch-spot-check', 'fetch-id-diff', 'search-ranking'}
     fetch_args = None
     if needs_fetch_args:
         fetch_parser = argparse.ArgumentParser(add_help=False)
@@ -648,12 +848,16 @@ def main():
         cmd_fetch_level_type(fetch_args)
     if 'fetch-spot-check' in active:
         cmd_fetch_spot_check(fetch_args)
+    if 'fetch-id-diff' in active:
+        cmd_fetch_id_diff(fetch_args)
     if 'analyze' in active:
         cmd_analyze()
     if 'level-type' in active:
         cmd_level_type()
     if 'spot-check' in active:
         cmd_spot_check()
+    if 'search-ranking' in active:
+        cmd_search_ranking(fetch_args)
 
 
 if __name__ == '__main__':

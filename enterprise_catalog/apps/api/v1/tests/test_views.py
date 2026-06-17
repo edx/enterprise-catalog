@@ -1886,7 +1886,7 @@ class EnterpriseCatalogRefreshDataFromDiscoveryTests(APITestMixin):
         Verify the refresh_metadata endpoint correctly calls the chain of updating/indexing tasks.
         """
         # Mock the submitted task id for proper rendering
-        mock_chain().apply_async().task_id = 1
+        mock_chain().apply_async().id = 1
         # Reset the call count since it was called in the above mock
         mock_chain.reset_mock()
 
@@ -1918,6 +1918,95 @@ class EnterpriseCatalogRefreshDataFromDiscoveryTests(APITestMixin):
         url = reverse('api:v1:update-enterprise-catalog', kwargs={'uuid': random_uuid})
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=False)
+    @mock.patch('enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.chain')
+    @mock.patch(
+        'enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.'
+        'update_catalog_metadata_task'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.'
+        'update_full_content_metadata_task'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.'
+        'index_enterprise_catalog_in_algolia_task'
+    )
+    def test_refresh_catalog_incremental_indexing_disabled(
+        self,
+        mock_index_task,
+        mock_update_full_metadata_task,
+        mock_update_metadata_task,
+        mock_chain,
+    ):
+        """
+        Verify the refresh_metadata endpoint uses legacy chain when incremental indexing is disabled.
+        """
+        mock_chain().apply_async().id = 1
+        mock_chain.reset_mock()
+
+        url = reverse('api:v1:update-enterprise-catalog', kwargs={'uuid': self.enterprise_catalog.uuid})
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Legacy chain should have only three tasks: update -> full_update -> index
+        mock_chain.assert_called_once_with(
+            mock_update_metadata_task.si(self.catalog_query.id),
+            mock_update_full_metadata_task.si(),
+            mock_index_task.si(),
+        )
+
+    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
+    @mock.patch('enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.chain')
+    @mock.patch('enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.group')
+    @mock.patch(
+        'enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.'
+        'update_catalog_metadata_task'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.'
+        'update_full_content_metadata_task'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.'
+        'index_enterprise_catalog_in_algolia_task'
+    )
+    @mock.patch(
+        'enterprise_catalog.apps.api.v1.views.enterprise_catalog_refresh_data_from_discovery.'
+        'dispatch_algolia_indexing_for_catalog_query'
+    )
+    def test_refresh_catalog_incremental_indexing_enabled(
+        self,
+        mock_dispatch_algolia,
+        mock_index_task,
+        mock_update_full_metadata_task,
+        mock_update_metadata_task,
+        mock_group,
+        mock_chain,
+    ):
+        """
+        Verify the refresh_metadata endpoint uses group with both indexing tasks when incremental indexing is enabled.
+        """
+        mock_chain().apply_async().id = 1
+        mock_chain.reset_mock()
+
+        url = reverse('api:v1:update-enterprise-catalog', kwargs={'uuid': self.enterprise_catalog.uuid})
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Chain should have three parts: update, full_update, and a group with both indexing tasks
+        mock_chain.assert_called_once()
+        call_args = mock_chain.call_args[0]
+        self.assertEqual(len(call_args), 3)
+        # First two should be the update tasks
+        self.assertEqual(call_args[0], mock_update_metadata_task.si(self.catalog_query.id))
+        self.assertEqual(call_args[1], mock_update_full_metadata_task.si())
+        # Third should be the group
+        mock_group.assert_called_once_with(
+            mock_index_task.si(),
+            mock_dispatch_algolia.si(self.catalog_query.id),
+        )
 
 
 @ddt.ddt

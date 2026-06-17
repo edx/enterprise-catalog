@@ -51,6 +51,20 @@ Follow-up (not a blocker): if courses-before-videos ranking is a product require
 | Re-run spot check after PR #127 deploys | ✅ Done — 25 videos all clean |
 | Investigate records only in v1 | ✅ Done — catalog churn + new content, no data loss |
 | Search result ranking sanity check | ✅ Done — 8/9 perfect parity; "ai" divergence explained (see above) |
-| Array-ordering audit (are ordering diffs benign for all faceted search use cases?) | Not started |
+| Array-ordering audit (are ordering diffs benign for all faceted search use cases?) | ✅ Done — see below |
 
 **No structural schema gaps remain.** The only confirmed code bug (video field gap) is fixed. All remaining diffs are data freshness — v2 is consistently more current than v1.
+
+### Array-ordering audit
+
+Re-analyzed the 250-record spot check with arrays sorted before comparison (`sort-arrays` subcommand). 14 array fields had diffs; results:
+
+| Fields | Verdict |
+|---|---|
+| `academy_uuids`, `skill_names`, `subjects`, `course_keys`, `program_titles`, `availability`, `programs`, `video_ids` | Ordering-only — zero content changes after sorting |
+| `enterprise_catalog_uuids` (90 records), `enterprise_customer_uuids` (64 records) | v2 has additional UUIDs not in v1 — new catalogs/customers added since v1's last full reindex, same catalog churn pattern as the ID diff |
+| `academy_tags` (16 records) | Programs gained/lost academy tags in Discovery between reindexes — data freshness |
+| `translation_languages` (7 records) | Courses gained/lost available translation languages in Discovery — data freshness |
+| `partners` (2 records), `entitlements` (1 record) | Data freshness (logo URL update; $3,250→$3,247 price change) |
+
+No bugs. Every "content change" is v2 having more current data than v1.

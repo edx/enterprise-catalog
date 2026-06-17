@@ -27,6 +27,10 @@ Subcommands (may be combined on one invocation in any order):
                      and compare the top-10 results side-by-side.  Flags queries where
                      the top-5 overlap is low (< 3/5).  Saves results to search_ranking.json.
 
+  sort-arrays        Re-analyze spot_check_diffs.json with array fields sorted before
+                     comparison.  For each differing array field, reports how many diffs
+                     are purely ordering vs. actual content changes.  No API calls.
+
 Examples:
 
   # Fetch everything and run all analyses in one shot:
@@ -799,6 +803,90 @@ def cmd_search_ranking(args):
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: sort-arrays
+# ---------------------------------------------------------------------------
+
+def _normalize(val):
+    """Sort lists (recursively for lists of dicts) for ordering-insensitive comparison."""
+    if isinstance(val, list):
+        normalized = [_normalize(v) for v in val]
+        return sorted(normalized, key=lambda x: json.dumps(x, sort_keys=True, default=str))
+    if isinstance(val, dict):
+        return {k: _normalize(v) for k, v in val.items()}
+    return val
+
+
+def cmd_sort_arrays():
+    """
+    Re-analyze spot_check_diffs.json with array fields sorted before comparison.
+    For every field that had diffs, classifies each diff as:
+      - ordering-only: same elements, different order
+      - content-change: actually different values
+    Prints a breakdown and flags any fields with real content changes.
+    """
+    diffs_path = DATA_DIR / 'spot_check_diffs.json'
+    if not diffs_path.exists():
+        sys.exit(
+            f'Missing {diffs_path}\n'
+            "Run 'fetch-spot-check spot-check' first."
+        )
+
+    data = json.loads(diffs_path.read_text())
+    records_compared = data['summary']['records_compared']
+    diffs_by_field = data['diffs_by_field']
+
+    array_fields = {
+        field for field, diffs in diffs_by_field.items()
+        if any(isinstance(d['v1'], list) or isinstance(d['v2'], list) for d in diffs)
+    }
+
+    if not array_fields:
+        print('No array fields with diffs found in spot_check_diffs.json.')
+        return
+
+    print()
+    print('=' * 72)
+    print('ARRAY ORDERING AUDIT')
+    print('=' * 72)
+    print(f'Records compared: {records_compared}')
+    print(f'Array fields with diffs: {len(array_fields)}')
+    print()
+    print(f'{"Field":<45} {"Total":>6} {"Order-only":>10} {"Content":>10}')
+    print('-' * 72)
+
+    has_content_changes = False
+    for field in sorted(array_fields, key=lambda f: -len(diffs_by_field[f])):
+        diffs = diffs_by_field[field]
+        ordering_only = sum(
+            1 for d in diffs
+            if _normalize(d['v1']) == _normalize(d['v2'])
+        )
+        content_changes = len(diffs) - ordering_only
+        flag = '  *** CONTENT CHANGE' if content_changes else ''
+        print(f'{field:<45} {len(diffs):>6} {ordering_only:>10} {content_changes:>10}{flag}')
+        if content_changes:
+            has_content_changes = True
+
+    print()
+    if has_content_changes:
+        print('Fields with actual content changes (sample diffs):')
+        for field in sorted(array_fields, key=lambda f: -len(diffs_by_field[f])):
+            diffs = diffs_by_field[field]
+            content_diffs = [
+                d for d in diffs if _normalize(d['v1']) != _normalize(d['v2'])
+            ]
+            if not content_diffs:
+                continue
+            print(f'\n{field}  ({len(content_diffs)} content diffs):')
+            for d in content_diffs[:3]:
+                print(f'  [{(d["content_type"] or "?"):<20}] {d["objectID"]}')
+                print(f'    v1: {_truncate(d["v1"])}')
+                print(f'    v2: {_truncate(d["v2"])}')
+    else:
+        print('All array diffs are ordering-only. No content changes.')
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 #
@@ -812,6 +900,7 @@ _SUBCOMMAND_TOKENS = {
     'fetch-spot-check', 'spot-check',
     'fetch-id-diff',
     'search-ranking',
+    'sort-arrays',
 }
 
 
@@ -858,6 +947,8 @@ def main():
         cmd_spot_check()
     if 'search-ranking' in active:
         cmd_search_ranking(fetch_args)
+    if 'sort-arrays' in active:
+        cmd_sort_arrays()
 
 
 if __name__ == '__main__':

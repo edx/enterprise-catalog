@@ -1,8 +1,9 @@
 from unittest import mock
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
+from enterprise_catalog.apps.api.tasks import TaskRecentlyRunError
 from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     EnterpriseCatalog,
@@ -136,3 +137,100 @@ class UpdateContentMetadataCommandTests(TestCase):
             mock_catalog_task.s(catalog_query_id=self.catalog_query_b, force=True, dry_run=False),
         ])
         mock_full_metadata_task.apply.assert_called_once_with(kwargs={"force": True, "dry_run": False})
+
+    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=False)
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_pathway_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.group')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
+    def test_incremental_indexing_disabled(
+        self, mock_dispatch, mock_full_metadata_task, mock_catalog_task, mock_group,
+        mock_fetch_missing_pathway, mock_fetch_missing_course
+    ):
+        """
+        Verify that dispatch_algolia_indexing is NOT called when flag is disabled
+        """
+        call_command(self.command_name)
+        mock_dispatch.si.assert_not_called()
+        mock_dispatch.apply.assert_not_called()
+
+    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_pathway_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.group')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
+    def test_incremental_indexing_enabled_async(
+        self, mock_dispatch, mock_full_metadata_task, mock_catalog_task, mock_group,
+        mock_fetch_missing_pathway, mock_fetch_missing_course
+    ):
+        """
+        Verify that dispatch_algolia_indexing is called with force=False when flag is enabled (async)
+        """
+        call_command(self.command_name)
+        mock_dispatch.si.assert_called_once_with(force=False, dry_run=False, use_apply=False)
+
+    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_pathway_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.group')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
+    def test_incremental_indexing_enabled_no_async(
+        self, mock_dispatch, mock_full_metadata_task, mock_catalog_task, mock_group,
+        mock_fetch_missing_pathway, mock_fetch_missing_course
+    ):
+        """
+        Verify that dispatch_algolia_indexing is called with force=False and use_apply=True when flag is enabled (no-async)
+        """
+        call_command(self.command_name, no_async=True)
+        mock_dispatch.apply.assert_called_once_with(kwargs={'force': False, 'dry_run': False, 'use_apply': True})
+
+    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_pathway_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.group')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
+    def test_incremental_indexing_recently_run_error_swallowed(
+        self, mock_dispatch, mock_full_metadata_task, mock_catalog_task, mock_group,
+        mock_fetch_missing_pathway, mock_fetch_missing_course
+    ):
+        """
+        Verify TaskRecentlyRunError from dispatch_algolia_indexing is swallowed (dedup guard).
+        """
+        mock_dispatch.si.return_value.apply_async.return_value.get.side_effect = TaskRecentlyRunError('dedup')
+        call_command(self.command_name)  # must not raise
+
+    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
+    @mock.patch(
+        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_pathway_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.group')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
+    def test_incremental_indexing_other_exception_propagates(
+        self, mock_dispatch, mock_full_metadata_task, mock_catalog_task, mock_group,
+        mock_fetch_missing_pathway, mock_fetch_missing_course
+    ):
+        """
+        Verify non-TaskRecentlyRunError exceptions from dispatch_algolia_indexing are re-raised.
+        """
+        mock_dispatch.si.return_value.apply_async.return_value.get.side_effect = RuntimeError('boom')
+        with self.assertRaises(RuntimeError):
+            call_command(self.command_name)

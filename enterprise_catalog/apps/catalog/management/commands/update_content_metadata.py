@@ -1,6 +1,7 @@
 import logging
 
 from celery import group
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from enterprise_catalog.apps.api.tasks import (
@@ -11,6 +12,7 @@ from enterprise_catalog.apps.api.tasks import (
 )
 from enterprise_catalog.apps.catalog.constants import COURSE, TASK_TIMEOUT
 from enterprise_catalog.apps.catalog.models import CatalogQuery
+from enterprise_catalog.apps.search.tasks import dispatch_algolia_indexing
 
 
 logger = logging.getLogger(__name__)
@@ -197,3 +199,30 @@ class Command(BaseCommand):
                     'update_full_content_metadata_task was recently run prior to this command, '
                     'and was thus skipped during the execution of this command.'
                 )
+
+        # Trigger incremental Algolia indexing if feature flag is enabled.
+        if settings.ENABLE_INCREMENTAL_ALGOLIA_INDEXING:
+            dry_run = flags.get('dry_run', False)
+            try:
+                force = flags.get('force', False)
+                if no_async:
+                    dispatch_algolia_indexing.apply(
+                        kwargs={'force': force, 'dry_run': dry_run, 'use_apply': True}
+                    )
+                    logger.info('Finished incremental Algolia indexing.')
+                else:
+                    dispatch_algolia_indexing.si(
+                        force=force, dry_run=dry_run, use_apply=False
+                    ).apply_async().get(
+                        timeout=TASK_TIMEOUT,
+                        propagate=True,
+                    )
+                    logger.info('Dispatched incremental Algolia indexing to workers.')
+            except Exception as exc:
+                if type(exc).__name__ != 'TaskRecentlyRunError':
+                    raise
+                else:
+                    logger.info(
+                        'dispatch_algolia_indexing was recently run prior to this command, '
+                        'and was thus skipped during the execution of this command.'
+                    )

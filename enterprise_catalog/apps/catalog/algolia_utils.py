@@ -238,6 +238,7 @@ ALGOLIA_REPLICA_INDEX_SETTINGS = {
     ],
 }
 
+
 def _configured_replicas():
     """
     Return ``(index_name, index_settings)`` for each replica to configure.

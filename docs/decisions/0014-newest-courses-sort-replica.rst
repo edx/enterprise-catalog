@@ -4,7 +4,7 @@ Newest-Courses-First Search Sort via a Recency-Sorted Algolia Replica
 Status
 ------
 
-Proposed
+Accepted
 
 Context
 -------
@@ -33,7 +33,7 @@ Decision
 --------
 
 Add a recency-sorted replica (the ``enterprise_catalog_recently_released_desc``
-entry in ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']``) that leads its ranking
+entry in ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']``) that leads its ranking
 with ``desc(recently_released_timestamp)`` — a per-course
 Unix timestamp of the *earliest course-run start of any status* (the Discovery
 course release date, the same signal as the ``is_new_content`` flag, via the
@@ -61,7 +61,7 @@ The design generalizes the old one-replica assumption to a settings-driven map, 
 gates *user exposure* with the waffle flag rather than gating *declaration* on ops:
 
 * Backend: additional sort replicas are declared in
-  ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` — an ``index_name -> index settings``
+  ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']`` — an ``index_name -> index settings``
   map defined in ``settings/base.py`` as config-as-code (the ``customRanking`` is code,
   since it sorts on a field the indexer computes).  ``ALGOLIA`` is added to
   ``DICT_UPDATE_KEYS`` so the deployment YAML is now *merged*, not replaced: ops can
@@ -103,22 +103,12 @@ Consequences
 ------------
 
 * **Exposure is MFE/flag-gated, not declaration-gated:** the backend now declares the
-  replica in every environment (it ships in ``ADDITIONAL_REPLICA_INDEX_SETTINGS``), so
+  replica in every environment (it ships in ``ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS``), so
   "is it declared" is no longer the gate.  The course search falls back to the primary
   (relevance) index whenever the MFE's replica env var is unset or the flag/experiment is
   off (the ``&& recentlyReleasedIndexName`` guard), so user exposure is controlled by the
   MFE env var + waffle flag.  Because the replica is *virtual* (no extra records), always
   declaring it costs nothing.
-* **Not covered in code:** "the replica is pointed at by the MFE but its Algolia index
-  does not exist yet" (e.g. the MFE env var is set before this service has been deployed
-  and reindexed) → the MFE would query a missing index and surface an error / empty
-  results rather than falling back.  This is a transient, operator-controlled window
-  mitigated by the rollout order and the kill-switch flag, not by code.
-* **Reindex degrades gracefully:** if configuring a replica fails, the error is
-  logged and the reindex continues with the primary index and the other replicas
-  intact, so a problem with one sort can never take down core search indexing.
-  The worst case is that one replica lags its ranking until the next run — never a
-  broken or empty primary index.
 * **No added record cost:** because the replica is *virtual*, it mirrors the
   primary's records rather than duplicating them, so adding it does not grow our
   Algolia record count.  A standard (non-virtual) replica would roughly double the

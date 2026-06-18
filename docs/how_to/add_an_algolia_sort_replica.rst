@@ -8,7 +8,7 @@ search at a different index name.
 
 Beyond the base replica (``ALGOLIA['REPLICA_INDEX_NAME']``, used by the MFE video search),
 every additional sort replica is declared in **one place** -- the
-``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` map -- so adding a sort is mostly additive.
+``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']`` map -- so adding a sort is mostly additive.
 This guide walks through it end to end. See
 ``docs/decisions/0014-newest-courses-sort-replica.rst`` for the design rationale, and treat the
 **recently-released ("newest first") replica** as the canonical example to copy.
@@ -16,14 +16,14 @@ This guide walks through it end to end. See
 The mental model: one settings-driven map
 ------------------------------------------
 
-``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` maps an **index name** to that replica's
+``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']`` maps an **index name** to that replica's
 **Algolia index settings** (its ``customRanking``). It is defined in ``settings/base.py`` as
 config-as-code: a replica's ranking sorts on a field the indexing code must compute, so the
 definition is intrinsically code, not deployment config.
 
 ``ALGOLIA`` is *merged* (not replaced) from the deployment config -- it is listed in
 ``DICT_UPDATE_KEYS`` (``settings/production.py``) -- so an environment can override the per-env
-index names / credentials while the code-defined ``ADDITIONAL_REPLICA_INDEX_SETTINGS`` defaults are
+index names / credentials while the code-defined ``ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS`` defaults are
 preserved.
 
 The backend declares and configures every replica in this map on each reindex, and the secured API
@@ -54,7 +54,7 @@ signal, in ``enterprise_catalog/apps/catalog/algolia_utils.py``:
   branch).
 
 **2. Define the replica's ranking and register it.** In ``enterprise_catalog/settings/base.py``,
-add a settings constant and an entry in ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` keyed by
+add a settings constant and an entry in ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']`` keyed by
 the index name. Lead the ``customRanking`` with your sort criterion, then append the primary
 index's shared tie-breakers so records that tie on your criterion (and any "missing value" bucket)
 fall back to the relevance ordering and pagination stays deterministic:
@@ -76,7 +76,7 @@ fall back to the relevance ordering and pagination stays deterministic:
     ALGOLIA = {
         'INDEX_NAME': '',
         'REPLICA_INDEX_NAME': '',
-        'ADDITIONAL_REPLICA_INDEX_SETTINGS': {
+        'ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS': {
             'enterprise_catalog_recently_released_desc': ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
             'enterprise_catalog_price_asc': ALGOLIA_PRICE_ASC_REPLICA_INDEX_SETTINGS,
         },
@@ -86,7 +86,7 @@ fall back to the relevance ordering and pagination stays deterministic:
 
 **That is all the wiring.** You do **not** touch ``_get_algolia_replica_names``,
 ``_configured_replicas``, ``configure_algolia_index``, or the secured-key ``replica_index_names``
--- they all read ``ADDITIONAL_REPLICA_INDEX_SETTINGS``, so the new replica is automatically declared
+-- they all read ``ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS``, so the new replica is automatically declared
 on the primary index, has its settings applied during a reindex, and is added to the secured API
 key's ``restrictIndices``.
 
@@ -107,10 +107,14 @@ Deploy / ops
 
 Once the code is merged and deployed:
 
-#. The replica's name and settings ship in code (``ADDITIONAL_REPLICA_INDEX_SETTINGS``), so no
-   edx-internal change is required to *declare* it. If an environment needs a different index name,
-   ops overrides ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` in edx-internal -- because
-   ``ALGOLIA`` is merged, only the keys ops sets are overridden.
+#. The replica's name and settings ship in code (``ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS``), so no
+   edx-internal change is required to *declare* it -- and normally ops should not override it at all.
+   The ``ALGOLIA`` merge is *shallow*: the deployment YAML's top-level ``ALGOLIA`` keys override the
+   code defaults, but nested dicts are **not** deep-merged. So setting
+   ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']`` in edx-internal **replaces the entire map**
+   for that environment (dropping every code-defined replica it does not restate) rather than
+   overriding individual entries. Prefer setting the index name in code; override the map only when
+   you intend to fully restate it.
 #. Run ``./manage.py reindex_algolia``. A *virtual* replica exists as soon as it is declared on the
    primary index's settings (it mirrors the primary's records), so the replica is live after one
    reindex -- no separate population step.

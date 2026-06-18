@@ -157,7 +157,7 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
     @override_settings(ALGOLIA={
         'INDEX_NAME': 'enterprise_catalog',
         'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
-        'ADDITIONAL_REPLICA_INDEX_SETTINGS': {
+        'ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS': {
             'enterprise_catalog_recently_released_desc': {'customRanking': ['desc(recently_released_timestamp)']},
         },
         'SEARCH_API_KEY': 'fake-search-key',

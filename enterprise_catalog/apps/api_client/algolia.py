@@ -52,14 +52,14 @@ class AlgoliaSearchClient:
         Index names of every configured sort replica (base + additional), empty when none are set.
 
         The base replica is ``ALGOLIA['REPLICA_INDEX_NAME']`` (when set); the additional sort
-        replicas are the keys of ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']``. Used to scope the
+        replicas are the keys of ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']``. Used to scope the
         secured API key to exactly the replicas that exist.
         """
         names = []
         base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
         if base_replica:
             names.append(base_replica)
-        names.extend(settings.ALGOLIA.get('ADDITIONAL_REPLICA_INDEX_SETTINGS', {}).keys())
+        names.extend(settings.ALGOLIA.get('ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS', {}).keys())
         return names
 
     def init_index(self):

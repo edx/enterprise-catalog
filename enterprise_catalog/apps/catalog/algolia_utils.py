@@ -74,14 +74,14 @@ def _get_algolia_replica_names() -> list[str]:
 
     Returns a ``virtual(name)`` entry for the base replica (``ALGOLIA['REPLICA_INDEX_NAME']``, when
     set) and for each additional sort replica (the keys of
-    ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']``). An unset base replica is omitted, so we never
+    ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']``). An unset base replica is omitted, so we never
     declare a ``virtual(None)`` replica on the primary index.
     """
     replica_names = []
     base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
     if base_replica:
         replica_names.append(f'virtual({base_replica})')
-    for index_name in settings.ALGOLIA.get('ADDITIONAL_REPLICA_INDEX_SETTINGS', {}):
+    for index_name in settings.ALGOLIA.get('ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS', {}):
         replica_names.append(f'virtual({index_name})')
     return replica_names
 
@@ -245,7 +245,7 @@ def _configured_replicas():
 
     Covers the base replica (``ALGOLIA['REPLICA_INDEX_NAME']`` with ``ALGOLIA_REPLICA_INDEX_SETTINGS``,
     when set) and every additional sort replica declared in
-    ``ALGOLIA['ADDITIONAL_REPLICA_INDEX_SETTINGS']`` (an ``index_name -> settings`` map). Because each
+    ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']`` (an ``index_name -> settings`` map). Because each
     additional replica carries its own settings, there is no separate settings lookup that can drift
     out of sync; this is inert until at least one replica is configured.
     """
@@ -253,7 +253,7 @@ def _configured_replicas():
     base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
     if base_replica:
         configured.append((base_replica, ALGOLIA_REPLICA_INDEX_SETTINGS))
-    for index_name, index_settings in settings.ALGOLIA.get('ADDITIONAL_REPLICA_INDEX_SETTINGS', {}).items():
+    for index_name, index_settings in settings.ALGOLIA.get('ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS', {}).items():
         configured.append((index_name, index_settings))
     return configured
 
@@ -454,7 +454,7 @@ def configure_algolia_index(algolia_client):
         # init_index() logs and returns without setting algolia_index when a required name
         # (INDEX_NAME / REPLICA_INDEX_NAME) or credential is missing. set_index_settings() would
         # then silently no-op for every index, making a misconfigured reindex look successful.
-        # Since ALGOLIA is replaced (not merged) per-environment, fail loudly here instead.
+        # Fail loudly here instead so a missing/empty primary index name can't pass as success.
         raise ImproperlyConfigured(
             'Cannot configure Algolia index: the primary index is not initialized. Check the '
             'ALGOLIA settings (INDEX_NAME, REPLICA_INDEX_NAME, APPLICATION_ID, API_KEY).'

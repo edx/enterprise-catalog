@@ -289,7 +289,7 @@ class AlgoliaUtilsTests(TestCase):
         # pylint: disable=protected-access
         with override_settings(ALGOLIA={
             'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
-            'ADDITIONAL_REPLICA_INDEX_SETTINGS': {
+            'ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS': {
                 'enterprise_catalog_recently_released_desc': {'customRanking': []},
             },
         }):
@@ -303,7 +303,7 @@ class AlgoliaUtilsTests(TestCase):
         # An unset base replica is omitted (never virtual(None)); additional replicas still declare.
         with override_settings(ALGOLIA={
             'REPLICA_INDEX_NAME': '',
-            'ADDITIONAL_REPLICA_INDEX_SETTINGS': {'enterprise_catalog_recently_released_desc': {}},
+            'ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS': {'enterprise_catalog_recently_released_desc': {}},
         }):
             assert utils._get_algolia_replica_names() == ['virtual(enterprise_catalog_recently_released_desc)']
         # Nothing configured -> no replicas at all.
@@ -1085,13 +1085,13 @@ class AlgoliaUtilsTests(TestCase):
     @mock.patch('enterprise_catalog.apps.catalog.algolia_utils.AlgoliaSearchClient')
     def test_configure_algolia_index_configures_additional_replica(self, mock_search_client):
         """
-        Each entry in ADDITIONAL_REPLICA_INDEX_SETTINGS has its settings applied, keyed by index name.
+        Each entry in ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS has its settings applied, keyed by index name.
         """
         algolia_client = utils.get_initialized_algolia_client()
         replica_name = 'enterprise_catalog_recently_released_desc'
         recency_settings = {'customRanking': ['desc(recently_released_timestamp)']}
         with override_settings(ALGOLIA={
-            'ADDITIONAL_REPLICA_INDEX_SETTINGS': {replica_name: recency_settings},
+            'ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS': {replica_name: recency_settings},
         }):
             utils.configure_algolia_index(algolia_client)
         mock_search_client.return_value.set_index_settings.assert_any_call(
@@ -1118,7 +1118,7 @@ class AlgoliaUtilsTests(TestCase):
         mock_search_client.return_value.set_index_settings.side_effect = fail_only_for_recency
         with override_settings(ALGOLIA={
             'REPLICA_INDEX_NAME': base_name,
-            'ADDITIONAL_REPLICA_INDEX_SETTINGS': {recency_name: recency_settings},
+            'ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS': {recency_name: recency_settings},
         }):
             # The per-replica handler logs a single-line WARNING (set_index_settings already logged
             # the traceback before re-raising), so we don't double up stack traces.

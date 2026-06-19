@@ -16,7 +16,7 @@ annotated-types==0.7.0
     # via
     #   -r requirements/base.txt
     #   pydantic
-anyio==4.13.0
+anyio==4.14.0
     # via
     #   -r requirements/base.txt
     #   httpx
@@ -45,7 +45,7 @@ celery==5.6.3
     #   -r requirements/base.txt
     #   django-celery-results
     #   edx-celeryutils
-certifi==2026.5.20
+certifi==2026.6.17
     # via
     #   -r requirements/base.txt
     #   httpcore
@@ -85,7 +85,7 @@ code-annotations==3.0.0
     # via
     #   -r requirements/base.txt
     #   edx-toggles
-cryptography==48.0.0
+cryptography==49.0.0
     # via
     #   -r requirements/base.txt
     #   pyjwt
@@ -220,7 +220,7 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 gevent==26.5.0
     # via -r requirements/production.in
-greenlet==3.5.1
+greenlet==3.5.2
     # via gevent
 gunicorn==26.0.0
     # via -r requirements/production.in
@@ -451,7 +451,7 @@ threadpoolctl==3.6.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
-tqdm==4.68.1
+tqdm==4.68.3
     # via
     #   -r requirements/base.txt
     #   openai
@@ -474,7 +474,7 @@ tzdata==2026.2
     # via
     #   -r requirements/base.txt
     #   kombu
-tzlocal==5.3.1
+tzlocal==5.4.3
     # via
     #   -r requirements/base.txt
     #   celery
@@ -492,7 +492,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-wcwidth==0.8.0
+wcwidth==0.8.1
     # via
     #   -r requirements/base.txt
     #   prompt-toolkit

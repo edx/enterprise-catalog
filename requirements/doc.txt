@@ -22,7 +22,7 @@ annotated-types==0.7.0
     # via
     #   -r requirements/test.txt
     #   pydantic
-anyio==4.13.0
+anyio==4.14.0
     # via
     #   -r requirements/test.txt
     #   httpx
@@ -67,7 +67,7 @@ celery==5.6.3
     #   -r requirements/test.txt
     #   django-celery-results
     #   edx-celeryutils
-certifi==2026.5.20
+certifi==2026.6.17
     # via
     #   -r requirements/test.txt
     #   httpcore
@@ -122,7 +122,7 @@ coverage[toml]==7.14.1
     # via
     #   -r requirements/test.txt
     #   pytest-cov
-cryptography==48.0.0
+cryptography==49.0.0
     # via
     #   -r requirements/test.txt
     #   pyjwt
@@ -143,7 +143,7 @@ dill==0.4.1
     # via
     #   -r requirements/test.txt
     #   pylint
-distlib==0.4.1
+distlib==0.4.3
     # via
     #   -r requirements/test.txt
     #   virtualenv
@@ -284,11 +284,11 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.21.0
+faker==40.23.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==3.29.1
+filelock==3.29.4
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -451,7 +451,7 @@ pyjwt[crypto]==2.13.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.0.5
+pylint==4.0.6
     # via
     #   -r requirements/test.txt
     #   edx-lint
@@ -485,7 +485,7 @@ pyproject-api==1.10.1
     # via
     #   -r requirements/test.txt
     #   tox
-pytest==9.0.3
+pytest==9.1.0
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -499,7 +499,7 @@ python-dateutil==2.9.0.post0
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
-python-discovery==1.4.0
+python-discovery==1.4.2
     # via
     #   -r requirements/test.txt
     #   tox
@@ -521,7 +521,7 @@ pyyaml==6.0.3
     #   drf-spectacular
     #   edx-django-release-util
     #   responses
-readme-renderer==44.0
+readme-renderer==45.0
     # via -r requirements/doc.in
 redis==8.0.0
     # via -r requirements/test.txt
@@ -649,7 +649,7 @@ tomlkit==0.15.0
     #   pylint
 tox==4.55.1
     # via -r requirements/test.txt
-tqdm==4.68.1
+tqdm==4.68.3
     # via
     #   -r requirements/test.txt
     #   openai
@@ -674,7 +674,7 @@ tzdata==2026.2
     # via
     #   -r requirements/test.txt
     #   kombu
-tzlocal==5.3.1
+tzlocal==5.4.3
     # via
     #   -r requirements/test.txt
     #   celery
@@ -693,11 +693,11 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.4.2
+virtualenv==21.5.1
     # via
     #   -r requirements/test.txt
     #   tox
-wcwidth==0.8.0
+wcwidth==0.8.1
     # via
     #   -r requirements/test.txt
     #   prompt-toolkit

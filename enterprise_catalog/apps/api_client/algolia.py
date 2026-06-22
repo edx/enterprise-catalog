@@ -46,6 +46,22 @@ class AlgoliaSearchClient:
     def algolia_replica_index_name(self):
         return settings.ALGOLIA.get('REPLICA_INDEX_NAME')
 
+    @property
+    def replica_index_names(self):
+        """
+        Index names of every configured sort replica (base + additional), empty when none are set.
+
+        The base replica is ``ALGOLIA['REPLICA_INDEX_NAME']`` (when set); the additional sort
+        replicas are the keys of ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']``. Used to scope the
+        secured API key to exactly the replicas that exist.
+        """
+        names = []
+        base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
+        if base_replica:
+            names.append(base_replica)
+        names.extend(settings.ALGOLIA.get('ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS', {}).keys())
+        return names
+
     def init_index(self):
         """
         Initializes an index within Algolia. Initializing an index will create it if it doesn't exist.
@@ -85,29 +101,37 @@ class AlgoliaSearchClient:
                 )
                 raise exc
 
-    def set_index_settings(self, index_settings, primary_index=True):
+    def set_index_settings(self, index_settings, index_name=None):
         """
-        Set default settings to use for the Algolia index.
+        Set settings on an Algolia index, defaulting to the primary index.
+
+        Pass ``index_name`` to target a replica instead -- the base ``REPLICA_INDEX_NAME``
+        replica, the "newest courses" sort replica, etc. A replica must already be
+        declared on the primary index's ``replicas`` setting (Algolia creates replica
+        indices when the primary index's settings are saved).
 
         Note: This will override manual updates to the index configuration on the
         Algolia dashboard but ensures consistent settings (configuration as code).
 
         Arguments:
-            settings (dict): A dictionary of Algolia settings.
+            index_settings (dict): A dictionary of Algolia settings.
+            index_name (str): Optional index to target; defaults to the primary index.
         """
         if not self.algolia_index:
             logger.error('Algolia index does not exist. Did you initialize it?')
             return
 
         try:
-            if primary_index:
-                self.algolia_index.set_settings(index_settings)
-            else:
-                self.replica_index.set_settings(index_settings)
+            self._get_index(index_name).set_settings(index_settings)
         except AlgoliaException as exc:
+            # With no index_name, the target is the cached handle (self.algolia_index), which a
+            # caller may have wired to an alternate index (e.g. the incremental reindex command's
+            # --index-name path). Report that handle's actual name rather than the configured
+            # primary name (algolia_index_name), which could be stale or empty for that caller.
+            effective_index_name = index_name or getattr(self.algolia_index, 'name', None) or self.algolia_index_name
             logger.exception(
                 'Unable to set settings for Algolia\'s %s index due to an exception.',
-                self.algolia_index_name,
+                effective_index_name,
             )
             raise exc
 
@@ -422,8 +446,7 @@ class AlgoliaSearchClient:
         indices = []
         if self.algolia_index_name:
             indices.append(self.algolia_index_name)
-        if self.algolia_replica_index_name:
-            indices.append(self.algolia_replica_index_name)
+        indices.extend(self.replica_index_names)
         if indices:
             restrictions |= {'restrictIndices': indices}
 

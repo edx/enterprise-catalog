@@ -117,13 +117,29 @@ class Command(BaseCommand):
         else:
             self.stdout.write('Configuring Algolia index settings...')
             replica_name = replica_index_name or f'{index_name}_repl'
+            # TODO (ENT-11982): this block is a temporary workaround and should be refactored before
+            # this command runs in production (the incremental-reindexing cutover) on two fronts:
+            #   1. It configures only the single base ("by duration") replica -- it does NOT loop the
+            #      unified sort-replica registry the way configure_algolia_index() does (via
+            #      _get_algolia_replica_names() / _configured_replicas()), so the "newest courses
+            #      first" sort and any future ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']
+            #      replicas are not configured by this path.
+            #   2. It re-plumbs AlgoliaSearchClient internals (assigning _client / algolia_index
+            #      directly below) and spins up a second client via new_search_client_or_error() --
+            #      both are hacks that work around AlgoliaSearchClient.init_index() not accepting an
+            #      arbitrary index name. The real fix is to parameterize init_index() so this command
+            #      can target a non-primary index without reaching into the client's internals.
             sdk_client = new_search_client_or_error()
             algolia_client = AlgoliaSearchClient()
+            # Target a non-primary index: wire the SDK client and the primary handle directly so
+            # set_index_settings() resolves to this alternate index. The replica is configured by
+            # name, which goes through _get_index() -> self._client.init_index(replica_name), so
+            # the underlying client must be set (init_index() would target the production index).
+            algolia_client._client = sdk_client  # pylint: disable=protected-access
             algolia_client.algolia_index = sdk_client.init_index(index_name)
-            algolia_client.replica_index = sdk_client.init_index(replica_name)
             primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': [f'virtual({replica_name})']}
             algolia_client.set_index_settings(primary_settings)
-            algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, primary_index=False)
+            algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, index_name=replica_name)
 
         self.stdout.write(f'Content types: {", ".join(content_types) if content_types else "all"}')
         self.stdout.write(f'Target index:  {resolved_index or "(not configured)"}')

@@ -21,7 +21,10 @@ ALLOWED_HOSTS = ['*']
 
 # Keep track of the names of settings that represent dicts. Instead of overriding the values in base.py,
 # the values read from disk should UPDATE the pre-configured dicts.
-DICT_UPDATE_KEYS = ('JWT_AUTH', 'REST_FRAMEWORK')
+# ALGOLIA is merged (not replaced) so the deployment YAML can set per-environment index names and
+# credentials while code-defined defaults such as ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']
+# (the sort-replica customRanking definitions) are preserved.
+DICT_UPDATE_KEYS = ('JWT_AUTH', 'REST_FRAMEWORK', 'ALGOLIA')
 
 # This may be overridden by the YAML in catalog_CFG,
 # but it should be here as a default.

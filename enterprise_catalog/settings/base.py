@@ -432,9 +432,43 @@ LICENSE_MANAGER_BASE_URL = os.environ.get('LICENSE_MANAGER_BASE_URL', '')
 STUDIO_BASE_URL = os.environ.get('STUDIO_BASE_URL', '')
 
 # Algolia
+# The per-environment index names and credentials (INDEX_NAME, REPLICA_INDEX_NAME, APPLICATION_ID,
+# API_KEY) are populated from the deployment config (edx-internal). ALGOLIA is listed in
+# DICT_UPDATE_KEYS (see settings/production.py), so the deployment YAML is *merged* into this dict
+# rather than replacing it -- per-environment keys override the defaults below while code-defined
+# defaults like ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS are preserved.
+
+# customRanking for the "newest courses first" sort replica. Defined here as config-as-code and
+# referenced from ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS'] below. Leads with the precomputed
+# recently_released_timestamp (a course's earliest course-run start, any status) descending, then
+# the primary index's relevance tie-breakers.
+ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS = {
+    'customRanking': [
+        'desc(recently_released_timestamp)',
+        'asc(metadata_language)',
+        'asc(visible_via_association)',
+        'asc(created)',
+        'desc(course_bayesian_average)',
+        'desc(recent_enrollment_count)',
+    ],
+}
+
 ALGOLIA = {
     'INDEX_NAME': '',
+    # Base replica: a long-standing "by duration" sort (its customRanking leads with desc(duration),
+    # defined in ALGOLIA_REPLICA_INDEX_SETTINGS in apps/catalog/algolia_utils.py) that the
+    # learner-portal MFE points its video search (SEARCH_INDEX_IDS.VIDEOS) at, via the MFE's
+    # ALGOLIA_REPLICA_INDEX_NAME env var.
     'REPLICA_INDEX_NAME': '',
+    # Additional sort replicas beyond the base one, mapped index_name -> Algolia index settings.
+    # This is the single source of truth for which extra replicas exist: each entry is declared on
+    # the primary index, has its settings applied during a reindex, and is added to the secured API
+    # key. The learner-portal only points its course <Index> at the "newest first" replica when the
+    # enterprise.search_default_sort_newest waffle flag + Optimizely experiment are on, so the flag
+    # -- not the mere presence of an entry here -- gates user-facing exposure.
+    'ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS': {
+        'enterprise_catalog_recently_released_desc': ALGOLIA_RECENTLY_RELEASED_REPLICA_INDEX_SETTINGS,
+    },
     'APPLICATION_ID': '',
     'API_KEY': '',
 }

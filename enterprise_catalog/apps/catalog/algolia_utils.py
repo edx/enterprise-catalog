@@ -3,10 +3,12 @@ import datetime
 import logging
 import time
 
+from algoliasearch.exceptions import AlgoliaException
 from algoliasearch.search_client import SearchClient
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _
@@ -64,9 +66,25 @@ LOGGER = logging.getLogger(__name__)
 ALGOLIA_UUID_BATCH_SIZE = 100
 
 ALGOLIA_JSON_METADATA_MAX_SIZE = 100000
-ALGOLIA_REPLICA_INDEX_NAME = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
 
-algolia_replica_index = f'virtual({ALGOLIA_REPLICA_INDEX_NAME})'
+
+def _get_algolia_replica_names() -> list[str]:
+    """
+    Build the list of replica index names to declare on the primary index.
+
+    Returns a ``virtual(name)`` entry for the base replica (``ALGOLIA['REPLICA_INDEX_NAME']``, when
+    set) and for each additional sort replica (the keys of
+    ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']``). An unset base replica is omitted, so we never
+    declare a ``virtual(None)`` replica on the primary index.
+    """
+    replica_names = []
+    base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
+    if base_replica:
+        replica_names.append(f'virtual({base_replica})')
+    for index_name in settings.ALGOLIA.get('ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS', {}):
+        replica_names.append(f'virtual({index_name})')
+    return replica_names
+
 
 # keep attributes from content objects that we explicitly want in Algolia
 ALGOLIA_FIELDS = [
@@ -142,6 +160,7 @@ ALGOLIA_FIELDS = [
     'transcript_languages',
     'translation_languages',
     'is_new_content',
+    'recently_released_timestamp',
 ]
 
 # default configuration for the index
@@ -206,9 +225,6 @@ ALGOLIA_INDEX_SETTINGS = {
         'desc(course_bayesian_average)',
         'desc(recent_enrollment_count)',
     ],
-    'replicas': [
-        algolia_replica_index
-    ],
 }
 
 ALGOLIA_REPLICA_INDEX_SETTINGS = {
@@ -221,6 +237,25 @@ ALGOLIA_REPLICA_INDEX_SETTINGS = {
         'desc(recent_enrollment_count)',
     ],
 }
+
+
+def _configured_replicas():
+    """
+    Return ``(index_name, index_settings)`` for each replica to configure.
+
+    Covers the base replica (``ALGOLIA['REPLICA_INDEX_NAME']`` with ``ALGOLIA_REPLICA_INDEX_SETTINGS``,
+    when set) and every additional sort replica declared in
+    ``ALGOLIA['ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS']`` (an ``index_name -> settings`` map). Because each
+    additional replica carries its own settings, there is no separate settings lookup that can drift
+    out of sync; this is inert until at least one replica is configured.
+    """
+    configured = []
+    base_replica = settings.ALGOLIA.get('REPLICA_INDEX_NAME')
+    if base_replica:
+        configured.append((base_replica, ALGOLIA_REPLICA_INDEX_SETTINGS))
+    for index_name, index_settings in settings.ALGOLIA.get('ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS', {}).items():
+        configured.append((index_name, index_settings))
+    return configured
 
 
 def _should_index_course(course_metadata):
@@ -413,10 +448,37 @@ def new_search_client_or_error():
 
 def configure_algolia_index(algolia_client):
     """
-    Configures the settings for an Algolia index.
+    Configures the settings for the primary Algolia index and its replicas.
     """
-    algolia_client.set_index_settings(ALGOLIA_INDEX_SETTINGS)
-    algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, primary_index=False)
+    if not algolia_client.algolia_index:
+        # init_index() logs and returns without setting algolia_index when a required name
+        # (INDEX_NAME / REPLICA_INDEX_NAME) or credential is missing. set_index_settings() would
+        # then silently no-op for every index, making a misconfigured reindex look successful.
+        # Fail loudly here instead so a missing/empty primary index name can't pass as success.
+        raise ImproperlyConfigured(
+            'Cannot configure Algolia index: the primary index is not initialized. Check the '
+            'ALGOLIA settings (INDEX_NAME, REPLICA_INDEX_NAME, APPLICATION_ID, API_KEY).'
+        )
+    # Declare the replicas dynamically (from the current settings.ALGOLIA) rather than from an
+    # import-time global, so the set the primary declares stays consistent with the replicas
+    # _configured_replicas() actually configures below -- and so tests can vary it via
+    # override_settings.
+    primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': _get_algolia_replica_names()}
+    algolia_client.set_index_settings(primary_settings)
+    for index_name, index_settings in _configured_replicas():
+        # A replica's settings failing to apply must never abort the reindex: log and continue so
+        # the primary (relevance) index and the other replicas stay configured. The failed replica
+        # keeps its prior settings (or, if brand new, mirrors the primary's relevance ranking)
+        # until the next successful run, so the safe fallback is the base sort. See ADR 0014.
+        try:
+            algolia_client.set_index_settings(index_settings, index_name=index_name)
+        except AlgoliaException:
+            # set_index_settings() already logged the traceback before re-raising, so log a
+            # single-line warning here rather than a second stack trace.
+            LOGGER.warning(
+                'Failed to configure replica index "%s"; continuing with the remaining indexes.',
+                index_name,
+            )
 
 
 def get_algolia_object_id(content_type, uuid):
@@ -632,18 +694,44 @@ def is_course_archived(course):
     return len(availability_list) == 0 or 'Archived' in availability_list
 
 
-def is_course_new_content(course):
-    """True if the course's earliest run start (any status) is within the last 12 months (ENT-11386)."""
+def _earliest_course_run_start(course):
+    """
+    The earliest course-run start as a timezone-aware datetime, or None.
+
+    Shared by the "new content" facet and the "newest courses" sort timestamp so both key off
+    the same signal: a course's earliest run start across runs of *any* status, matching the
+    Discovery course release date (ENT-11386). Earlier runs that were later unpublished/archived
+    still count, so a recent re-run can't make a long-standing course look new.
+    """
     starts = []
     for run in course.get('course_runs') or []:
         if run.get('start'):
             parsed = parse_datetime(run['start'])
             if parsed:
                 starts.append(parsed)
-    if not starts:
+    return min(starts) if starts else None
+
+
+def is_course_new_content(course):
+    """True if the course's earliest run start (any status) is within the last 12 months (ENT-11386)."""
+    earliest_start = _earliest_course_run_start(course)
+    if earliest_start is None:
         return False
     now = localized_utcnow()
-    return now - relativedelta(months=12) <= min(starts) <= now
+    return now - relativedelta(months=12) <= earliest_start <= now
+
+
+def get_course_recently_released_timestamp(course) -> int:
+    """
+    Unix timestamp (int) of the course's earliest course-run start (any status), used as the
+    custom-ranking attribute for the "newest courses first" Algolia replica.
+
+    Sorting this descending surfaces courses released most recently. Courses with no run start
+    default to 0 so they sort last under a desc ranking -- ``ALGOLIA_DEFAULT_TIMESTAMP`` (a
+    far-future sentinel) is deliberately NOT used, since it would float undated courses to the top.
+    """
+    earliest_start = _earliest_course_run_start(course)
+    return int(earliest_start.timestamp()) if earliest_start else 0
 
 
 def get_course_partners(course):
@@ -1674,6 +1762,7 @@ def _algolia_object_from_product(product, algolia_fields):
             'translation_languages': get_course_translation_languages(searchable_product),
             'metadata_language': searchable_product.get('metadata_language', 'en'),
             'is_new_content': is_course_new_content(searchable_product),
+            'recently_released_timestamp': get_course_recently_released_timestamp(searchable_product),
         })
     elif searchable_product.get('content_type') == PROGRAM:
         # Build course metadata cache once for all program functions that need it

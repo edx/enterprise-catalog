@@ -6,7 +6,7 @@ from unittest import mock
 import ddt
 from algoliasearch.exceptions import AlgoliaException
 from django.core.exceptions import ImproperlyConfigured
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 
@@ -86,6 +86,116 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         client = AlgoliaSearchClient()
         with self.assertRaises(ImproperlyConfigured):
             client._get_index()
+
+    def test_set_index_settings_targets_primary_by_default(self):
+        """
+        ``set_index_settings()`` with no name applies settings to the cached primary index.
+        """
+        client = self._build_client()
+        settings_payload = {'customRanking': ['asc(created)']}
+
+        client.set_index_settings(settings_payload)
+
+        client.algolia_index.set_settings.assert_called_once_with(settings_payload)
+        client._client.init_index.assert_not_called()  # primary is cached, not re-initialized
+
+    def test_set_index_settings_targets_named_replica(self):
+        """
+        ``set_index_settings(index_name=...)`` applies settings to the replica resolved by name.
+        """
+        client = self._build_client()
+        replica = mock.MagicMock(name='recently_released_replica')
+        client._client.init_index.return_value = replica
+        settings_payload = {'customRanking': ['desc(recently_released_timestamp)']}
+
+        client.set_index_settings(settings_payload, index_name='enterprise_catalog_recently_released_desc')
+
+        client._client.init_index.assert_called_once_with('enterprise_catalog_recently_released_desc')
+        replica.set_settings.assert_called_once_with(settings_payload)
+
+    def test_set_index_settings_noop_when_primary_uninitialized(self):
+        """
+        With no primary index initialized, the call logs and returns without touching Algolia.
+        """
+        client = AlgoliaSearchClient()  # nothing initialized
+        client.set_index_settings({'customRanking': []}, index_name='some_replica')  # must not raise
+
+    def test_set_index_settings_reraises_algolia_exception(self):
+        """
+        An AlgoliaException from set_settings propagates to the caller.
+        """
+        client = self._build_client()
+        replica = mock.MagicMock(name='recently_released_replica')
+        replica.set_settings.side_effect = AlgoliaException('boom')
+        client._client.init_index.return_value = replica
+        with self.assertRaises(AlgoliaException):
+            client.set_index_settings({'customRanking': []}, index_name='some_replica')
+
+    def test_set_index_settings_failure_logs_effective_index_name(self):
+        """
+        When no index_name is given but the cached handle is wired to an alternate index, the
+        failure log reports that handle's actual name -- not the (possibly stale/empty) configured
+        primary name. Mirrors the incremental reindex command's --index-name path.
+        """
+        client = self._build_client()
+        # The cached handle is wired to an alternate index, as the incremental command does. Use a
+        # name with no substring overlap with PRIMARY_INDEX_NAME so the assertions can't false-pass.
+        wired_index_name = 'some_alternate_index'
+        client.algolia_index.name = wired_index_name
+        client.algolia_index.set_settings.side_effect = AlgoliaException('boom')
+
+        with self.assertLogs('enterprise_catalog.apps.api_client.algolia', level='ERROR') as logs:
+            with self.assertRaises(AlgoliaException):
+                client.set_index_settings({'customRanking': []})  # no index_name -> targets the handle
+
+        # Assert on the formatted message only; the captured traceback contains the package path
+        # ("enterprise_catalog/...") which would otherwise collide with PRIMARY_INDEX_NAME.
+        message = logs.records[0].getMessage()
+        self.assertIn(wired_index_name, message)
+        self.assertNotIn(self.PRIMARY_INDEX_NAME, message)
+
+    @override_settings(ALGOLIA={
+        'INDEX_NAME': 'enterprise_catalog',
+        'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
+        'ADDITIONAL_VIRTUAL_REPLICA_INDEX_SETTINGS': {
+            'enterprise_catalog_recently_released_desc': {'customRanking': ['desc(recently_released_timestamp)']},
+        },
+        'SEARCH_API_KEY': 'fake-search-key',
+    })
+    @mock.patch('enterprise_catalog.apps.api_client.algolia.SearchClient.generate_secured_api_key')
+    def test_generate_secured_api_key_restricts_to_all_indices(self, mock_generate):
+        """The secured key's restrictIndices covers the primary, duration, and recency replicas."""
+        mock_generate.return_value = 'secured-key'
+        client = AlgoliaSearchClient()
+
+        result = client.generate_secured_api_key('user-1', ['query-uuid-1'])
+
+        assert result['secured_api_key'] == 'secured-key'
+        _api_key, restrictions = mock_generate.call_args[0]
+        assert restrictions['restrictIndices'] == [
+            'enterprise_catalog',
+            'enterprise_catalog_duration_desc',
+            'enterprise_catalog_recently_released_desc',
+        ]
+
+    @override_settings(ALGOLIA={
+        'INDEX_NAME': 'enterprise_catalog',
+        'REPLICA_INDEX_NAME': 'enterprise_catalog_duration_desc',
+        'SEARCH_API_KEY': 'fake-search-key',
+    })
+    @mock.patch('enterprise_catalog.apps.api_client.algolia.SearchClient.generate_secured_api_key')
+    def test_generate_secured_api_key_omits_recency_replica_when_unset(self, mock_generate):
+        """When no recency replica is configured, it is excluded from restrictIndices."""
+        mock_generate.return_value = 'secured-key'
+        client = AlgoliaSearchClient()
+
+        client.generate_secured_api_key('user-1', ['query-uuid-1'])
+
+        _api_key, restrictions = mock_generate.call_args[0]
+        assert restrictions['restrictIndices'] == [
+            'enterprise_catalog',
+            'enterprise_catalog_duration_desc',
+        ]
 
     def test_save_objects_batch_calls_save_on_primary(self):
         """

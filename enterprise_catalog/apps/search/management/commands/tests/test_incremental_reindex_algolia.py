@@ -193,16 +193,16 @@ class IncrementalReindexAlgoliaCommandTests(TestCase):
         self._call('--index-name', 'enterprise_catalog_v2')
         sdk = self.mock_new_sdk_client.return_value
         algolia_instance = self.mock_algolia_cls.return_value
-        # Both primary and replica indices are initialized
+        # The primary handle is initialized directly; the replica is configured by name via
+        # set_index_settings(index_name=...), which initializes it lazily inside the client.
         sdk.init_index.assert_any_call('enterprise_catalog_v2')
-        sdk.init_index.assert_any_call('enterprise_catalog_v2_repl')
         # set_index_settings called twice: primary (with replicas overridden) then replica
         assert algolia_instance.set_index_settings.call_count == 2
         primary_call_kwargs = algolia_instance.set_index_settings.call_args_list[0]
         primary_settings = primary_call_kwargs[0][0]
         assert primary_settings['replicas'] == ['virtual(enterprise_catalog_v2_repl)']
         replica_call = algolia_instance.set_index_settings.call_args_list[1]
-        assert replica_call[1].get('primary_index') is False
+        assert replica_call[1].get('index_name') == 'enterprise_catalog_v2_repl'
 
     @mock.patch(TASK_PATH)
     def test_explicit_replica_name_used(self, mock_task):
@@ -210,10 +210,12 @@ class IncrementalReindexAlgoliaCommandTests(TestCase):
         self._call('--index-name', 'enterprise_catalog_v2', '--replica-name', 'my_replica')
         sdk = self.mock_new_sdk_client.return_value
         sdk.init_index.assert_any_call('enterprise_catalog_v2')
-        sdk.init_index.assert_any_call('my_replica')
         algolia_instance = self.mock_algolia_cls.return_value
         primary_settings = algolia_instance.set_index_settings.call_args_list[0][0][0]
         assert primary_settings['replicas'] == ['virtual(my_replica)']
+        # The replica is configured by name (which initializes it lazily inside the client).
+        replica_call = algolia_instance.set_index_settings.call_args_list[1]
+        assert replica_call[1].get('index_name') == 'my_replica'
 
     @mock.patch(TASK_PATH)
     def test_configure_index_skipped_on_dry_run(self, mock_task):

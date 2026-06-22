@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from enterprise_catalog.apps.api.tasks import (
+    TaskRecentlyRunError,
     fetch_missing_course_metadata_task,
     fetch_missing_pathway_metadata_task,
     update_catalog_metadata_task,
@@ -110,25 +111,19 @@ class Command(BaseCommand):
         else:
             try:
                 self._fetch_missing_pathway_metadata_task_async(**flags)
-            except Exception as exc:
-                if type(exc).__name__ != 'TaskRecentlyRunError':
-                    raise
-                else:
-                    logger.info(
-                        'fetch_missing_pathway_metadata_task was recently run prior to this command, '
-                        'and was thus skipped during the execution of this command.'
-                    )
+            except TaskRecentlyRunError:
+                logger.info(
+                    'fetch_missing_pathway_metadata_task was recently run prior to this command, '
+                    'and was thus skipped during the execution of this command.'
+                )
 
             try:
                 self._fetch_missing_course_metadata_task_async(**flags)
-            except Exception as exc:
-                if type(exc).__name__ != 'TaskRecentlyRunError':
-                    raise
-                else:
-                    logger.info(
-                        'fetch_missing_course_metadata_task was recently run prior to this command, '
-                        'and was thus skipped during the execution of this command.'
-                    )
+            except TaskRecentlyRunError:
+                logger.info(
+                    'fetch_missing_course_metadata_task was recently run prior to this command, '
+                    'and was thus skipped during the execution of this command.'
+                )
 
         # find all CatalogQuery records used by at least one EnterpriseCatalog to avoid
         # calling /search/all/ for a CatalogQuery that is not currently used by any catalogs.
@@ -167,22 +162,11 @@ class Command(BaseCommand):
             logger.info(
                 'Finished doing catalog metadata update related to {} CatalogQueries'.format(len(update_group_result))
             )
-        except Exception as exc:  # pylint: disable=broad-except
-            # celery weirdly hijacks and prefixes the path of the below Exception
-            # with `celery.backends.base` when it's raised.
-            # So this block still catches only a specific error, just in a roundabout way.
-            # This type of error shouldn't fail the whole command.
-            # Subtasks of a celery group may fail without affecting/blocking the other subtasks
-            # from running/succeeding.
-            # Note that a GroupResult.get() will surface only the first instance
-            # of an error, though other errors may occur.
-            if type(exc).__name__ != 'TaskRecentlyRunError':
-                raise
-            else:
-                logger.info(
-                    'One or more update_catalog_metadata_task was recently run prior to this command, '
-                    'and those particular tasks were thus skipped during the execution of this command.'
-                )
+        except TaskRecentlyRunError:
+            logger.info(
+                'One or more update_catalog_metadata_task was recently run prior to this command, '
+                'and those particular tasks were thus skipped during the execution of this command.'
+            )
 
         try:
             if no_async:
@@ -190,15 +174,11 @@ class Command(BaseCommand):
             else:
                 self._update_full_content_metadata_task_async(**flags)
             logger.info('Finished doing full update of metadata records.')
-        except Exception as exc:
-            # See comment above about celery exception prefixes.
-            if type(exc).__name__ != 'TaskRecentlyRunError':
-                raise
-            else:
-                logger.info(
-                    'update_full_content_metadata_task was recently run prior to this command, '
-                    'and was thus skipped during the execution of this command.'
-                )
+        except TaskRecentlyRunError:
+            logger.info(
+                'update_full_content_metadata_task was recently run prior to this command, '
+                'and was thus skipped during the execution of this command.'
+            )
 
         # Trigger incremental Algolia indexing if feature flag is enabled.
         if settings.ENABLE_INCREMENTAL_ALGOLIA_INDEXING:
@@ -218,11 +198,8 @@ class Command(BaseCommand):
                         propagate=True,
                     )
                     logger.info('Dispatched incremental Algolia indexing to workers.')
-            except Exception as exc:
-                if type(exc).__name__ != 'TaskRecentlyRunError':
-                    raise
-                else:
-                    logger.info(
-                        'dispatch_algolia_indexing was recently run prior to this command, '
-                        'and was thus skipped during the execution of this command.'
-                    )
+            except TaskRecentlyRunError:
+                logger.info(
+                    'dispatch_algolia_indexing was recently run prior to this command, '
+                    'and was thus skipped during the execution of this command.'
+                )

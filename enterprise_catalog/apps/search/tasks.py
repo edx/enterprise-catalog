@@ -405,6 +405,8 @@ def dispatch_algolia_indexing(
     until every task in the current group has completed.  Empty groups are
     omitted from the chain.
     """
+    index_name = index_name or settings.ALGOLIA.get('INCREMENTAL_INDEX_NAME')
+
     if force:
         invalidate_indexing_mappings_cache()
 
@@ -478,6 +480,8 @@ def dispatch_algolia_indexing_for_catalog_query(
     catalog query, but doesn't look stale based on index time, is also reindexed
     so that the membership facets of such Algolia records are updated.
     """
+    index_name = index_name or settings.ALGOLIA.get('INCREMENTAL_INDEX_NAME')
+
     try:
         catalog_query = CatalogQuery.objects.get(id=catalog_query_id)
     except CatalogQuery.DoesNotExist:

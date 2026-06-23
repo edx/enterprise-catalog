@@ -437,6 +437,7 @@ ALGOLIA = {
     'REPLICA_INDEX_NAME': '',
     'APPLICATION_ID': '',
     'API_KEY': '',
+    'INCREMENTAL_INDEX_NAME': None,
 }
 
 # How long to cache the precomputed program/pathway membership mappings

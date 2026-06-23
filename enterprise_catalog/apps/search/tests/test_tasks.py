@@ -1293,6 +1293,18 @@ class TestDispatchAlgoliaIndexing(TestCase):
         self.mock_chain.return_value.apply_async.assert_called_once()
         self.mock_chain.return_value.apply.assert_not_called()
 
+    @override_settings(ALGOLIA={'INCREMENTAL_INDEX_NAME': 'v2-incremental'})
+    def test_incremental_index_name_from_settings_when_not_passed(self):
+        """
+        When no index_name is passed, the task falls back to ALGOLIA['INCREMENTAL_INDEX_NAME'].
+        """
+        course = ContentMetadataFactory(content_type=COURSE, content_key='incr-name-course')
+        self._set_mappings(all_indexable_content_keys=[course.content_key])
+
+        result = dispatch_algolia_indexing(force=True, dry_run=True)
+
+        self.assertEqual(result['index_name'], 'v2-incremental')
+
 
 @ddt.ddt
 class TestDispatchAlgoliaIndexingHelpers(TestCase):
@@ -1635,6 +1647,26 @@ class TestDispatchAlgoliaIndexingForCatalogQuery(TestCase):
         self.algolia_client.get_aggregation_keys_for_catalog_query.assert_not_called()
         self.mock_course_si.assert_not_called()
         self.mock_invalidate_cache.assert_not_called()
+
+    @override_settings(ALGOLIA={'INCREMENTAL_INDEX_NAME': 'v2-incremental'})
+    def test_incremental_index_name_from_settings_when_not_passed(self):
+        """
+        When no index_name is passed, the task falls back to ALGOLIA['INCREMENTAL_INDEX_NAME']
+        and passes it to the Algolia client.
+        """
+        _content, catalog_query = self._create_catalog_membership(COURSE, 'incr-cq-course')
+
+        result = search_tasks.dispatch_algolia_indexing_for_catalog_query(
+            catalog_query.id,
+            dry_run=True,
+            force=True,
+        )
+
+        self.assertEqual(result['index_name'], 'v2-incremental')
+        self.algolia_client.get_aggregation_keys_for_catalog_query.assert_called_once_with(
+            catalog_query.uuid,
+            index_name='v2-incremental',
+        )
 
 
 class TestGetVideoPksForDispatch(TestCase):

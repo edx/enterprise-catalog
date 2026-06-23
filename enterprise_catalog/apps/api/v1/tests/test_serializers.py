@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+import ddt
 from django.db import transaction
 from django.test import TestCase
 from rest_framework import serializers
@@ -9,6 +10,12 @@ from enterprise_catalog.apps.api.v1.serializers import (
     HighlightedContentSerializer,
     HighlightSetSerializer,
     find_and_modify_catalog_query,
+)
+from enterprise_catalog.apps.catalog.constants import (
+    COURSE,
+    COURSE_RUN,
+    LEARNER_PATHWAY,
+    PROGRAM,
 )
 from enterprise_catalog.apps.catalog.models import CatalogQuery
 from enterprise_catalog.apps.catalog.tests.factories import (
@@ -160,6 +167,7 @@ class FindCatalogQueryTest(TestCase):
             )
 
 
+@ddt.ddt
 class HighlightedContentSerializerTests(TestCase):
     """
     Tests for the HighlightedContentSerializer and multilingual support
@@ -257,6 +265,81 @@ class HighlightedContentSerializerTests(TestCase):
 
         original_title = content_metadata.json_metadata['title']
         assert serializer.data['title'] == original_title
+
+    def test_get_programs_for_course_with_programs(self):
+        """
+        A highlighted course that belongs to programs returns each program's
+        content_key and title in the ``programs`` field.
+        """
+        course = ContentMetadataFactory(content_type=COURSE)
+        program_one = ContentMetadataFactory(content_type=PROGRAM)
+        program_two = ContentMetadataFactory(content_type=PROGRAM)
+        course.associated_content_metadata.set([program_one, program_two])
+
+        highlighted = HighlightedContentFactory(
+            catalog_highlight_set=self.highlight_set,
+            content_metadata=course,
+        )
+        serializer = self.serializer_class(highlighted, context={})
+        programs = serializer.data['programs']
+
+        assert len(programs) == 2
+        returned_keys = {p['content_key'] for p in programs}
+        returned_titles = {p['title'] for p in programs}
+        assert returned_keys == {program_one.content_key, program_two.content_key}
+        assert returned_titles == {
+            program_one.json_metadata.get('title'),
+            program_two.json_metadata.get('title'),
+        }
+
+    def test_get_programs_for_course_without_programs(self):
+        """
+        A highlighted course with no program associations returns an empty list.
+        """
+        course = ContentMetadataFactory(content_type=COURSE)
+        highlighted = HighlightedContentFactory(
+            catalog_highlight_set=self.highlight_set,
+            content_metadata=course,
+        )
+        serializer = self.serializer_class(highlighted, context={})
+
+        assert serializer.data['programs'] == []
+
+    @ddt.data(PROGRAM, COURSE_RUN, LEARNER_PATHWAY)
+    def test_get_programs_returns_empty_for_non_course_content(self, content_type):
+        """
+        Non-course content types (program, course run, learner pathway) always
+        return an empty ``programs`` list regardless of any associations.
+        """
+        content = ContentMetadataFactory(content_type=content_type)
+        highlighted = HighlightedContentFactory(
+            catalog_highlight_set=self.highlight_set,
+            content_metadata=content,
+        )
+        serializer = self.serializer_class(highlighted, context={})
+
+        assert serializer.data['programs'] == []
+
+    def test_get_programs_excludes_non_program_associations(self):
+        """
+        Only PROGRAM-type associated metadata appears in ``programs``; other
+        content types linked via associated_content_metadata are excluded.
+        """
+        course = ContentMetadataFactory(content_type=COURSE)
+        program = ContentMetadataFactory(content_type=PROGRAM)
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY)
+        course.associated_content_metadata.set([program, pathway])
+
+        highlighted = HighlightedContentFactory(
+            catalog_highlight_set=self.highlight_set,
+            content_metadata=course,
+        )
+        serializer = self.serializer_class(highlighted, context={})
+        programs = serializer.data['programs']
+
+        assert len(programs) == 1
+        assert programs[0]['content_key'] == program.content_key
+        assert programs[0]['title'] == program.json_metadata.get('title')
 
 
 class HighlightSetSerializerTests(TestCase):

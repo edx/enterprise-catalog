@@ -367,7 +367,6 @@ class HighlightedContentSerializer(serializers.ModelSerializer):
     """
     aggregation_key = serializers.SerializerMethodField()
     title = serializers.SerializerMethodField()
-    programs = serializers.SerializerMethodField()
 
     class Meta:
         model = HighlightedContent
@@ -382,7 +381,6 @@ class HighlightedContentSerializer(serializers.ModelSerializer):
             'course_run_statuses',
             'is_favorite',
             'sort_order',
-            'programs',
         ]
 
     def get_aggregation_key(self, obj):
@@ -406,21 +404,6 @@ class HighlightedContentSerializer(serializers.ModelSerializer):
             return translations[0].title
 
         return title
-
-    def get_programs(self, obj):
-        """
-        Returns the programs this content belongs to via associated_content_metadata.
-        Only populated for courses; returns an empty list for all other content types.
-        """
-        if not obj.content_metadata or obj.content_type != COURSE:
-            return []
-        return [
-            {
-                'content_key': program.content_key,
-                'title': program.json_metadata.get('title'),
-            }
-            for program in obj.content_metadata.associated_content_metadata.filter(content_type=PROGRAM)
-        ]
 
 
 class HighlightSetSerializer(serializers.ModelSerializer):

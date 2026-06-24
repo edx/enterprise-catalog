@@ -426,7 +426,6 @@ class HighlightSetBaseViewSet(PermissionRequiredForListingMixin, BaseViewSet):
         return HighlightSet.objects.filter(**kwargs).prefetch_related(
             'enterprise_curation',
             'highlighted_content',
-            'highlighted_content__content_metadata__associated_content_metadata',
         ).order_by('-created')
 
 

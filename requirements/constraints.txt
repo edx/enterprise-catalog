@@ -32,3 +32,8 @@ openai<=1.13.3
 
 # algoliasearch 4.0 is not backwards compatible with 3.0
 algoliasearch<4
+
+# pinning social-auth-* packages to the latest working versions. Remove these pins
+# when this ticket gets resolved: https://2u-internal.atlassian.net/browse/ENT-12017
+social-auth-app-django>=5.9.0,<6.0.0
+social-auth-core>=4.9.1,<5.0.0

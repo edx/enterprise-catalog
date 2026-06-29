@@ -101,6 +101,7 @@ tx
 # claude code personalization
 .claude/settings.local.json
 prompts.db
+.claude/worktrees/
 
 # Ralph
 .ralph/.*

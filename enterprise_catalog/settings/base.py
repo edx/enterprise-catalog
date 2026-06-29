@@ -438,6 +438,12 @@ ALGOLIA = {
     'APPLICATION_ID': '',
     'API_KEY': '',
     'INCREMENTAL_INDEX_NAME': None,
+    # Explicit allowlist for restrictIndices in secured API keys.  Set to a list
+    # of index names when frontends need to read from more than one index (e.g.
+    # during v1->v2 cutover: ['enterprise_catalog', 'enterprise_catalog_replica',
+    # 'enterprise_catalog_v2', 'enterprise_catalog_v2_replica']).  When None,
+    # generate_secured_api_key() falls back to [INDEX_NAME, REPLICA_INDEX_NAME].
+    'ALLOWED_INDEX_NAMES': None,
 }
 
 # How long to cache the precomputed program/pathway membership mappings

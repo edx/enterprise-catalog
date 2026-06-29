@@ -978,7 +978,7 @@ The catalog-query-specific dispatcher task must handle membership removals (see 
 
 **Scope**:
 - Keep legacy `reindex_algolia` cron running (writes to v1)
-- Enable `ENABLE_INCREMENTAL_ALGOLIA_INDEXING` flag with `INDEX_NAME` set to v2
+- Enable `ENABLE_INCREMENTAL_ALGOLIA_INDEXING` flag with `INCREMENTAL_INDEX_NAME` set to the v2 index name
 - Configure stragglers cron for `dispatch_algolia_indexing` (writes to v2)
 - Both indices are now being updated in parallel
 - Deploy enterprise-catalog

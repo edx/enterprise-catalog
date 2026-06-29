@@ -364,3 +364,53 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         client = AlgoliaSearchClient()
         with self.assertRaises(ImproperlyConfigured):
             client.get_object_ids_for_aggregation_key('course:edx-abc')
+
+
+class TestAlgoliaSearchClientGenerateSecuredApiKey(TestCase):
+    """
+    Tests for ``generate_secured_api_key`` -- specifically the ``restrictIndices`` logic.
+    """
+    SEARCH_API_KEY = 'test-search-api-key'
+    INDEX_NAME = 'enterprise_catalog'
+    REPLICA_INDEX_NAME = 'enterprise_catalog_replica'
+    V2_INDEX_NAME = 'enterprise_catalog_v2'
+
+    def _build_client(self, allowed_index_names=None):
+        client = AlgoliaSearchClient()
+        patcher_index = mock.patch.object(
+            AlgoliaSearchClient, 'algolia_index_name',
+            new_callable=mock.PropertyMock, return_value=self.INDEX_NAME,
+        )
+        patcher_replica = mock.patch.object(
+            AlgoliaSearchClient, 'algolia_replica_index_name',
+            new_callable=mock.PropertyMock, return_value=self.REPLICA_INDEX_NAME,
+        )
+        patcher_allowed = mock.patch.object(
+            AlgoliaSearchClient, 'algolia_allowed_index_names',
+            new_callable=mock.PropertyMock, return_value=allowed_index_names,
+        )
+        patcher_search_key = mock.patch.object(
+            AlgoliaSearchClient, 'algolia_search_api_key',
+            new_callable=mock.PropertyMock, return_value=self.SEARCH_API_KEY,
+        )
+        for p in (patcher_index, patcher_replica, patcher_allowed, patcher_search_key):
+            p.start()
+            self.addCleanup(p.stop)
+        return client
+
+    @mock.patch('enterprise_catalog.apps.api_client.algolia.SearchClient.generate_secured_api_key')
+    def test_falls_back_to_primary_and_replica_when_allowed_not_set(self, mock_gen):
+        mock_gen.return_value = 'key'
+        client = self._build_client(allowed_index_names=None)
+        client.generate_secured_api_key('user-1', ['cq-uuid-1'])
+        restrictions = mock_gen.call_args[0][1]
+        self.assertEqual(restrictions['restrictIndices'], [self.INDEX_NAME, self.REPLICA_INDEX_NAME])
+
+    @mock.patch('enterprise_catalog.apps.api_client.algolia.SearchClient.generate_secured_api_key')
+    def test_uses_allowed_index_names_when_set(self, mock_gen):
+        mock_gen.return_value = 'key'
+        allowed = [self.INDEX_NAME, self.REPLICA_INDEX_NAME, self.V2_INDEX_NAME]
+        client = self._build_client(allowed_index_names=allowed)
+        client.generate_secured_api_key('user-1', ['cq-uuid-1'])
+        restrictions = mock_gen.call_args[0][1]
+        self.assertEqual(restrictions['restrictIndices'], allowed)

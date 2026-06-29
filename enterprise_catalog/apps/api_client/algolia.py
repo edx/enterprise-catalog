@@ -46,6 +46,10 @@ class AlgoliaSearchClient:
     def algolia_replica_index_name(self):
         return settings.ALGOLIA.get('REPLICA_INDEX_NAME')
 
+    @property
+    def algolia_allowed_index_names(self):
+        return settings.ALGOLIA.get('ALLOWED_INDEX_NAMES')
+
     def init_index(self):
         """
         Initializes an index within Algolia. Initializing an index will create it if it doesn't exist.
@@ -418,14 +422,11 @@ class AlgoliaSearchClient:
             'userToken': user_id,
         }
 
-        # Determine indices to restrict
-        indices = []
-        if self.algolia_index_name:
-            indices.append(self.algolia_index_name)
-        if self.algolia_replica_index_name:
-            indices.append(self.algolia_replica_index_name)
-        if indices:
-            restrictions |= {'restrictIndices': indices}
+        # Determine indices to restrict.  ALLOWED_INDEX_NAMES overrides the
+        # default [INDEX_NAME, REPLICA_INDEX_NAME] pair so that during cutover
+        # frontends can access both the v1 and v2 indices with a single key.
+        indices = self.algolia_allowed_index_names or [self.algolia_index_name, self.algolia_replica_index_name]
+        restrictions |= {'restrictIndices': indices}
 
         # Generate secured api key
         logger.info('[AlgoliaSearchClient.generate_secured_api_key] restrictions: %s', restrictions)

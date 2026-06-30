@@ -284,7 +284,7 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.23.0
+faker==40.27.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
@@ -551,7 +551,7 @@ restructuredtext-lint==2.0.2
     # via doc8
 roman-numerals==4.1.0
     # via sphinx
-rpds-py==2026.5.1
+rpds-py==2026.6.3
     # via
     #   -r requirements/test.txt
     #   jsonschema
@@ -587,10 +587,12 @@ snowballstemmer==3.1.1
     # via sphinx
 social-auth-app-django==5.9.0
     # via
+    #   -c requirements/constraints.txt
     #   -r requirements/test.txt
     #   edx-auth-backends
 social-auth-core==4.9.1
     # via
+    #   -c requirements/constraints.txt
     #   -r requirements/test.txt
     #   edx-auth-backends
     #   social-auth-app-django
@@ -674,7 +676,7 @@ tzdata==2026.2
     # via
     #   -r requirements/test.txt
     #   kombu
-tzlocal==5.4.3
+tzlocal==5.4.4
     # via
     #   -r requirements/test.txt
     #   celery
@@ -697,7 +699,7 @@ virtualenv==21.5.1
     # via
     #   -r requirements/test.txt
     #   tox
-wcwidth==0.8.1
+wcwidth==0.8.2
     # via
     #   -r requirements/test.txt
     #   prompt-toolkit

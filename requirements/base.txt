@@ -221,7 +221,7 @@ monotonic==1.6
     # via analytics-python
 mysqlclient==2.2.8
     # via -r requirements/base.in
-narwhals==2.22.1
+narwhals==2.23.0
     # via scikit-learn
 numpy==2.5.0
     # via
@@ -328,7 +328,7 @@ social-auth-core==4.9.1
     #   social-auth-app-django
 sqlparse==0.5.5
     # via django
-stevedore==5.8.0
+stevedore==5.9.0
     # via
     #   code-annotations
     #   edx-django-utils
@@ -341,7 +341,7 @@ threadpoolctl==3.6.0
     # via scikit-learn
 tqdm==4.68.3
     # via openai
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   anyio
     #   django-modeltranslation

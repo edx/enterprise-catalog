@@ -282,7 +282,7 @@ monotonic==1.6
     #   analytics-python
 mysqlclient==2.2.8
     # via -r requirements/base.txt
-narwhals==2.22.1
+narwhals==2.23.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -433,7 +433,7 @@ sqlparse==0.5.5
     # via
     #   -r requirements/base.txt
     #   django
-stevedore==5.8.0
+stevedore==5.9.0
     # via
     #   -r requirements/base.txt
     #   code-annotations
@@ -455,7 +455,7 @@ tqdm==4.68.3
     # via
     #   -r requirements/base.txt
     #   openai
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   -r requirements/base.txt
     #   anyio

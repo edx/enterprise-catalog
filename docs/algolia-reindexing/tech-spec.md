@@ -948,6 +948,14 @@ The catalog-query-specific dispatcher task must handle membership removals (see 
 - [ ] Secured API keys include both indices in `restrictIndices`
 - [ ] Existing frontend behavior unchanged (still reading v1)
 
+**Findings (Phase 8a)**:
+
+After deploying the `ALLOWED_INDEX_NAMES` backend change, the Algolia *admin search API key* (configured in settings as `ALGOLIA_SEARCH_API_KEY`) also needed to be updated in the Algolia dashboard to allow the v2 index and its replica. `generate_secured_api_key()` derives a per-enterprise child key from that root key — a child key cannot grant access to indices the parent key does not allow. The backend deploy alone was not sufficient; manually updating the root key's `restrictIndices` in the Algolia dashboard was required for all enterprise consumers before v2 was accessible.
+
+**Capture this as a required step in any future index addition**: update the root API key's allowed index list in Algolia before deploying the backend change. Note that `frontend-app-enterprise-public-catalog` uses a *separate* Algolia API key (distinct from the one used by `enterprise-catalog` to generate secured keys for the learner and admin portals) — that key's allowed index list needs the same update independently.
+
+---
+
 #### Phase 8b: Add Frontend Feature Flag Support
 
 **Scope**:
@@ -973,6 +981,22 @@ The catalog-query-specific dispatcher task must handle membership removals (see 
 - [ ] All frontends deployed with flag-reading logic
 - [ ] With flag False, frontends continue using v1
 - [ ] Flag can be enabled per-enterprise or globally via Django admin
+
+**Findings (Phase 8b)**:
+
+After deploying flag-reading code to `frontend-app-learner-portal-enterprise`, approximately 100 daily requests continued hitting the v1 index. Several components were not routing through `useAlgoliaSearch()` to resolve the flag-controlled index name. Fixed in PRs #81 and #85:
+
+| Component | Issue | Fix |
+|-----------|-------|-----|
+| `src/components/my-career/CategoryCard.jsx` | Built its own `algoliasearch` client directly using `ALGOLIA_INDEX_NAME` | Replaced with `useAlgoliaSearch()` |
+| `src/components/ai-pathways/hooks/usePathways.ts` | Called `useAlgoliaSearch(config.ALGOLIA_INDEX_NAME)` — the explicit arg forced v1 | Removed the arg; let hook resolve via flag |
+| `src/components/ai-pathways/hooks/useCatalogAlgoliaSearch.ts` | v1-only fallback: `indexName \|\| config.ALGOLIA_INDEX_NAME` | Updated to `indexName \|\| config.ALGOLIA_INDEX_NAME_V2 \|\| config.ALGOLIA_INDEX_NAME` |
+| `src/components/ai-pathways/services/catalogFacetService.ts` | Defensive `initIndex` fallback used `ALGOLIA_INDEX_NAME` | Updated to prefer `ALGOLIA_INDEX_NAME_V2` |
+| `src/components/search/popular-results/PopularResultsIndex.jsx` | Called `useAlgoliaSearch()` directly in a leaf component, violating the Suspense/BFF boundary | Converted to presentational; `indexName` threaded as prop from `Search.jsx` through `ContentTypeSearchResultsContainer` and `SearchResults` → `SearchNoResults` |
+
+**Residual data hygiene** (not a source of Algolia API requests): `SearchCourseCard.jsx`, `SearchPathwayCard.jsx`, and `hooks.jsx` pass `ALGOLIA_INDEX_NAME` as the `index` property to `sendEnterpriseTrackEvent`. These calls go to Segment analytics, not the Algolia search API, so they do not generate index traffic — but they tag click events against the wrong index name when v2 is active.
+
+---
 
 #### Phase 8c: Enable Parallel Writes (v1 + v2)
 

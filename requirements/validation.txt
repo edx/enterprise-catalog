@@ -129,7 +129,7 @@ colorama==0.4.6
     # via
     #   -r requirements/test.txt
     #   tox
-coverage[toml]==7.14.3
+coverage[toml]==7.15.0
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -337,7 +337,7 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.27.0
+faker==40.28.1
     # via
     #   -r requirements/test.txt
     #   factory-boy
@@ -436,7 +436,7 @@ mysqlclient==2.2.8
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-narwhals==2.22.1
+narwhals==2.23.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -704,7 +704,7 @@ sqlparse==0.5.5
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   django
-stevedore==5.8.0
+stevedore==5.9.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -743,7 +743,7 @@ tqdm==4.68.3
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   openai
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

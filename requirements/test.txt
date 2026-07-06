@@ -102,7 +102,7 @@ code-annotations==3.0.0
     #   edx-toggles
 colorama==0.4.6
     # via tox
-coverage[toml]==7.14.3
+coverage[toml]==7.15.0
     # via
     #   -r requirements/test.in
     #   pytest-cov
@@ -254,7 +254,7 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.in
-faker==40.27.0
+faker==40.28.1
     # via factory-boy
 filelock==3.29.4
     # via
@@ -325,7 +325,7 @@ monotonic==1.6
     #   analytics-python
 mysqlclient==2.2.8
     # via -r requirements/base.txt
-narwhals==2.22.1
+narwhals==2.23.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -525,7 +525,7 @@ sqlparse==0.5.5
     # via
     #   -r requirements/base.txt
     #   django
-stevedore==5.8.0
+stevedore==5.9.0
     # via
     #   -r requirements/base.txt
     #   code-annotations
@@ -555,7 +555,7 @@ tqdm==4.68.3
     # via
     #   -r requirements/base.txt
     #   openai
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   -r requirements/base.txt
     #   anyio

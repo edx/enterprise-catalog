@@ -1,0 +1,24 @@
+enterprise_catalog/apps/search/management/commands/incremental_reindex_algolia.py
+  s_13011905dc7920::t_aece630f2e9766 12-15
+  s_13011905dc7920::t_2c65ee314e5a10 92-96
+enterprise_catalog/apps/search/management/commands/tests/test_incremental_reindex_algolia.py
+  s_13011905dc7920::t_b5549d2a734322 19-22
+  s_13011905dc7920::t_fa6ca44be81463 183-199
+  s_13011905dc7920::t_f84160d5db7fb7 41-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1ad9b0e2d5f679b713338ebe07898b446990e0d4",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+enterprise_catalog/apps/core/tests/test_admin_views.py
+  79bf952a0adba618 1-70
+enterprise_catalog/templates/admin/settings_view.html
+  79bf952a0adba618 1-28
+enterprise_catalog/apps/core/admin.py
+  79bf952a0adba618 10-17
+enterprise_catalog/urls.py
+  79bf952a0adba618 31-32,53
+enterprise_catalog/apps/core/admin_views.py
+  79bf952a0adba618 1-38
+enterprise_catalog/templates/admin/catalog_index.html
+  79bf952a0adba618 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f71c123a15d8bd570d6af794d68808ddfc04caaa",
+  "prompts": {
+    "79bf952a0adba618": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9963f8a-78a4-4e69-8c72-2428baa2cd4d",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 266,
+      "total_deletions": 118,
+      "accepted_lines": 165,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/b1987dcc3dddf788e63a838a68b0fe895ac21c1539dccf97d66892c8fbad9c79"
+    }
+  }
+}

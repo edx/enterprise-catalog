@@ -1,4 +1,4 @@
-from celery import chain, group
+from celery import chain
 from django.conf import settings
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
@@ -39,18 +39,13 @@ class EnterpriseCatalogRefreshDataFromDiscovery(BaseViewSet, APIView):
 
         # Use immutable signatures so task results from a parent task are not passed as arguments to a child task.
         if settings.ENABLE_INCREMENTAL_ALGOLIA_INDEXING:
-            # When incremental indexing is enabled, both the legacy task and the new dispatcher must run.
-            # Both wait for update_full_content_metadata_task to complete, then run in parallel via a group.
             async_update_metadata_chain = chain(
                 update_catalog_metadata_task.si(catalog_query_id),
                 update_full_content_metadata_task.si(),
-                group(
-                    index_enterprise_catalog_in_algolia_task.si(),
-                    dispatch_algolia_indexing_for_catalog_query.si(catalog_query_id),
-                ),
+                dispatch_algolia_indexing_for_catalog_query.si(catalog_query_id),
             )
         else:
-            # Legacy chain: keep v1 fresh until frontend cuts over.
+            # Rollback path: restores v1 writes when ENABLE_INCREMENTAL_ALGOLIA_INDEXING is disabled.
             async_update_metadata_chain = chain(
                 update_catalog_metadata_task.si(catalog_query_id),
                 update_full_content_metadata_task.si(),

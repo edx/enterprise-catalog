@@ -1,7 +1,7 @@
 from unittest import mock
 
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from enterprise_catalog.apps.api.tasks import TaskRecentlyRunError
 from enterprise_catalog.apps.catalog.models import (
@@ -45,6 +45,7 @@ class UpdateContentMetadataCommandTests(TestCase):
 
         self.command_config_mock.stop()
 
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
     @mock.patch(
@@ -53,7 +54,8 @@ class UpdateContentMetadataCommandTests(TestCase):
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
     def test_update_content_metadata_for_all_queries(
-        self, mock_full_metadata_task, mock_catalog_task, mock_group, mock_fetch_missing_pathway, mock_fetch_missing_course
+        self, mock_full_metadata_task, mock_catalog_task, mock_group, mock_fetch_missing_pathway,
+        mock_fetch_missing_course, mock_dispatch
     ):
         """
         Verify that the job creates an update task for every catalog query
@@ -68,6 +70,7 @@ class UpdateContentMetadataCommandTests(TestCase):
         ])
         mock_full_metadata_task.si.assert_called_once_with(force=False, dry_run=False)
 
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
     @mock.patch(
@@ -76,7 +79,8 @@ class UpdateContentMetadataCommandTests(TestCase):
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
     def test_update_content_metadata_for_filtered_queries(
-        self, mock_full_metadata_task, mock_catalog_task, mock_group, mock_fetch_missing_pathway, mock_fetch_missing_course
+        self, mock_full_metadata_task, mock_catalog_task, mock_group, mock_fetch_missing_pathway,
+        mock_fetch_missing_course, mock_dispatch
     ):
         """
         Verify that the job creates an update task for every catalog query that is used by
@@ -95,6 +99,7 @@ class UpdateContentMetadataCommandTests(TestCase):
         ])
         mock_full_metadata_task.si.assert_called_once_with(force=False, dry_run=False)
 
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
     @mock.patch(
@@ -103,7 +108,8 @@ class UpdateContentMetadataCommandTests(TestCase):
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
     def test_force_update_content_metadata(
-        self, mock_full_metadata_task, mock_catalog_task, mock_group, mock_fetch_missing_pathway, mock_fetch_missing_course
+        self, mock_full_metadata_task, mock_catalog_task, mock_group, mock_fetch_missing_pathway,
+        mock_fetch_missing_course, mock_dispatch
     ):
         """
         Verify that the job creates an update task for every catalog query
@@ -116,6 +122,7 @@ class UpdateContentMetadataCommandTests(TestCase):
         ])
         mock_full_metadata_task.si.assert_called_once_with(force=True, dry_run=False)
 
+    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
     @mock.patch(
@@ -124,7 +131,8 @@ class UpdateContentMetadataCommandTests(TestCase):
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
     def test_update_content_metadata_no_async(
-        self, mock_full_metadata_task, mock_catalog_task, mock_group, mock_fetch_missing_pathway, mock_fetch_missing_course
+        self, mock_full_metadata_task, mock_catalog_task, mock_group, mock_fetch_missing_pathway,
+        mock_fetch_missing_course, mock_dispatch
     ):
         """
         Verify that the tasks are executed synchronously when --no-async flag is set
@@ -138,7 +146,6 @@ class UpdateContentMetadataCommandTests(TestCase):
         ])
         mock_full_metadata_task.apply.assert_called_once_with(kwargs={"force": True, "dry_run": False})
 
-    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=False)
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
     @mock.patch(
@@ -147,37 +154,16 @@ class UpdateContentMetadataCommandTests(TestCase):
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
-    def test_incremental_indexing_disabled(
+    def test_dispatch_algolia_indexing_async(
         self, mock_dispatch, mock_full_metadata_task, mock_catalog_task, mock_group,
         mock_fetch_missing_pathway, mock_fetch_missing_course
     ):
         """
-        Verify that dispatch_algolia_indexing is NOT called when flag is disabled
-        """
-        call_command(self.command_name)
-        mock_dispatch.si.assert_not_called()
-        mock_dispatch.apply.assert_not_called()
-
-    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
-    @mock.patch(
-        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
-    @mock.patch(
-        'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_pathway_metadata_task')
-    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.group')
-    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
-    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
-    @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
-    def test_incremental_indexing_enabled_async(
-        self, mock_dispatch, mock_full_metadata_task, mock_catalog_task, mock_group,
-        mock_fetch_missing_pathway, mock_fetch_missing_course
-    ):
-        """
-        Verify that dispatch_algolia_indexing is called with force=False when flag is enabled (async)
+        Verify that dispatch_algolia_indexing is called with force=False (async)
         """
         call_command(self.command_name)
         mock_dispatch.si.assert_called_once_with(force=False, dry_run=False, use_apply=False)
 
-    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
     @mock.patch(
@@ -186,17 +172,16 @@ class UpdateContentMetadataCommandTests(TestCase):
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_catalog_metadata_task')
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.update_full_content_metadata_task')
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
-    def test_incremental_indexing_enabled_no_async(
+    def test_dispatch_algolia_indexing_no_async(
         self, mock_dispatch, mock_full_metadata_task, mock_catalog_task, mock_group,
         mock_fetch_missing_pathway, mock_fetch_missing_course
     ):
         """
-        Verify that dispatch_algolia_indexing is called with force=False and use_apply=True when flag is enabled (no-async)
+        Verify that dispatch_algolia_indexing is called with use_apply=True (no-async)
         """
         call_command(self.command_name, no_async=True)
         mock_dispatch.apply.assert_called_once_with(kwargs={'force': False, 'dry_run': False, 'use_apply': True})
 
-    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
     @mock.patch(
@@ -215,7 +200,6 @@ class UpdateContentMetadataCommandTests(TestCase):
         mock_dispatch.si.return_value.apply_async.return_value.get.side_effect = TaskRecentlyRunError('dedup')
         call_command(self.command_name)  # must not raise
 
-    @override_settings(ENABLE_INCREMENTAL_ALGOLIA_INDEXING=True)
     @mock.patch(
         'enterprise_catalog.apps.catalog.management.commands.update_content_metadata.fetch_missing_course_metadata_task')
     @mock.patch(

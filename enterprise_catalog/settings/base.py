@@ -465,10 +465,6 @@ ALGOLIA_INDEXING_CHUNK_SIZE = 100
 # indexing task it fans out to Celery workers.
 ALGOLIA_INDEXING_BATCH_SIZE = 10
 
-# Gates incremental Algolia indexing via dispatch_algolia_indexing in both
-# the daily cron chain and the API refresh endpoint.
-ENABLE_INCREMENTAL_ALGOLIA_INDEXING = False
-
 # Which fields should be plucked from the /search/all course-discovery API
 # response in `update_catalog_metadata_task` for course content metadata?
 COURSE_FIELDS_TO_PLUCK_FROM_SEARCH_ALL = os.environ.get(

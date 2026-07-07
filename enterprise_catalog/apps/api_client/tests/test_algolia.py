@@ -42,6 +42,25 @@ class TestAlgoliaSearchClientBatchMethods(TestCase):
         self.addCleanup(patcher.stop)
         return client
 
+    def test_algolia_index_name_returns_incremental_when_set(self):
+        """
+        ``algolia_index_name`` returns ``INCREMENTAL_INDEX_NAME`` when configured,
+        so ``init_index()`` and ``_get_index()`` both target v2 without extra wiring.
+        """
+        algolia_settings = {'INDEX_NAME': self.PRIMARY_INDEX_NAME, 'INCREMENTAL_INDEX_NAME': self.ALT_INDEX_NAME}
+        with self.settings(ALGOLIA=algolia_settings):
+            client = AlgoliaSearchClient()
+            self.assertEqual(client.algolia_index_name, self.ALT_INDEX_NAME)
+
+    def test_algolia_index_name_falls_back_to_index_name(self):
+        """
+        When ``INCREMENTAL_INDEX_NAME`` is absent (or None), falls back to ``INDEX_NAME``.
+        """
+        algolia_settings = {'INDEX_NAME': self.PRIMARY_INDEX_NAME, 'INCREMENTAL_INDEX_NAME': None}
+        with self.settings(ALGOLIA=algolia_settings):
+            client = AlgoliaSearchClient()
+            self.assertEqual(client.algolia_index_name, self.PRIMARY_INDEX_NAME)
+
     def test_get_index_defaults_to_primary(self):
         """
         ``_get_index()`` returns the primary index when no name is given.

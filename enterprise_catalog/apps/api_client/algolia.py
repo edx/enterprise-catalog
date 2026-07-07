@@ -40,7 +40,7 @@ class AlgoliaSearchClient:
 
     @property
     def algolia_index_name(self):
-        return settings.ALGOLIA.get('INDEX_NAME')
+        return settings.ALGOLIA.get('INCREMENTAL_INDEX_NAME') or settings.ALGOLIA.get('INDEX_NAME')
 
     @property
     def algolia_replica_index_name(self):

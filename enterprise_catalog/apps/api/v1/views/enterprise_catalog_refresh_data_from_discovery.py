@@ -1,12 +1,10 @@
-from celery import chain, group
-from django.conf import settings
+from celery import chain
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.status import HTTP_200_OK
 from rest_framework.views import APIView
 
 from enterprise_catalog.apps.api.tasks import (
-    index_enterprise_catalog_in_algolia_task,
     update_catalog_metadata_task,
     update_full_content_metadata_task,
 )
@@ -38,24 +36,11 @@ class EnterpriseCatalogRefreshDataFromDiscovery(BaseViewSet, APIView):
         catalog_query_id = enterprise_catalog.catalog_query.id
 
         # Use immutable signatures so task results from a parent task are not passed as arguments to a child task.
-        if settings.ENABLE_INCREMENTAL_ALGOLIA_INDEXING:
-            # When incremental indexing is enabled, both the legacy task and the new dispatcher must run.
-            # Both wait for update_full_content_metadata_task to complete, then run in parallel via a group.
-            async_update_metadata_chain = chain(
-                update_catalog_metadata_task.si(catalog_query_id),
-                update_full_content_metadata_task.si(),
-                group(
-                    index_enterprise_catalog_in_algolia_task.si(),
-                    dispatch_algolia_indexing_for_catalog_query.si(catalog_query_id),
-                ),
-            )
-        else:
-            # Legacy chain: keep v1 fresh until frontend cuts over.
-            async_update_metadata_chain = chain(
-                update_catalog_metadata_task.si(catalog_query_id),
-                update_full_content_metadata_task.si(),
-                index_enterprise_catalog_in_algolia_task.si(),
-            )
+        async_update_metadata_chain = chain(
+            update_catalog_metadata_task.si(catalog_query_id),
+            update_full_content_metadata_task.si(),
+            dispatch_algolia_indexing_for_catalog_query.si(catalog_query_id),
+        )
         async_task = async_update_metadata_chain.apply_async()
 
         return Response({'async_task_id': async_task.id}, status=HTTP_200_OK)

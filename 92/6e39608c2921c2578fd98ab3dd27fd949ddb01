@@ -1,0 +1,30 @@
+CLAUDE.md
+  13011905dc79203b 10-11
+scripts/algolia_phase3_smoke.py
+  13011905dc79203b 192-194
+enterprise_catalog/apps/search/tasks.py
+  13011905dc79203b 28-29,59-104,126-128,130,137-139,141,148-150,152,168-170,172,223,236,242,247-250,269-275,292,295,309
+enterprise_catalog/apps/search/tests/test_tasks.py
+  13011905dc79203b 4,25-26,114-117,145-146,163,185,207,233,265-267,279-280,306-308,337-399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "926e39608c2921c2578fd98ab3dd27fd949ddb01",
+  "prompts": {
+    "13011905dc79203b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 289,
+      "total_deletions": 72,
+      "accepted_lines": 261,
+      "overriden_lines": 2,
+      "messages_url": "https://usegitai.com/cas/9005ed77719ac5adc46415bfc4cc92bca2dd462c50dbba0fc29625b8d69c4080"
+    }
+  }
+}

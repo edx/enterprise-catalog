@@ -1,0 +1,26 @@
+enterprise_catalog/apps/search/tasks.py
+  s_13011905dc7920::t_07517e7371e1ad 272
+  s_13011905dc7920::t_afba63253f977c 509-512,515
+enterprise_catalog/apps/search/tests/test_tasks.py
+  s_13011905dc7920::t_4228c9064c0807 1851
+docs/algolia-reindexing/tech-spec.md
+  s_13011905dc7920::t_9bf9136602b9b1 905-906
+docs/algolia-reindexing/videos.md
+  s_13011905dc7920::t_212bcf3428ab79 82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "ce1b6f6f644407a7f46cec5c774b9a784616f27a",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

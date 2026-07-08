@@ -2780,7 +2780,7 @@ class CatalogQueryViewTests(APITestMixin):
             self.enterprise_uuid,
             self.catalog_query_object.enterprise_catalogs.first().enterprise_uuid,
         )
-        url = reverse('api:v1:catalog-queries-detail', kwargs={'uuid': self.catalog_query_object.uuid})
+        url = reverse('api:v1:catalog-queries-detail', kwargs={'pk': self.catalog_query_object.pk})
         response = self.client.get(url)
         response_json = response.json()
         assert response_json.get('uuid') == str(self.catalog_query_object.uuid)
@@ -2789,7 +2789,7 @@ class CatalogQueryViewTests(APITestMixin):
         different_customer_catalog = EnterpriseCatalogFactory()
         # We don't have a jwt token that includes an admin role for the new enterprise so it is
         # essentially hidden to the requester
-        url = reverse('api:v1:catalog-queries-detail', kwargs={'uuid': different_customer_catalog.catalog_query.uuid})
+        url = reverse('api:v1:catalog-queries-detail', kwargs={'pk': different_customer_catalog.catalog_query.pk})
         response = self.client.get(url)
         assert response.status_code == 404
 

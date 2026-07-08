@@ -75,8 +75,8 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
     # ─────────────────────────────────────────────────────────
     def test_get_by_uuid_malformed_uuid(self):
         """
-        GET /api/v1/catalog-queries/<uuid>/ returns 404
-        because the URL regex won't match a non-UUID string.
+        GET /api/v1/catalog-queries/<uuid>/ returns 404 for an invalid UUID.
+        Note: the <uuid:uuid> route won't match, so this request falls through to the pk-based route and returns 404.
         """
         response = self.client.get('/api/v1/catalog-queries/not-a-valid-uuid/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

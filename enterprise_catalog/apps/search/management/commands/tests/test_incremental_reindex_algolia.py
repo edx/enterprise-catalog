@@ -6,7 +6,6 @@ from unittest import mock
 
 import ddt
 from django.core.management import call_command
-from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from enterprise_catalog.apps.catalog.constants import (
@@ -259,31 +258,6 @@ class IncrementalReindexAlgoliaCommandTests(TestCase):
         mock_task.apply_async.return_value.get.return_value = None
         output = self._call()
         assert 'No summary' in output
-
-    # ------------------------------------------------------------------
-    # Primary-index guard (remove at cutover)
-    # ------------------------------------------------------------------
-
-    @override_settings(ALGOLIA={'INDEX_NAME': 'enterprise_catalog'})
-    def test_guard_blocks_default_invocation_against_primary_index(self):
-        """No --index-name defaults to the primary index, which must be blocked."""
-        with self.assertRaises(CommandError) as ctx:
-            self._call()
-        assert 'enterprise_catalog' in str(ctx.exception)
-
-    @override_settings(ALGOLIA={'INDEX_NAME': 'enterprise_catalog'})
-    def test_guard_blocks_explicit_primary_index_name(self):
-        """--index-name matching the primary index is also blocked."""
-        with self.assertRaises(CommandError):
-            self._call('--index-name', 'enterprise_catalog')
-
-    @override_settings(ALGOLIA={'INDEX_NAME': 'enterprise_catalog'})
-    @mock.patch(TASK_PATH)
-    def test_guard_allows_non_primary_index_name(self, mock_task):
-        """--index-name pointing to a different index bypasses the guard."""
-        mock_task.apply_async.return_value.get.return_value = _SAMPLE_SUMMARY
-        output = self._call('--index-name', 'enterprise_catalog_v2')
-        assert 'enterprise_catalog_v2' in output
 
     # ------------------------------------------------------------------
     # Config model override

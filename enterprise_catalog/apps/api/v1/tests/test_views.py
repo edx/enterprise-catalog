@@ -2784,6 +2784,7 @@ class CatalogQueryViewTests(APITestMixin):
         response = self.client.get(url)
         response_json = response.json()
         assert response_json.get('uuid') == str(self.catalog_query_object.uuid)
+        assert response_json.get('id') == self.catalog_query_object.id
 
         different_customer_catalog = EnterpriseCatalogFactory()
         # We don't have a jwt token that includes an admin role for the new enterprise so it is

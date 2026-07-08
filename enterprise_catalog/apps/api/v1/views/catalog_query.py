@@ -121,16 +121,11 @@ class CatalogQueryViewSet(viewsets.ReadOnlyModelViewSet, BaseViewSet, Permission
             raise ParseError(f"Failed to parse catalog query: {exc}") from exc
         return Response(content_filter_hash)
 
-    @action(
-        detail=False,
-        methods=['get'],
-        url_path=r'by-uuid/(?P<uuid>[0-9a-f-]{36})',
-        url_name='get-by-uuid',
-    )
-    def get_by_uuid(self, request, uuid=None):
+    # NOTE: This endpoint is mapped explicitly in enterprise_catalog/apps/api/v1/urls.py;
+    def get_by_uuid(self, request, uuid=None, **kwargs):
         """
         Retrieve a single CatalogQuery by its UUID field.
-        GET /api/v1/catalog-queries/by-uuid/{uuid}/
+        GET /api/v1/catalog-queries/<uuid>/
         Returns:
             200: CatalogQuery serialized data
             404: If no CatalogQuery matches the given UUID

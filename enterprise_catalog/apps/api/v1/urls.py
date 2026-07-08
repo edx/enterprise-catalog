@@ -137,7 +137,7 @@ urlpatterns = [
         name="enterprise-jobs",
     ),
     path(
-        'catalog-queries/by-uuid/<uuid:uuid>/',
+        'catalog-queries/<uuid:uuid>/',
         CatalogQueryViewSet.as_view({'get': 'get_by_uuid'}),
         name='get-query-by-uuid'
     ),

@@ -11,7 +11,7 @@ from enterprise_catalog.apps.catalog.tests.factories import CatalogQueryFactory
 @ddt.ddt
 class TestCatalogQueryGetByUuidAction(APITestMixin):
     """
-    Tests for GET /api/v1/catalog-queries/by-uuid/{uuid}/
+    Tests for GET /api/v1/catalog-queries/<uuid>/
     """
 
     def setUp(self):
@@ -43,7 +43,7 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
     # ─────────────────────────────────────────────────────────
     def test_get_by_uuid_success(self):
         """
-        GET /api/v1/catalog-queries/by-uuid/{uuid}/ returns 200
+        GET /api/v1/catalog-queries/<uuid>/ returns 200
         with the correct CatalogQuery data.
         """
         response = self.client.get(self.url)
@@ -62,7 +62,7 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
     # ─────────────────────────────────────────────────────────
     def test_get_by_uuid_not_found(self):
         """
-        GET /api/v1/catalog-queries/by-uuid/{non_existent_uuid}/ returns 404.
+        GET /api/v1/catalog-queries/<uuid>/ returns 404.
         """
         non_existent_uuid = str(uuid_lib.uuid4())
         url = self._get_by_uuid_url(non_existent_uuid)
@@ -75,11 +75,10 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
     # ─────────────────────────────────────────────────────────
     def test_get_by_uuid_malformed_uuid(self):
         """
-        GET /api/v1/catalog-queries/by-uuid/not-a-uuid/ returns 404
+        GET /api/v1/catalog-queries/<uuid>/ returns 404
         because the URL regex won't match a non-UUID string.
         """
-        # The url_path regex [0-9a-f-]{36} won't match, so DRF returns 404
-        response = self.client.get('/api/v1/catalog-queries/by-uuid/not-a-valid-uuid/')
+        response = self.client.get('/api/v1/catalog-queries/not-a-valid-uuid/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     # ─────────────────────────────────────────────────────────
@@ -99,21 +98,6 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['id'], self.catalog_query.id)
         self.assertEqual(response.data['uuid'], str(self.catalog_query.uuid))
-
-    # ─────────────────────────────────────────────────────────
-    # Line 102-118: PK endpoint does NOT accept UUID value
-    # ─────────────────────────────────────────────────────────
-    def test_pk_endpoint_rejects_uuid_string(self):
-        """
-        GET /api/v1/catalog-queries/{uuid_string}/ returns 404,
-        confirming that the PK-based endpoint only accepts integers.
-        This proves backward compat is maintained.
-        """
-        bad_url = f'/api/v1/catalog-queries/{self.catalog_query.uuid}/'
-        response = self.client.get(bad_url)
-
-        # DRF with integer PK will return 404 for a UUID string
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     # ─────────────────────────────────────────────────────────
     # Line 120-137: Multiple queries, correct one returned
@@ -165,6 +149,6 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
     @ddt.data('post', 'put', 'delete')
     def test_get_by_uuid_disallows_methods(self, method_name):
         """
-        POST, PUT, and DELETE /api/v1/catalog-queries/by-uuid/{uuid}/ return 405.
+        POST, PUT, and DELETE /api/v1/catalog-queries/<uuid>/ return 405.
         """
         self._assert_method_not_allowed(method_name)

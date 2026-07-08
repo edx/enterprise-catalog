@@ -6,7 +6,6 @@ import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
-from operator import itemgetter
 
 from algoliasearch.exceptions import AlgoliaException
 from celery import shared_task, states
@@ -26,11 +25,9 @@ from enterprise_catalog.apps.catalog.algolia_utils import (
     ALGOLIA_JSON_METADATA_MAX_SIZE,
     ALGOLIA_UUID_BATCH_SIZE,
     _algolia_object_from_product,
-    configure_algolia_index,
     create_algolia_objects,
     create_spanish_algolia_object,
     get_algolia_object_id,
-    get_initialized_algolia_client,
     get_pathway_course_keys,
     get_pathway_program_uuids,
     new_search_client_or_error,
@@ -44,7 +41,6 @@ from enterprise_catalog.apps.catalog.constants import (
     LEARNER_PATHWAY,
     PROGRAM,
     QUERY_FOR_RESTRICTED_RUNS,
-    REINDEX_TASK_BATCH_SIZE,
     TASK_BATCH_SIZE,
     VIDEO,
     AlgoliaTraceNames,
@@ -578,58 +574,6 @@ def _batched_metadata_with_queries(json_metadata, sorted_queries):
     return batched_metadata
 
 
-@shared_task(base=LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
-@expiring_task_semaphore()
-def index_enterprise_catalog_in_algolia_task(self, force=False, dry_run=False):  # pylint: disable=unused-argument
-    """
-    Index course and program data in Algolia with enterprise-related fields.
-
-    Note: It is especially important that this task uses the increased maximum ``CELERY_TASK_SOFT_TIME_LIMIT`` and
-    ``CELERY_TASK_TIME_LIMIT`` as it makes somewhat time-intensive reads/writes to the database along with sending
-    large payloads of data to Algolia, which was exceeding the previous default limits, causing a SoftTimeLimitExceeded
-    exception.
-
-    Args:
-        force (bool): If true, forces execution of task and ignores time since last run.
-        dry_run (bool): If true, does everything except call Algolia APIs.
-    """
-    try:
-        logger.info(
-            f'{_reindex_algolia_prefix(dry_run)} invoking task with arguments force={force}, dry_run={dry_run}.'
-        )
-        courses_content_metadata = ContentMetadata.objects.filter(content_type=COURSE)
-        # Make sure the courses we consider for indexing actually contain restricted runs so that
-        # "unicorn" courses (i.e. courses that contain only restricted runs) do not get discarded by
-        # partition_course_keys_for_indexing() for not having an advertised run.
-        if getattr(settings, 'SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS', False):
-            courses_content_metadata = courses_content_metadata.prefetch_restricted_overrides()
-        indexable_course_keys, nonindexable_course_keys = partition_course_keys_for_indexing(
-            courses_content_metadata,
-        )
-        programs_content_metadata = ContentMetadata.objects.filter(content_type=PROGRAM)
-        indexable_program_keys, nonindexable_program_keys = partition_program_keys_for_indexing(
-            programs_content_metadata,
-        )
-        indexable_pathways_keys = ContentMetadata.objects.filter(
-            content_type=LEARNER_PATHWAY
-        ).distinct().values_list(
-            'content_key',
-            flat=True
-        )
-        indexable_content_keys = indexable_course_keys + indexable_program_keys + list(indexable_pathways_keys)
-        nonindexable_content_keys = nonindexable_course_keys + nonindexable_program_keys
-        _reindex_algolia(
-            indexable_content_keys=indexable_content_keys,
-            nonindexable_content_keys=nonindexable_content_keys,
-            dry_run=dry_run,
-        )
-    except Exception as exep:
-        logger.exception(
-            f'{_reindex_algolia_prefix(dry_run)} reindex_algolia failed. Error: {exep}'
-        )
-        raise exep
-
-
 def _last_updated_between(index, min_days_ago, max_days_ago):
     """
     Returns whether the index was created between min_days_ago and max_days_ago.
@@ -731,9 +675,9 @@ def remove_old_temporary_catalog_indices_task(
     """
     Remove old temporary catalog indices from Algolia.
 
-    Because Algolia's `replace_all_objects` method generates but does not delete temporary indices
-    named as `<index_name>_tmp_<timestamp>`, we need to remove them periodically.
-    This task removes all indices that are older than 10 days and newer than 60 days.
+    Algolia's atomic reindex method generates temporary indices named `<index_name>_tmp_<timestamp>`
+    that are not automatically deleted. This task removes stale ones older than 10 days and newer
+    than 60 days.
 
     Args:
         force (bool): Related to task decorator. If True,
@@ -1366,118 +1310,6 @@ def _get_algolia_products_for_batch(
     )
     # extract only the fields we care about.
     return create_algolia_objects(algolia_products_by_object_id.values(), ALGOLIA_FIELDS)
-
-
-def _index_content_keys_in_algolia(content_keys, algolia_client, dry_run=False):
-    """
-    Determines list of Algolia objects to include in the Algolia index based on the
-    specified content keys, and replaces all existing objects with the new ones in an atomic reindex.
-
-    Memory consumption of this function follows a sawtooth pattern over time.  Maximum instantaneous memory consumption
-    is dictated by the larger of two batch sizes:
-
-    * The number of algolia products generated by a batch of `REINDEX_TASK_BATCH_SIZE` content keys.  This number is
-      variable, but at the time of writing this was on order of 180 (with `REINDEX_TASK_BATCH_SIZE` = 10).
-    * The algoliasearch library batch size, default 1000.
-
-    Arguments:
-        content_keys (list): List of indexable content_key strings.
-        algolia_client: Instance of an Algolia API client, or None if dry_run is enabled.
-    """
-    logger.info(
-        f'{_reindex_algolia_prefix(dry_run)} There are {len(content_keys)} total content keys to include in the'
-        f' Algolia index.'
-    )
-    (
-        program_to_courses_mapping,
-        pathway_to_programs_courses_mapping,
-    ) = _precalculate_content_mappings()
-    context_accumulator = {
-        'total_algolia_products_count': 0,
-        'discarded_algolia_object_ids': defaultdict(int),
-    }
-    # Convert the content_keys list into a set that only takes O(1) on average to lookup.
-    all_content_keys_set = set(content_keys)
-    # Produce a generator of batches of algolia products to index.  Each batch has an unpredictable, variable length.
-    # Not immediately evaluated, so no memory is consumed yet.
-    algolia_products_batch_generator = (
-        _get_algolia_products_for_batch(
-            batch_num,
-            content_keys_batch,
-            all_content_keys_set,
-            program_to_courses_mapping,
-            pathway_to_programs_courses_mapping,
-            context_accumulator,
-            dry_run=dry_run,
-        )
-        for batch_num, content_keys_batch
-        in enumerate(batch(content_keys, batch_size=REINDEX_TASK_BATCH_SIZE))
-    )
-    # Flatten the variable-length batches of products into a flat iterable of all products to index.  Whatever consumes
-    # this will not even know that it was already batched and recombined.
-    # Still not evaluated, so no memory is consumed yet.
-    algolia_products_generator = (
-        algolia_product
-        for batch in algolia_products_batch_generator
-        for algolia_product in batch
-    )
-
-    # Feed the un-evaluated flat iterable of algolia products into the 3rd party library function.  As of this writing,
-    # this library function will chunk the iterable again using a default batch size of 1000.
-    #
-    # See function documentation for indication that an Iterator is accepted:
-    # https://github.com/algolia/algoliasearch-client-python/blob/e0a2a578464a1b01caaa84dba927b99ae8476af3/algoliasearch/search_index.py#L89
-    if not dry_run:
-        with function_trace(AlgoliaTraceNames.REPLACE_ALL_OBJECTS):
-            algolia_client.replace_all_objects(algolia_products_generator)
-    else:
-        logger.info(
-            f'{_reindex_algolia_prefix(dry_run)} skipping algolia_client.replace_all_objects().'
-        )
-        # Force evaluation of the generator to simulate algolia client reading it.
-        _ = list(algolia_products_generator)
-
-    # Now, the generator will have been fully evaluated, and context_accumulator will have been filled with interesting
-    # metrics.
-    if context_accumulator['discarded_algolia_object_ids']:
-        top_10_discarded_algolia_object_ids = \
-            sorted(context_accumulator['discarded_algolia_object_ids'].items(), key=itemgetter(1), reverse=True)[:10]
-        logger.info(
-            f'{_reindex_algolia_prefix(dry_run)} Histogram of top 10 most frequently discarded algolia object IDs: '
-            f'{top_10_discarded_algolia_object_ids}.'
-        )
-    logger.info(
-        f'{_reindex_algolia_prefix(dry_run)} {context_accumulator["total_algolia_products_count"]} products found.'
-    )
-
-
-def _reindex_algolia(indexable_content_keys, nonindexable_content_keys, dry_run=False):
-    """
-    Indexes courses, programs and pathways metadata in the Algolia search index.
-    """
-    logger.info(
-        f'{_reindex_algolia_prefix(dry_run)} There are %s indexable content keys, which will replace all existing'
-        ' objects in the Algolia index. %s nonindexable content keys will be removed.',
-        len(indexable_content_keys), len(nonindexable_content_keys),
-    )
-    if len(indexable_content_keys) == 0:
-        logger.warning('Skipping Algolia indexing as there are no indexable content keys.')
-        # ensure we do not continue the indexing task if there are no indexable content keys. this
-        # will help prevent us from unintentionally removing all content keys from the index.
-        return
-
-    algolia_client = None
-    if not dry_run:
-        algolia_client = get_initialized_algolia_client()
-        configure_algolia_index(algolia_client)
-
-    # Replaces all objects in the Algolia index with new objects based on the specified
-    # indexable content keys.
-    _index_content_keys_in_algolia(
-        content_keys=indexable_content_keys,
-        algolia_client=algolia_client,
-        dry_run=dry_run,
-    )
 
 
 @shared_task(base=LoggedTaskWithRetry, bind=True)

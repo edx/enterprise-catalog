@@ -7,7 +7,7 @@ and prints a summary of dispatched tasks.
 import logging
 
 from django.conf import settings
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 
 from enterprise_catalog.apps.api_client.algolia import AlgoliaSearchClient
 from enterprise_catalog.apps.catalog.algolia_utils import (
@@ -95,38 +95,26 @@ class Command(BaseCommand):
         options.update(config_overrides)
 
         content_types = options['content_types']  # None means all types
-        index_name = options['index_name']
-        replica_index_name = options['replica_index_name']
+        index_name = options['index_name'] or settings.ALGOLIA['INCREMENTAL_INDEX_NAME']
+        replica_index_name = options['replica_index_name'] or f'{index_name}_repl'
         force_all = options['force_all']
         dry_run = options['dry_run']
         no_async = options['no_async']
-
-        # Safety guard: block writes to the primary production index.
-        # Remove this check as part of the incremental-reindexing cutover.
-        primary_index = settings.ALGOLIA.get('INDEX_NAME')
-        resolved_index = index_name or primary_index
-        if resolved_index and resolved_index == primary_index:
-            raise CommandError(
-                f"Refusing to run against the primary Algolia index '{primary_index}'. "
-                "Pass --index-name targeting a non-primary index. "
-                "Remove this guard when cutting over to incremental reindexing."
-            )
 
         if dry_run:
             self.stdout.write(self.style.WARNING('[DRY-RUN] No Algolia writes will be made.'))
         else:
             self.stdout.write('Configuring Algolia index settings...')
-            replica_name = replica_index_name or f'{index_name}_repl'
             sdk_client = new_search_client_or_error()
             algolia_client = AlgoliaSearchClient()
             algolia_client.algolia_index = sdk_client.init_index(index_name)
-            algolia_client.replica_index = sdk_client.init_index(replica_name)
-            primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': [f'virtual({replica_name})']}
+            algolia_client.replica_index = sdk_client.init_index(replica_index_name)
+            primary_settings = {**ALGOLIA_INDEX_SETTINGS, 'replicas': [f'virtual({replica_index_name})']}
             algolia_client.set_index_settings(primary_settings)
             algolia_client.set_index_settings(ALGOLIA_REPLICA_INDEX_SETTINGS, primary_index=False)
 
         self.stdout.write(f'Content types: {", ".join(content_types) if content_types else "all"}')
-        self.stdout.write(f'Target index:  {resolved_index or "(not configured)"}')
+        self.stdout.write(f'Target index:  {index_name or "(not configured)"}')
         self.stdout.write(f'Force all:     {force_all}')
         self.stdout.write('')
 

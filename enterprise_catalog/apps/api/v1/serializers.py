@@ -124,6 +124,7 @@ class CatalogQuerySerializer(serializers.ModelSerializer):
     class Meta:
         model = CatalogQuery
         fields = [
+            'id',
             'uuid',
             'content_filter',
             'content_filter_hash',

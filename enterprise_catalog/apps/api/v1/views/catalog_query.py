@@ -34,6 +34,7 @@ class CatalogQueryViewSet(viewsets.ReadOnlyModelViewSet, BaseViewSet, Permission
     permission_required = 'catalog.has_admin_access'
     list_lookup_field = 'enterprise_catalogs__enterprise_uuid'
     role_assignment_class = EnterpriseCatalogRoleAssignment
+    lookup_field = 'uuid'
 
     @property
     def base_queryset(self):

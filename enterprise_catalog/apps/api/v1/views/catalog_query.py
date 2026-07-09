@@ -1,7 +1,8 @@
+from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.utils.functional import cached_property
 from edx_rbac.mixins import PermissionRequiredForListingMixin
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ParseError
 from rest_framework.renderers import JSONRenderer
@@ -119,3 +120,17 @@ class CatalogQueryViewSet(viewsets.ReadOnlyModelViewSet, BaseViewSet, Permission
         except ParseError as exc:
             raise ParseError(f"Failed to parse catalog query: {exc}") from exc
         return Response(content_filter_hash)
+
+    # NOTE: This endpoint is mapped explicitly in enterprise_catalog/apps/api/v1/urls.py;
+    def get_by_uuid(self, request, uuid=None, **kwargs):
+        """
+        Retrieve a single CatalogQuery by its UUID field.
+        GET /api/v1/catalog-queries/<uuid>/
+        Returns:
+            200: CatalogQuery serialized data
+            404: If no CatalogQuery matches the given UUID
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+        catalog_query = get_object_or_404(queryset, uuid=uuid)
+        serializer = self.get_serializer(catalog_query)
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -136,6 +136,11 @@ urlpatterns = [
         EnterpriseJobReadOnlyViewSet.as_view({"get": "list"}),
         name="enterprise-jobs",
     ),
+    path(
+        'catalog-queries/<uuid:uuid>/',
+        CatalogQueryViewSet.as_view({'get': 'get_by_uuid'}),
+        name='get-query-by-uuid'
+    ),
 ]
 
 urlpatterns += router.urls

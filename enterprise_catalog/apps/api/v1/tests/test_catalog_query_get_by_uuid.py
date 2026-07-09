@@ -5,7 +5,12 @@ from django.urls import reverse
 from rest_framework import status
 
 from enterprise_catalog.apps.api.v1.tests.mixins import APITestMixin
-from enterprise_catalog.apps.catalog.tests.factories import CatalogQueryFactory
+from enterprise_catalog.apps.catalog.tests.factories import (
+    CatalogQueryFactory,
+    EnterpriseCatalogFactory,
+    USER_PASSWORD,
+    UserFactory,
+ )
 
 
 @ddt.ddt
@@ -56,6 +61,30 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
             response.data['content_filter'],
             {'partner': 'edx', 'content_type': 'course'},
         )
+
+    def test_get_by_uuid_success_for_non_staff_catalog_admin(self):
+        """
+        GET /api/v1/catalog-queries/<uuid>/ returns 200 for a non-staff
+        catalog admin using the database-backed permission path.
+        """
+        self.user = UserFactory()
+        self.client.login(username=self.user.username, password=USER_PASSWORD)
+        self.set_up_invalid_jwt_role()
+        self.remove_role_assignments()
+        EnterpriseCatalogFactory(
+            catalog_query=self.catalog_query,
+            enterprise_uuid=self.enterprise_uuid,
+        )
+        self.assign_catalog_admin_feature_role(
+            user=self.user,
+            enterprise_uuids=[self.enterprise_uuid],
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['uuid'], str(self.catalog_query.uuid))
+        self.assertEqual(response.data['id'], self.catalog_query.id)
 
     # ─────────────────────────────────────────────────────────
     # Line 54-67: 404 for non-existent UUID

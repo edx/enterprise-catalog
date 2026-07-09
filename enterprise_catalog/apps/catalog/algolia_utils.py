@@ -1401,7 +1401,7 @@ def _get_is_active_course_run(full_course_run):
     is_not_archived_availability = availability != 'Archived'
     is_active = course_run_is_active and is_not_archived_availability
     if not is_active:
-        LOGGER.info(
+        LOGGER.debug(
             f'[_get_is_active_course_run] course run is not active '
             f'key: {full_course_run.get("key")}, '
             f'is_marketable: {full_course_run.get("is_marketable")}, '

@@ -130,6 +130,7 @@ class CatalogQueryViewSet(viewsets.ReadOnlyModelViewSet, BaseViewSet, Permission
             200: CatalogQuery serialized data
             404: If no CatalogQuery matches the given UUID
         """
-        catalog_query = get_object_or_404(self.get_queryset(), uuid=uuid)
+        queryset = self.filter_queryset(self.get_queryset())
+        catalog_query = get_object_or_404(queryset, uuid=uuid)
         serializer = self.get_serializer(catalog_query)
         return Response(serializer.data, status=status.HTTP_200_OK)

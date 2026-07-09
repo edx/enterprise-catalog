@@ -6,11 +6,11 @@ from rest_framework import status
 
 from enterprise_catalog.apps.api.v1.tests.mixins import APITestMixin
 from enterprise_catalog.apps.catalog.tests.factories import (
+    USER_PASSWORD,
     CatalogQueryFactory,
     EnterpriseCatalogFactory,
-    USER_PASSWORD,
     UserFactory,
- )
+)
 
 
 @ddt.ddt
@@ -22,6 +22,7 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
     def setUp(self):
         """Set up test fixtures."""
         super().setUp()
+        self.user = None
         self.set_up_staff()
         self.catalog_query = CatalogQueryFactory(
             title='Subscription Query',

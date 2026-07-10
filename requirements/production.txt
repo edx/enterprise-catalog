@@ -51,12 +51,12 @@ certifi==2026.6.17
     #   httpcore
     #   httpx
     #   requests
-cffi==2.0.0
+cffi==2.1.0
     # via
     #   -r requirements/base.txt
     #   cryptography
     #   pynacl
-charset-normalizer==3.4.7
+charset-normalizer==3.4.9
     # via
     #   -r requirements/base.txt
     #   requests
@@ -104,7 +104,7 @@ distro==1.9.0
     # via
     #   -r requirements/base.txt
     #   openai
-django==5.2.15
+django==5.2.16
     # via
     #   -r requirements/base.txt
     #   django-celery-results
@@ -186,7 +186,7 @@ drf-jwt==1.19.2
     # via
     #   -r requirements/base.txt
     #   edx-drf-extensions
-drf-spectacular==0.29.0
+drf-spectacular==0.30.0
     # via -r requirements/base.txt
 edx-auth-backends==5.0.0
     # via -r requirements/base.txt
@@ -286,7 +286,7 @@ narwhals==2.23.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
-numpy==2.5.0
+numpy==2.5.1
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -451,7 +451,7 @@ threadpoolctl==3.6.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
-tqdm==4.68.3
+tqdm==4.68.4
     # via
     #   -r requirements/base.txt
     #   openai

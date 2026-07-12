@@ -1,0 +1,22 @@
+docs/decisions/0014-newest-courses-sort-replica.rst
+  s_5b3f74dac56b59::t_1c758385f9494f 15,17-21,23-25,28-30
+  s_5b3f74dac56b59::t_1c4ef65a74765c 152-163
+  s_5b3f74dac56b59::t_a3d38f41ca2b76 45-49
+  s_5b3f74dac56b59::t_aef79134bccc8b 118-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "672f1e481663f20fe837a3050207693cb411de10",
+  "prompts": {},
+  "sessions": {
+    "s_5b3f74dac56b59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "74052e79-677e-4296-80c2-f0c854f8d61d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Brian Beggs <macdiesel@gmail.com>"
+    }
+  }
+}

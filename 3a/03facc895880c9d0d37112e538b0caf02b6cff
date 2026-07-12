@@ -1,0 +1,26 @@
+docs/algolia-reindexing/tech-spec.md
+  s_13011905dc7920::t_937f711588b5e5 981
+enterprise_catalog/settings/base.py
+  s_13011905dc7920::t_b80332d02f30d0 441-445
+enterprise_catalog/apps/api_client/algolia.py
+  s_13011905dc7920::t_0ccd034cf13168 425-432
+  s_13011905dc7920::t_4993f8e08b8c90 49-52
+enterprise_catalog/apps/api_client/tests/test_algolia.py
+  s_13011905dc7920::t_fafc762b62de7d 367-416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3a03facc895880c9d0d37112e538b0caf02b6cff",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

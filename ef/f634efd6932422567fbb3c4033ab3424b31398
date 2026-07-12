@@ -1,0 +1,23 @@
+enterprise_catalog/apps/catalog/management/commands/update_content_metadata.py
+  s_13011905dc7920::t_bc10ed9a83de2d 114-118,122-126
+  s_13011905dc7920::t_e2ae5f02295cba 177-181
+  s_13011905dc7920::t_7effe77e17c2b5 8
+  s_13011905dc7920::t_2675c88d824ac9 165-169
+  s_13011905dc7920::t_c12db765079c4c 201-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "eff634efd6932422567fbb3c4033ab3424b31398",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

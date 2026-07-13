@@ -87,9 +87,14 @@ class EnterpriseCatalogGetContentMetadata(BaseViewSet, GenericAPIView):
 
     @extend_schema(
         description=(
-            "GET calls to the `enterprise-catalogs/{catalog_id}` endpoint return a list of all of the active courses "
-            "in a specified course catalog. You can then make a GET call to the "
-            "`/enterprise-catalogs/{catalog_id}/courses/{course_key}` endpoint to return details about a single course."
+            "Returns paginated content metadata for a catalog. "
+            "Unpublished courses (no published runs) are always excluded from `results`. "
+            "Inactive courses are also excluded unless `content_keys` is provided. "
+            "\n\n"
+            "**Note on `count`:** in the default paginated path, `count` reflects a SQL COUNT of all "
+            "catalog rows before the unpublished/inactive filters are applied, so it may be slightly "
+            "higher than the number of items actually returned across all pages. "
+            "Use `traverse_pagination=true` to get an exact filtered count on a single page."
         ),
         parameters=[
             OpenApiParameter(
@@ -98,7 +103,18 @@ class EnterpriseCatalogGetContentMetadata(BaseViewSet, GenericAPIView):
                 location=OpenApiParameter.QUERY,
                 description=(
                     "A list of content keys to filter the results. "
-                    "If not provided, all content metadata is returned."
+                    "If not provided, all content metadata is returned. "
+                    "When provided, the inactive-course filter is skipped."
+                ),
+            ),
+            OpenApiParameter(
+                name="traverse_pagination",
+                type=bool,
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "If true, all results are collected onto a single page and `count` is exact "
+                    "(filtered). If false or omitted, standard pagination applies and `count` may "
+                    "be slightly inflated by unpublished or inactive courses."
                 ),
             ),
             OpenApiParameter(
@@ -264,46 +280,50 @@ class EnterpriseCatalogGetContentMetadata(BaseViewSet, GenericAPIView):
             return active
         return True
 
-    @action(detail=True)
+    def _apply_content_filters(self, items, content_keys_filter):
+        """
+        Remove unpublished courses and, when no content_keys filter is active, inactive courses.
+        Reads json_metadata only for the given items, not the whole catalog.
+        """
+        items = [item for item in items if not self.is_unpublished(item)]
+        if not content_keys_filter:
+            items = [item for item in items if self.is_active(item)]
+        return items
+
     def get_content_metadata(self, request, traverse_pagination, content_keys_filter):
         """
-        Returns all the content metadata associated with the enterprise catalog.
+        Returns content metadata associated with the enterprise catalog, excluding unpublished courses.
 
-        The parameter `traverse_pagination`, if provided, will collect the results onto a single page.
+        `traverse_pagination`: if true, materializes and filters the full result set onto one page;
+        `count` in the response is exact. If false, uses SQL COUNT + LIMIT/OFFSET so `count` may
+        be slightly inflated by unpublished or inactive courses that exist in the catalog but are
+        filtered from `results`.
 
-        The parameter `content_keys_filter`, if provided, will result in only content metadata associated with the
-        provided content keys being returned.
+        `content_keys_filter`: if provided, only content matching those keys is returned and the
+        inactive-course filter is skipped.
         """
         queryset = self.filter_queryset(self.get_queryset(content_keys_filter=content_keys_filter))
-        logger.debug(f'[get_content_metadata]: Original queryset length: {len(queryset)}, {self.enterprise_catalog}')
-
-        # Always filter out unpublished courses
-        queryset = [item for item in queryset if not self.is_unpublished(item)]
-        logger.debug(f'[get_content_metadata]: After unpublished filter, queryset length: {len(queryset)}, '
-                     f'{self.enterprise_catalog}')
-
-        # Additionally filter out inactive courses if content_keys_filter is not provided
-        if not content_keys_filter:
-            queryset = [item for item in queryset if self.is_active(item)]
-            logger.debug(f'[get_content_metadata]: After active filter, queryset length: {len(queryset)}, '
-                         f'{self.enterprise_catalog}')
+        # paginate_queryset issues SQL COUNT + LIMIT/OFFSET; no json_metadata loaded yet
+        page = self.paginate_queryset(queryset)
 
         context = self.get_serializer_context()
         context['enterprise_catalog'] = self.enterprise_catalog
-        page = self.paginate_queryset(queryset)
 
-        # Traverse pagination query parameter signals that we should collect the results onto a single page
-        if page is not None and not traverse_pagination:
-            serializer = ContentMetadataSerializer(page, context=context, many=True)
-            paginated_response = self.get_paginated_response(serializer.data)
-            return self.get_response_with_enterprise_fields(paginated_response)
+        # Traverse pagination: materialize and filter the full result set so count is exact
+        if page is None or traverse_pagination:
+            results = self._apply_content_filters(queryset, content_keys_filter)
+            serializer = ContentMetadataSerializer(results, context=context, many=True)
+            ordered_data = OrderedDict([
+                ('previous', None),
+                ('next', None),
+                ('count', len(results)),
+                ('results', serializer.data),
+            ])
+            return self.get_response_with_enterprise_fields(Response(ordered_data))
 
-        serializer = ContentMetadataSerializer(queryset, context=context, many=True)
-        ordered_data = OrderedDict({
-            'previous': None,
-            'next': None,
-            'count': len(queryset),
-            'results': serializer.data,
-        })
-        response = Response(ordered_data)
-        return self.get_response_with_enterprise_fields(response)
+        # Normal paginated path: filter the page only (page_size rows, not the whole catalog).
+        # The paginator's COUNT is slightly inflated when inactive/unpublished items exist,
+        # but next/previous links navigate correctly and the serialization cost is bounded.
+        page = self._apply_content_filters(page, content_keys_filter)
+        serializer = ContentMetadataSerializer(page, context=context, many=True)
+        return self.get_response_with_enterprise_fields(self.get_paginated_response(serializer.data))

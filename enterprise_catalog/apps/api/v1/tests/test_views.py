@@ -1559,18 +1559,49 @@ class EnterpriseCatalogGetContentMetadataTests(APITestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         response_data = response.json()
-        self.assertEqual(response_data["count"], 0)
+        # count is the SQL total (1 unpublished item exists); results are filtered to empty
+        self.assertEqual(response_data["count"], 1)
         self.assertEqual(response_data["results"], [])
 
         # Test 2: With content_keys parameter explicitly requesting the unpublished course
-        # This tests the regression where unpublished courses were returned when content_keys was provided
-        url_with_keys = f"{url}?content_keys={unpublished_course.content_key}"
-        response_with_keys = self.client.get(url_with_keys)
+        # This tests the regression where unpublished courses were returned when content_keys was provided.
+        # Use data= so the test client URL-encodes the key (content_key may contain '+').
+        response_with_keys = self.client.get(url, data={'content_keys': unpublished_course.content_key})
 
         self.assertEqual(response_with_keys.status_code, status.HTTP_200_OK)
         response_data_with_keys = response_with_keys.json()
-        self.assertEqual(response_data_with_keys["count"], 0)
+        self.assertEqual(response_data_with_keys["count"], 1)
         self.assertEqual(response_data_with_keys["results"], [])
+
+    @mock.patch('enterprise_catalog.apps.api_client.enterprise_cache.EnterpriseApiClient')
+    def test_filtering_occurs_after_pagination(self, mock_api_client):  # pylint: disable=unused-argument
+        """
+        Verify that is_unpublished/is_active filtering happens after paginate_queryset.
+
+        The observable consequence: response 'count' equals the SQL total (which includes
+        items that will be filtered), while 'results' contains only the filtered items.
+        This proves json_metadata is read for page_size rows only, not the whole catalog.
+        """
+        published_courses = ContentMetadataFactory.create_batch(3, content_type=COURSE)
+        unpublished_course = ContentMetadataFactory(
+            content_type=COURSE,
+            json_metadata={"status": "unpublished", "course_runs": []},
+        )
+        all_items = published_courses + [unpublished_course]
+        self.add_metadata_to_catalog(self.enterprise_catalog, all_items)
+
+        url = self._get_content_metadata_url(self.enterprise_catalog)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # SQL COUNT includes the unpublished course; filtering is post-pagination
+        self.assertEqual(data['count'], len(all_items))
+        # Results are still correctly filtered
+        self.assertEqual(len(data['results']), len(published_courses))
+        result_content_keys = [r['key'] for r in data['results']]
+        self.assertNotIn(unpublished_course.content_key, result_content_keys)
 
     @mock.patch('enterprise_catalog.apps.api_client.enterprise_cache.EnterpriseApiClient')
     @ddt.data(
@@ -1622,8 +1653,8 @@ class EnterpriseCatalogGetContentMetadataTests(APITestMixin):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         response_data = response.json()
-        # excluded expire course (API won't return it)
-        self.assertEqual((response_data['count']), len(metadata) - 1)
+        # count is the SQL COUNT and includes the inactive course; results are filtered post-pagination
+        self.assertEqual((response_data['count']), len(metadata))
         self.assertEqual(
             uuid.UUID(response_data['uuid']), self.enterprise_catalog.uuid)
         self.assertEqual(response_data['title'], self.enterprise_catalog.title)

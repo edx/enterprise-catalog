@@ -86,7 +86,11 @@ private.py
 
 *.trace
 
+# doc compilation artifacts
 docs/_build/
+
+# a temporary place to store docs
+docs/tmp/
 
 # emacs
 *~

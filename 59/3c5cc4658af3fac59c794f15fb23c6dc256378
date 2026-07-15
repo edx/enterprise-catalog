@@ -1,0 +1,42 @@
+docs/algolia-reindexing/tech-spec.md
+  667204f00b0dfa54 204,212-219,221
+  9b7fc1303e27e557 3-6,39-49,67-69,71-72,81-111,171-172,206-207,276,278-287,329-384,406-407,422,508,523-524,631,633,635-656,658,661-662,664,666-670,672-698,701-719,741,752,755,781-817,820-860,879-880
+docs/algolia-reindexing/pitch.md
+  667204f00b0dfa54 51,54,56,60-61,67,73,79-80,83,86
+docs/algolia-reindexing/algolia-frontend-architecture.md
+  9b7fc1303e27e557 1-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "593c5cc4658af3fac59c794f15fb23c6dc256378",
+  "prompts": {
+    "667204f00b0dfa54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bc8e2d3-0f86-4ebe-98bb-7e8dfca02487",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 30,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "9b7fc1303e27e557": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bffd1219-9430-42f2-b969-684577ff1818",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 1087,
+      "total_deletions": 134,
+      "accepted_lines": 369,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/ad2d92b6c5fc4566bd6fe004c5899ddcdbd4aa81335de722b94fb9cb3ba9e0a6"
+    }
+  }
+}

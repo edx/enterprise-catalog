@@ -749,9 +749,8 @@ class TestDispatchAlgoliaIndexing(TestCase):
         self.mock_video_si = mock.patch.object(
             search_tasks.index_videos_batch_in_algolia, 'si',
         ).start()
-        # Prevent actual Celery chain/group dispatch
+        # Prevent actual Celery group dispatch
         self.mock_group = mock.patch.object(search_tasks, 'group').start()
-        self.mock_chain = mock.patch.object(search_tasks, 'chain').start()
         self.addCleanup(mock.patch.stopall)
 
     def _set_mappings(
@@ -1268,30 +1267,30 @@ class TestDispatchAlgoliaIndexing(TestCase):
     # use_apply
     # ------------------------------------------------------------------
 
-    def test_use_apply_calls_chain_apply(self):
+    def test_use_apply_calls_group_apply(self):
         """
-        use_apply=True causes the dispatched chain to be executed via .apply()
-        rather than .apply_async(), making downstream tasks run synchronously.
+        use_apply=True executes each group via .apply() (synchronous).
         """
         course = ContentMetadataFactory(content_type=COURSE, content_key='ua-course')
         self._set_mappings(all_indexable_content_keys=[course.content_key])
 
         dispatch_algolia_indexing(force=True, use_apply=True)
 
-        self.mock_chain.return_value.apply.assert_called_once()
-        self.mock_chain.return_value.apply_async.assert_not_called()
+        self.mock_group.return_value.apply.assert_called()
+        self.mock_group.return_value.apply_async.assert_not_called()
 
-    def test_use_apply_false_calls_chain_apply_async(self):
+    def test_use_apply_false_calls_group_apply_async_get(self):
         """
-        use_apply=False (default) dispatches via .apply_async().
+        use_apply=False (default) dispatches each group via .apply_async().get().
         """
         course = ContentMetadataFactory(content_type=COURSE, content_key='ua-async-course')
         self._set_mappings(all_indexable_content_keys=[course.content_key])
 
         dispatch_algolia_indexing(force=True, use_apply=False)
 
-        self.mock_chain.return_value.apply_async.assert_called_once()
-        self.mock_chain.return_value.apply.assert_not_called()
+        self.mock_group.return_value.apply_async.assert_called()
+        self.mock_group.return_value.apply_async.return_value.get.assert_called()
+        self.mock_group.return_value.apply.assert_not_called()
 
     @override_settings(ALGOLIA={'INCREMENTAL_INDEX_NAME': 'v2-incremental'})
     def test_incremental_index_name_from_settings_when_not_passed(self):
@@ -1428,7 +1427,6 @@ class TestDispatchAlgoliaIndexingForCatalogQuery(TestCase):
             search_tasks.index_pathways_batch_in_algolia, 'si',
         ).start()
         self.mock_group = mock.patch.object(search_tasks, 'group').start()
-        self.mock_chain = mock.patch.object(search_tasks, 'chain').start()
         self.addCleanup(mock.patch.stopall)
 
         self.algolia_client.get_aggregation_keys_for_catalog_query.return_value = set()

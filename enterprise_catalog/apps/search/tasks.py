@@ -50,7 +50,7 @@ from typing import Any, TypedDict, TypeVar
 from uuid import UUID
 
 from algoliasearch.exceptions import AlgoliaException
-from celery import chain, group, shared_task
+from celery import group, shared_task
 from celery_utils.logged_task import LoggedTask
 from django.conf import settings
 from django.db import IntegrityError
@@ -73,6 +73,7 @@ from enterprise_catalog.apps.catalog.constants import (
     COURSE_RUN,
     LEARNER_PATHWAY,
     PROGRAM,
+    TASK_TIMEOUT,
     VIDEO,
 )
 from enterprise_catalog.apps.catalog.models import CatalogQuery, ContentMetadata
@@ -322,7 +323,7 @@ def _build_ordered_groups(
     Tasks use ``.si()`` (immutable signatures) so each task's kwargs are fixed
     at dispatch time and Celery does not forward the previous group's return
     values as positional arguments.  Empty groups are omitted from the list so
-    callers can pass the result directly to ``chain(*ordered_groups)``.
+    callers can iterate and ``.get()`` each group sequentially.
 
     Returns:
         ordered_groups: list of ``group`` objects, one per non-empty content
@@ -399,11 +400,9 @@ def dispatch_algolia_indexing(
     Because those timestamps are only advanced *after* the child batch tasks
     complete, we must guarantee that all course batches finish before any
     program batches start, and all program batches finish before any pathway
-    batches start.  This is achieved by assembling the batches into a
-    ``chain`` of Celery ``group``\\s (courses → programs → pathways).  Each
-    group runs in parallel internally; Celery does not start the next group
-    until every task in the current group has completed.  Empty groups are
-    omitted from the chain.
+    batches start.  This is achieved by dispatching each content-type
+    ``group`` sequentially and blocking on ``.get()`` before advancing to the
+    next.  Empty groups are omitted.
     """
     index_name = index_name or settings.ALGOLIA.get('INCREMENTAL_INDEX_NAME')
 
@@ -453,10 +452,11 @@ def dispatch_algolia_indexing(
     }
 
     if not dry_run and ordered_groups:
-        if use_apply:
-            chain(*ordered_groups).apply()
-        else:
-            chain(*ordered_groups).apply_async()
+        for ordered_group in ordered_groups:
+            if use_apply:
+                ordered_group.apply()
+            else:
+                ordered_group.apply_async().get(timeout=TASK_TIMEOUT, propagate=True)
 
     logger.info('dispatch_algolia_indexing summary=%s', summary)
     return summary
@@ -567,7 +567,8 @@ def dispatch_algolia_indexing_for_catalog_query(
     }
 
     if not dry_run and ordered_groups:
-        chain(*ordered_groups).apply_async()
+        for ordered_group in ordered_groups:
+            ordered_group.apply_async().get(timeout=TASK_TIMEOUT, propagate=True)
 
     logger.info('dispatch_algolia_indexing_for_catalog_query summary=%s', summary)
     return summary

@@ -399,10 +399,16 @@ class UpdateFullContentMetadataTaskTests(TestCase):
         assert _find_best_mode_seat(seats) == expected_seat
 
     # pylint: disable=unused-argument, too-many-statements
+    @mock.patch(
+        'enterprise_catalog.apps.api.tasks._update_full_content_metadata_program',
+        wraps=tasks._update_full_content_metadata_program,  # pylint: disable=protected-access
+    )
     @mock.patch('enterprise_catalog.apps.api.tasks.task_recently_run', return_value=False)
     @mock.patch('enterprise_catalog.apps.api.tasks.partition_course_keys_for_indexing')
     @mock.patch('enterprise_catalog.apps.api_client.base_oauth.OAuthAPIClient')
-    def test_update_full_metadata(self, mock_oauth_client, mock_partition_course_keys, mock_task_recently_run):
+    def test_update_full_metadata(
+        self, mock_oauth_client, mock_partition_course_keys, mock_task_recently_run, mock_update_program,
+    ):
         """
         Assert that full course metadata is merged with original json_metadata for all ContentMetadata records.
         """
@@ -437,7 +443,7 @@ class UpdateFullContentMetadataTaskTests(TestCase):
         course_run_3_uuid = str(uuid.uuid4())
         course_data_3 = {
             'key': course_key_3,
-            'programs': [],
+            'programs': [program_data],  # shares program_key with course_data_2 to exercise deduplication
             'course_runs': [{
                 'key': f'course-v1:{course_key_3}+1',
                 'uuid': course_run_3_uuid,
@@ -561,7 +567,14 @@ class UpdateFullContentMetadataTaskTests(TestCase):
         # make sure course associated program metadata has been created and linked correctly
         assert ContentMetadata.objects.filter(content_key=program_key).exists()
         assert metadata_2.associated_content_metadata.filter(content_key=program_key).exists()
+        assert metadata_3.associated_content_metadata.filter(content_key=program_key).exists()
         assert not metadata_1.associated_content_metadata.filter(content_key=program_key).exists()
+
+        # course_2 and course_3 both reference program_key; the call to
+        # _update_full_content_metadata_program from within _update_full_content_metadata_course
+        # must deduplicate, so program_key appears exactly once.
+        first_call_keys = mock_update_program.call_args_list[0].args[0]
+        assert first_call_keys == [program_key]
 
     # pylint: disable=unused-argument
     @mock.patch('enterprise_catalog.apps.api.tasks.task_recently_run', return_value=False)

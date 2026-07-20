@@ -255,11 +255,14 @@ def update_full_content_metadata_task(self, force=False, dry_run=False):  # pyli
     Args:
         force (bool): If true, forces execution of task and ignores time since last run.
     """
-
+    logger.info('update_full_content_metadata_task starting full update of courses')
     content_keys = [metadata.content_key for metadata in ContentMetadata.objects.filter(content_type=COURSE)]
     _update_full_content_metadata_course(content_keys, dry_run)
+    logger.info('update_full_content_metadata_task completed full update of courses')
+    logger.info('update_full_content_metadata_task starting full update of programs')
     content_keys = [metadata.content_key for metadata in ContentMetadata.objects.filter(content_type=PROGRAM)]
     _update_full_content_metadata_program(content_keys, dry_run)
+    logger.info('update_full_content_metadata_task completed full update of programs')
 
 
 def _update_full_content_metadata_course(content_keys, dry_run=False):
@@ -293,6 +296,7 @@ def _update_full_content_metadata_course(content_keys, dry_run=False):
         # merging the minimal json_metadata retrieved by
         # `/search/all/` with the full json_metadata retrieved by `/courses/`.
         modified_content_metadata_records = []
+        all_program_content_keys = []
         for course_metadata_dict in full_course_dicts:
             content_key = course_metadata_dict.get('key')
             metadata_record = metadata_by_key.get(content_key)
@@ -310,8 +314,17 @@ def _update_full_content_metadata_course(content_keys, dry_run=False):
                 course_metadata_dict.get('programs', []),
                 modified_course_record,
             )
-            _update_full_content_metadata_program(program_content_keys, dry_run)
+            all_program_content_keys.extend(program_content_keys)
 
+        # Batch program updates across all courses in this batch rather than
+        # firing one Discovery request per course. Deduplicate so courses that
+        # share a program don't trigger redundant fetches or duplicate bulk_update rows.
+        unique_program_content_keys = list(dict.fromkeys(all_program_content_keys))
+        if unique_program_content_keys:
+            _update_full_content_metadata_program(unique_program_content_keys, dry_run)
+
+        for modified_course_record in modified_content_metadata_records:
+            course_review = course_reviews_by_content_key.get(modified_course_record.content_key)
             _update_full_restricted_course_metadata(modified_course_record, course_review, dry_run)
 
         if dry_run:
@@ -324,7 +337,7 @@ def _update_full_content_metadata_course(content_keys, dry_run=False):
             )
 
         logger.info(
-            'Successfully updated %d of %d ContentMetadata records with full metadata from course-discovery.',
+            'Successfully updated %d of %d course ContentMetadata records with full metadata from course-discovery.',
             len(modified_content_metadata_records),
             len(full_course_dicts),
         )
@@ -334,7 +347,8 @@ def _update_full_content_metadata_course(content_keys, dry_run=False):
         indexable_course_keys.extend(partitioned_indexable_course_keys)
 
     logger.info(
-        '{} total course keys were updated and are ready for indexing in Algolia'.format(len(indexable_course_keys))
+        '%d total course keys were updated and are ready for indexing in Algolia',
+        len(indexable_course_keys),
     )
 
 
@@ -504,7 +518,7 @@ def _update_full_content_metadata_program(content_keys, dry_run=False):
             )
 
         logger.info(
-            'Successfully updated %d of %d ContentMetadata records with full metadata from course-discovery.',
+            'Successfully updated %d of %d program ContentMetadata records with full metadata from course-discovery.',
             len(modified_content_metadata_records),
             len(full_program_dicts),
         )
@@ -514,7 +528,8 @@ def _update_full_content_metadata_program(content_keys, dry_run=False):
         indexable_program_keys.extend(partitioned_indexable_program_keys)
 
     logger.info(
-        '{} total program keys were updated and are ready for indexing in Algolia'.format(len(indexable_program_keys))
+        '%d total program keys were updated and are ready for indexing in Algolia',
+        len(indexable_program_keys),
     )
 
 

@@ -33,6 +33,7 @@ from enterprise_catalog.apps.search.tasks import (
     IndexingDecision,
     RecordOutcome,
     _build_objects_by_content_key,
+    _build_sequential_canvas,
     _chunked,
     _extract_program_keys,
     _finalize_decision,
@@ -749,9 +750,9 @@ class TestDispatchAlgoliaIndexing(TestCase):
         self.mock_video_si = mock.patch.object(
             search_tasks.index_videos_batch_in_algolia, 'si',
         ).start()
-        # Prevent actual Celery chain/group dispatch
+        # Prevent actual Celery group/chord dispatch
         self.mock_group = mock.patch.object(search_tasks, 'group').start()
-        self.mock_chain = mock.patch.object(search_tasks, 'chain').start()
+        self.mock_chord = mock.patch.object(search_tasks, 'chord').start()
         self.addCleanup(mock.patch.stopall)
 
     def _set_mappings(
@@ -1268,30 +1269,59 @@ class TestDispatchAlgoliaIndexing(TestCase):
     # use_apply
     # ------------------------------------------------------------------
 
-    def test_use_apply_calls_chain_apply(self):
+    def test_use_apply_calls_group_apply(self):
         """
-        use_apply=True causes the dispatched chain to be executed via .apply()
-        rather than .apply_async(), making downstream tasks run synchronously.
+        use_apply=True executes the canvas via .apply() (synchronous).
         """
         course = ContentMetadataFactory(content_type=COURSE, content_key='ua-course')
         self._set_mappings(all_indexable_content_keys=[course.content_key])
 
         dispatch_algolia_indexing(force=True, use_apply=True)
 
-        self.mock_chain.return_value.apply.assert_called_once()
-        self.mock_chain.return_value.apply_async.assert_not_called()
+        self.mock_group.return_value.apply.assert_called()
+        self.mock_group.return_value.apply_async.assert_not_called()
 
-    def test_use_apply_false_calls_chain_apply_async(self):
+    def test_use_apply_false_calls_group_apply_async(self):
         """
-        use_apply=False (default) dispatches via .apply_async().
+        use_apply=False (default) dispatches via .apply_async() with no blocking .get().
         """
         course = ContentMetadataFactory(content_type=COURSE, content_key='ua-async-course')
         self._set_mappings(all_indexable_content_keys=[course.content_key])
 
         dispatch_algolia_indexing(force=True, use_apply=False)
 
-        self.mock_chain.return_value.apply_async.assert_called_once()
-        self.mock_chain.return_value.apply.assert_not_called()
+        self.mock_group.return_value.apply_async.assert_called()
+        self.mock_group.return_value.apply_async.return_value.get.assert_not_called()
+        self.mock_group.return_value.apply.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # chord nesting regression
+    # ------------------------------------------------------------------
+
+    def test_multi_group_dispatch_uses_nested_chords(self):
+        """
+        Regression: chain(group, group) attaches the remaining chain as a link
+        on every task. When N course batches complete concurrently, all N call
+        apply_chord for the programs group, causing N-1 duplicate ChordCounter
+        INSERTs. Nested chords fix this — chord() is called N-1 times (once per
+        group transition), and only the last task in each chord header fires the
+        callback via on_chord_part_return with SELECT FOR UPDATE.
+        """
+        course = ContentMetadataFactory(content_type=COURSE, content_key='chord-course')
+        program = ContentMetadataFactory(content_type=PROGRAM, content_key='chord-program')
+        pathway = ContentMetadataFactory(content_type=LEARNER_PATHWAY, content_key='chord-pathway')
+        self._set_mappings(
+            all_indexable_content_keys=[course.content_key, program.content_key, pathway.content_key],
+        )
+
+        dispatch_algolia_indexing(force=True)
+
+        # 3 groups (courses + programs + pathways) → chord called twice (N-1 = 2)
+        self.assertEqual(self.mock_chord.call_count, 2)
+        # The outermost chord is the canvas; dispatched fire-and-forget — no blocking .get()
+        canvas = self.mock_chord.return_value
+        canvas.apply_async.assert_called_once()
+        canvas.apply_async.return_value.get.assert_not_called()
 
     @override_settings(ALGOLIA={'INCREMENTAL_INDEX_NAME': 'v2-incremental'})
     def test_incremental_index_name_from_settings_when_not_passed(self):
@@ -1399,6 +1429,20 @@ class TestDispatchAlgoliaIndexingHelpers(TestCase):
         result = _group_aggregation_keys_by_content_type({'video:video-key-123'})
         self.assertEqual(result, {COURSE: [], PROGRAM: [], LEARNER_PATHWAY: []})
 
+    def test_build_sequential_canvas_empty_returns_none(self):
+        """
+        ``_build_sequential_canvas([])`` returns ``None`` — the callers guard
+        with ``if not dry_run and ordered_groups:`` so this branch is defensive.
+        """
+        self.assertIsNone(_build_sequential_canvas([]))
+
+    def test_build_sequential_canvas_single_group_returns_group(self):
+        """
+        A single-element list returns that element unwrapped — no chord needed.
+        """
+        grp = mock.sentinel.grp
+        self.assertIs(_build_sequential_canvas([grp]), grp)
+
 
 @override_settings(ALGOLIA_INDEXING_BATCH_SIZE=2)
 class TestDispatchAlgoliaIndexingForCatalogQuery(TestCase):
@@ -1428,7 +1472,7 @@ class TestDispatchAlgoliaIndexingForCatalogQuery(TestCase):
             search_tasks.index_pathways_batch_in_algolia, 'si',
         ).start()
         self.mock_group = mock.patch.object(search_tasks, 'group').start()
-        self.mock_chain = mock.patch.object(search_tasks, 'chain').start()
+        self.mock_chord = mock.patch.object(search_tasks, 'chord').start()
         self.addCleanup(mock.patch.stopall)
 
         self.algolia_client.get_aggregation_keys_for_catalog_query.return_value = set()
@@ -1633,6 +1677,27 @@ class TestDispatchAlgoliaIndexingForCatalogQuery(TestCase):
             [call.kwargs['index_name'] for call in self.mock_course_si.call_args_list],
             ['enterprise_catalog_v2', 'enterprise_catalog_v2'],
         )
+
+    def test_multi_group_dispatch_uses_nested_chords(self):
+        """
+        Regression: same as TestDispatchAlgoliaIndexing.test_multi_group_dispatch_uses_nested_chords
+        but for the catalog-query-scoped dispatcher. Three non-empty groups (courses
+        + programs + pathways) must produce two chord calls (N-1 = 2) and fire-and-forget
+        apply_async with no blocking .get().
+        """
+        catalog_query = CatalogQueryFactory()
+        self._create_catalog_membership(COURSE, 'cq-chord-course', catalog_query=catalog_query)
+        self._create_catalog_membership(PROGRAM, 'cq-chord-program', catalog_query=catalog_query)
+        self._create_catalog_membership(LEARNER_PATHWAY, 'cq-chord-pathway', catalog_query=catalog_query)
+
+        search_tasks.dispatch_algolia_indexing_for_catalog_query(
+            catalog_query.id, force=True,
+        )
+
+        self.assertEqual(self.mock_chord.call_count, 2)
+        canvas = self.mock_chord.return_value
+        canvas.apply_async.assert_called_once()
+        canvas.apply_async.return_value.get.assert_not_called()
 
     def test_catalog_query_not_found_returns_empty_summary(self):
         """

@@ -419,12 +419,6 @@ ENTERPRISE_CUSTOMER_CACHE_TIMEOUT = ONE_HOUR
 DISCOVERY_CATALOG_QUERY_CACHE_TIMEOUT = ONE_HOUR
 DISCOVERY_COURSE_DATA_CACHE_TIMEOUT = ONE_HOUR
 
-# Rollout toggle for use of the "include_modified" query param in requests
-# to the course-discovery /search/all/ endpoint. Will eventually be removed
-# and those requests will *always* send that param.
-# See https://2u-internal.atlassian.net/browse/ENT-11976
-DISCOVERY_USE_INCLUDE_MODIFIED_PARAM = False
-
 # URLs
 LMS_BASE_URL = os.environ.get('LMS_BASE_URL', '')
 DISCOVERY_SERVICE_API_URL = os.environ.get('DISCOVERY_SERVICE_API_URL', '')

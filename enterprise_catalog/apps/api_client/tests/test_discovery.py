@@ -2,7 +2,7 @@
 from unittest import mock
 
 import requests
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from simplejson import JSONDecodeError
 
 from enterprise_catalog.apps.api_client.constants import (
@@ -37,50 +37,15 @@ class TestDiscoveryApiClient(TestCase):
         self.assertEqual(actual_response, expected_response)
 
     @mock.patch('enterprise_catalog.apps.api_client.base_oauth.OAuthAPIClient')
-    def test_retrieve_metadata_passes_detail_fields_by_default(self, mock_oauth_client):
+    def test_retrieve_metadata_passes_include_modified(self, mock_oauth_client):
         """
-        retrieve_metadata_for_content_filter passes detail_fields=true when
-        DISCOVERY_USE_INCLUDE_MODIFIED_PARAM is False (the default).
-        """
-        mock_oauth_client.return_value.post.return_value.status_code = 200
-        mock_oauth_client.return_value.post.return_value.json.return_value = {'results': []}
-
-        client = DiscoveryApiClient()
-        client.retrieve_metadata_for_content_filter({}, {})
-
-        called_params = mock_oauth_client.return_value.post.call_args[1]['params']
-        self.assertEqual(called_params.get('detail_fields'), 'true')
-        self.assertNotIn('include_modified', called_params)
-
-    @override_settings(DISCOVERY_USE_INCLUDE_MODIFIED_PARAM=True)
-    @mock.patch('enterprise_catalog.apps.api_client.base_oauth.OAuthAPIClient')
-    def test_retrieve_metadata_passes_include_modified_when_toggled(self, mock_oauth_client):
-        """
-        retrieve_metadata_for_content_filter passes include_modified=true instead of
-        detail_fields when DISCOVERY_USE_INCLUDE_MODIFIED_PARAM is True.
+        retrieve_metadata_for_content_filter passes include_modified=true
         """
         mock_oauth_client.return_value.post.return_value.status_code = 200
         mock_oauth_client.return_value.post.return_value.json.return_value = {'results': []}
 
         client = DiscoveryApiClient()
         client.retrieve_metadata_for_content_filter({}, {})
-
-        called_params = mock_oauth_client.return_value.post.call_args[1]['params']
-        self.assertEqual(called_params.get('include_modified'), 'true')
-        self.assertNotIn('detail_fields', called_params)
-
-    @override_settings(DISCOVERY_USE_INCLUDE_MODIFIED_PARAM=True)
-    @mock.patch('enterprise_catalog.apps.api_client.base_oauth.OAuthAPIClient')
-    def test_retrieve_metadata_strips_conflicting_params_from_caller(self, mock_oauth_client):
-        """
-        Caller-supplied detail_fields/include_modified are stripped so only the
-        toggle-selected param appears in the final request.
-        """
-        mock_oauth_client.return_value.post.return_value.status_code = 200
-        mock_oauth_client.return_value.post.return_value.json.return_value = {'results': []}
-
-        client = DiscoveryApiClient()
-        client.retrieve_metadata_for_content_filter({}, {'detail_fields': 'true', 'include_modified': 'false'})
 
         called_params = mock_oauth_client.return_value.post.call_args[1]['params']
         self.assertEqual(called_params.get('include_modified'), 'true')

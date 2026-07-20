@@ -107,23 +107,15 @@ class DiscoveryApiClient(BaseOAuthClient):
         discovery service to fetch search results based on the filter and concatenates
         all results into a returned list.
         """
-        modified_param = (
-            {'include_modified': 'true'} if settings.DISCOVERY_USE_INCLUDE_MODIFIED_PARAM
-            else {'detail_fields': 'true'}
-        )
-        # Strip both keys from caller params so neither leaks through when the other is selected.
-        base_params = {k: v for k, v in request_params.items() if k not in ('detail_fields', 'include_modified')}
+        base_params = dict(request_params.items())
         request_params_customized = base_params | {
             # Increase number of results per page for the course-discovery response
             'page_size': 100,
             # Ensure paginated results are consistently ordered by `aggregation_key` and `start`
             'ordering': 'aggregation_key,start',
-            # Ensures we get the course modified field in the response payload.
-            # Important for de-duplication of ContentMetadata updates.
-            # When DISCOVERY_USE_INCLUDE_MODIFIED_PARAM is True, uses include_modified instead of
-            # detail_fields, which skips expensive serialization of level_type, outcome, and
-            # expanded course run fields.
-        } | modified_param
+            # Ensure the course run `modified` field is included in response payloads
+            'include_modified': 'true',
+        }
         page = 1
         results = []
         try:

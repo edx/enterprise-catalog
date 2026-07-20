@@ -50,7 +50,7 @@ from typing import Any, TypedDict, TypeVar
 from uuid import UUID
 
 from algoliasearch.exceptions import AlgoliaException
-from celery import chain, group, shared_task
+from celery import chord, group, shared_task
 from celery_utils.logged_task import LoggedTask
 from django.conf import settings
 from django.db import IntegrityError
@@ -321,8 +321,9 @@ def _build_ordered_groups(
 
     Tasks use ``.si()`` (immutable signatures) so each task's kwargs are fixed
     at dispatch time and Celery does not forward the previous group's return
-    values as positional arguments.  Empty groups are omitted from the list so
-    callers can pass the result directly to ``chain(*ordered_groups)``.
+    values as positional arguments.  Empty groups are omitted from the list.
+    Callers should pass the list to ``_build_sequential_canvas`` to sequence
+    them as nested chords.
 
     Returns:
         ordered_groups: list of ``group`` objects, one per non-empty content
@@ -368,6 +369,36 @@ def _build_ordered_groups(
     return ordered_groups, dispatched_summary
 
 
+def _build_sequential_canvas(ordered_groups):
+    """
+    Build a Celery canvas that runs each group after the previous one completes.
+
+    Uses nested chords instead of ``chain(group, group)``. ``chain(group, group)``
+    attaches the full remaining chain as a link on every task in each group, so
+    all N tasks in a group concurrently call ``apply_chord`` for the next group
+    when they complete — causing N-1 duplicate ``ChordCounter`` INSERTs. Nested
+    chords route completion through ``on_chord_part_return`` with
+    ``SELECT FOR UPDATE``, which fires the callback exactly once (from the last
+    task) and calls ``apply_chord`` exactly once per group transition.
+
+    Each task in every group is an immutable signature (``.si()``), so the
+    parent chord's results are discarded rather than forwarded as arguments.
+    """
+    if not ordered_groups:
+        return None
+    if len(ordered_groups) == 1:
+        return ordered_groups[0]
+    # Build inside-out. The *last* group fires directly as the chord body;
+    # each preceding group wraps the accumulated canvas as its chord callback, which is
+    # executed *after* the header group is executed.
+    # See https://github.com/celery/celery/blob/e1c419a0cc4b9b3ace211eb5ed1e11b493470cf2/celery/canvas.py#L2065-L2073
+    # for the chord() task signature.
+    canvas = ordered_groups[-1]
+    for grp in reversed(ordered_groups[:-1]):
+        canvas = chord(header=grp, body=canvas)
+    return canvas
+
+
 @shared_task(base=_LoggedTaskWithRetry, bind=True, default_retry_delay=UNREADY_TASK_RETRY_COUNTDOWN_SECONDS)
 def dispatch_algolia_indexing(
     self,  # pylint: disable=unused-argument
@@ -399,11 +430,9 @@ def dispatch_algolia_indexing(
     Because those timestamps are only advanced *after* the child batch tasks
     complete, we must guarantee that all course batches finish before any
     program batches start, and all program batches finish before any pathway
-    batches start.  This is achieved by assembling the batches into a
-    ``chain`` of Celery ``group``\\s (courses → programs → pathways).  Each
-    group runs in parallel internally; Celery does not start the next group
-    until every task in the current group has completed.  Empty groups are
-    omitted from the chain.
+    batches start.  This is achieved by ``_build_sequential_canvas``, which
+    nests the groups as chords so each fires only after the previous one
+    completes.  Empty groups are omitted.
     """
     index_name = index_name or settings.ALGOLIA.get('INCREMENTAL_INDEX_NAME')
 
@@ -453,10 +482,11 @@ def dispatch_algolia_indexing(
     }
 
     if not dry_run and ordered_groups:
+        canvas = _build_sequential_canvas(ordered_groups)
         if use_apply:
-            chain(*ordered_groups).apply()
+            canvas.apply()
         else:
-            chain(*ordered_groups).apply_async()
+            canvas.apply_async()
 
     logger.info('dispatch_algolia_indexing summary=%s', summary)
     return summary
@@ -567,7 +597,7 @@ def dispatch_algolia_indexing_for_catalog_query(
     }
 
     if not dry_run and ordered_groups:
-        chain(*ordered_groups).apply_async()
+        _build_sequential_canvas(ordered_groups).apply_async()
 
     logger.info('dispatch_algolia_indexing_for_catalog_query summary=%s', summary)
     return summary

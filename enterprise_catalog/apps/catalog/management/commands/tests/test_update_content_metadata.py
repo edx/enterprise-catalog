@@ -68,7 +68,7 @@ class UpdateContentMetadataCommandTests(TestCase):
             mock_catalog_task.s(catalog_query_id=self.catalog_query_a, force=False, dry_run=False),
             mock_catalog_task.s(catalog_query_id=self.catalog_query_b, force=False, dry_run=False),
         ])
-        mock_full_metadata_task.si.assert_called_once_with(force=False, dry_run=False)
+        mock_full_metadata_task.apply.assert_called_once_with(kwargs={"force": False, "dry_run": False})
 
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
     @mock.patch(
@@ -97,7 +97,7 @@ class UpdateContentMetadataCommandTests(TestCase):
             mock_catalog_task.s(catalog_query_id=self.catalog_query_a, force=False, dry_run=False),
             mock_catalog_task.s(catalog_query_id=self.catalog_query_b, force=False, dry_run=False),
         ])
-        mock_full_metadata_task.si.assert_called_once_with(force=False, dry_run=False)
+        mock_full_metadata_task.apply.assert_called_once_with(kwargs={"force": False, "dry_run": False})
 
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
     @mock.patch(
@@ -120,7 +120,7 @@ class UpdateContentMetadataCommandTests(TestCase):
             mock_catalog_task.s(catalog_query_id=self.catalog_query_a, force=True, dry_run=False),
             mock_catalog_task.s(catalog_query_id=self.catalog_query_b, force=True, dry_run=False),
         ])
-        mock_full_metadata_task.si.assert_called_once_with(force=True, dry_run=False)
+        mock_full_metadata_task.apply.assert_called_once_with(kwargs={"force": True, "dry_run": False})
 
     @mock.patch('enterprise_catalog.apps.catalog.management.commands.update_content_metadata.dispatch_algolia_indexing')
     @mock.patch(

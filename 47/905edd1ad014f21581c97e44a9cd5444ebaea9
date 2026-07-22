@@ -1,0 +1,24 @@
+scripts/algolia_batch_smoke.py
+  13011905dc79203b 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "47905edd1ad014f21581c97e44a9cd5444ebaea9",
+  "prompts": {
+    "13011905dc79203b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 167,
+      "total_deletions": 0,
+      "accepted_lines": 202,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/8a45339e718d9ca71854470d9039ff406026eb2e462f46e7f33a43bf0ee50591"
+    }
+  }
+}

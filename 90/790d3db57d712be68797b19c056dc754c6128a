@@ -1,0 +1,24 @@
+enterprise_catalog/apps/catalog/tests/test_algolia_utils.py
+  s_5b3f74dac56b59::t_8154e8fa421361 8
+  s_5b3f74dac56b59::t_c324f6b4f3e8d2 1131-1164
+enterprise_catalog/apps/catalog/algolia_utils.py
+  s_5b3f74dac56b59::t_b440b408aab6a8 271-274,279-290
+  s_5b3f74dac56b59::t_3e905df123672e 486-494
+  s_5b3f74dac56b59::t_b9978055841355 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "90790d3db57d712be68797b19c056dc754c6128a",
+  "prompts": {},
+  "sessions": {
+    "s_5b3f74dac56b59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "74052e79-677e-4296-80c2-f0c854f8d61d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Brian Beggs <macdiesel@gmail.com>"
+    }
+  }
+}

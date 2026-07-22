@@ -1,0 +1,27 @@
+enterprise_catalog/settings/base.py
+  s_4bba6db522b1db::t_9a82ead5eb1c00 422-426
+  s_4bba6db522b1db::t_ea88559b47db48 427
+enterprise_catalog/apps/api_client/tests/test_discovery.py
+  s_4bba6db522b1db::t_62b3066229b823 39-71
+  s_4bba6db522b1db::t_49e59346fcce83 72-88
+  s_4bba6db522b1db::t_736b41c0bbaf9f 5
+enterprise_catalog/apps/api_client/discovery.py
+  s_4bba6db522b1db::t_ad9140914529cb 114-116
+  s_4bba6db522b1db::t_2b71f912d8c656 110-113,121,123-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "01578251f337f238ae6e5fec031f97904fa2a438",
+  "prompts": {},
+  "sessions": {
+    "s_4bba6db522b1db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f9299e6f-8223-4e07-adf6-51b28fe1870d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    }
+  }
+}

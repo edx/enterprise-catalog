@@ -52,25 +52,17 @@ class Command(BaseCommand):
             propagate=True,
         )
 
-    def _update_full_content_metadata_task_async(self, **kwargs):
+    def _update_full_content_metadata_task_sync(self, **kwargs):
         """
-        Returns a task signature for the `update_full_content_metadata_task`.
+        Runs `update_full_content_metadata_task` synchronously via `.apply()`.
 
-        Note that the keys get filtered down to course content keys inside the task.
+        Runs in-process to avoid Celery worker timeouts on large datasets.
         """
-        message = (
-            'Spinning off update_full_content_metadata_task from update_content_metadata command'
+        logger.info(
+            'Running update_full_content_metadata_task synchronously from update_content_metadata command'
             ' to replace minimal json_metadata from /search/all/ with full json_metadata from /courses/.'
         )
-        logger.info(message)
-
-        # task.si() is used as a shortcut for an immutable signature to avoid calling this with the results from the
-        # previously run `update_catalog_metadata_task`.
-        # https://docs.celeryproject.org/en/master/userguide/canvas.html#immutability
-        return update_full_content_metadata_task.si(**kwargs).apply_async().get(
-            timeout=TASK_TIMEOUT,
-            propagate=True,
-        )
+        return update_full_content_metadata_task.apply(kwargs=kwargs)
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -168,10 +160,7 @@ class Command(BaseCommand):
             )
 
         try:
-            if no_async:
-                update_full_content_metadata_task.apply(kwargs=flags)
-            else:
-                self._update_full_content_metadata_task_async(**flags)
+            self._update_full_content_metadata_task_sync(**flags)
             logger.info('Finished doing full update of metadata records.')
         except TaskRecentlyRunError:
             logger.info(

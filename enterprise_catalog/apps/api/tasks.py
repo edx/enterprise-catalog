@@ -373,10 +373,27 @@ def _update_full_restricted_course_metadata(modified_metadata_record, course_rev
 
     full_restricted_metadata = metadata_list[0]
 
+    # The include_restricted discovery fetch advertises a *restricted* run, but the
+    # unrestricted parent's advertised run is the one we want to surface. The canonical
+    # (catalog_query=NULL) restricted override feeds the Algolia payload for every catalog
+    # the course belongs to -- including catalogs whose content_filter disallows restricted
+    # runs -- so letting the restricted run stay advertised leaks it into those records.
+    # We restore the parent's advertised run here.
+    parent_advertised_run_uuid = modified_metadata_record._json_metadata.get(  # pylint: disable=protected-access
+        'advertised_course_run_uuid'
+    )
+
     for restricted_course in restricted_courses:
         # First, update the restricted course record's json metadata to use the full metadata
         # from above.
         restricted_course.update_metadata(full_restricted_metadata, is_full_update=True)
+
+        # Skipped for "unicorn" courses whose parent has no advertised run.
+        # Instead keep the unrestricted parent's advertised run (must happen before normalization
+        # below, since normalized_metadata is derived from the advertised run).
+        if parent_advertised_run_uuid:
+            # pylint: disable=protected-access
+            restricted_course._json_metadata['advertised_course_run_uuid'] = parent_advertised_run_uuid
 
         # Last, run the "standard" transformations below to update with the full
         # course metadata, do normalization, etc.

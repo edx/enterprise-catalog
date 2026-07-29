@@ -18,9 +18,12 @@ from enterprise_catalog.apps.api_client.discovery import CatalogQueryMetadata
 from enterprise_catalog.apps.catalog.constants import (
     COURSE,
     COURSE_RUN,
+    COURSE_RUN_RESTRICTION_TYPE_KEY,
     EXEC_ED_2U_COURSE_TYPE,
     LEARNER_PATHWAY,
     PROGRAM,
+    RESTRICTED_RUNS_ALLOWED_KEY,
+    RESTRICTION_FOR_B2B,
 )
 from enterprise_catalog.apps.catalog.models import CatalogQuery, ContentMetadata
 from enterprise_catalog.apps.catalog.serializers import (
@@ -31,6 +34,7 @@ from enterprise_catalog.apps.catalog.tests.factories import (
     CatalogQueryFactory,
     ContentMetadataFactory,
     EnterpriseCatalogFactory,
+    RestrictedCourseMetadataFactory,
 )
 from enterprise_catalog.apps.catalog.utils import localized_utcnow
 
@@ -346,6 +350,111 @@ class FetchMissingPathwayMetadataTaskTests(TestCase):
         assert course_catalog_query.content_filter['status'] == 'published'
         assert course_catalog_query.content_filter['content_type'] == 'course'
         assert course_catalog_query.content_filter['key'] == [test_course]
+
+
+@ddt.ddt
+class UpdateFullRestrictedCourseMetadataTests(TestCase):
+    """
+    Tests for `_update_full_restricted_course_metadata`, which populates restricted
+    course overrides from discovery's ``include_restricted`` course fetch.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course_key = 'edX+HAL'
+        self.non_restricted_uuid = str(uuid.uuid4())
+        self.restricted_uuid = str(uuid.uuid4())
+        self.non_restricted_run = {
+            'key': 'course-v1:edX+HAL+nonrestricted',
+            'uuid': self.non_restricted_uuid,
+            'start': '2023-03-01T00:00:00Z',
+            'end': '2024-03-01T00:00:00Z',
+            'first_enrollable_paid_seat_price': 100,
+            'seats': [{'type': CourseMode.VERIFIED, 'upgrade_deadline': '2023-03-15T00:00:00Z'}],
+            'enrollment_start': '2023-02-01T00:00:00Z',
+        }
+        self.restricted_run = {
+            'key': 'course-v1:edX+HAL+restricted',
+            'uuid': self.restricted_uuid,
+            COURSE_RUN_RESTRICTION_TYPE_KEY: RESTRICTION_FOR_B2B,
+            'start': '2024-03-01T00:00:00Z',
+            'end': '2025-03-01T00:00:00Z',
+            'first_enrollable_paid_seat_price': 200,
+            'seats': [{'type': CourseMode.VERIFIED, 'upgrade_deadline': '2024-03-15T00:00:00Z'}],
+            'enrollment_start': '2024-02-01T00:00:00Z',
+        }
+        # What discovery returns for the ``include_restricted`` fetch: it advertises
+        # the *restricted* run, which is exactly the value we must not persist.
+        self.full_restricted_metadata = {
+            'key': self.course_key,
+            'content_type': COURSE,
+            'advertised_course_run_uuid': self.restricted_uuid,
+            'course_runs': [self.non_restricted_run, self.restricted_run],
+        }
+
+    def _make_parent(self, advertised_course_run_uuid):
+        parent = ContentMetadataFactory(content_type=COURSE, content_key=self.course_key)
+        parent._json_metadata = {  # pylint: disable=protected-access
+            'key': self.course_key,
+            'content_type': COURSE,
+            'advertised_course_run_uuid': advertised_course_run_uuid,
+            'course_runs': [self.non_restricted_run],
+        }
+        parent.save()
+        return parent
+
+    @mock.patch('enterprise_catalog.apps.api.tasks._fetch_courses_by_keys')
+    def test_restored_from_unrestricted_parent(self, mock_fetch):
+        """
+        The canonical (catalog_query=NULL) and per-query restricted overrides should both
+        keep the unrestricted parent's advertised run, not discovery's restricted run.
+        """
+        mock_fetch.return_value = [self.full_restricted_metadata]
+        parent = self._make_parent(self.non_restricted_uuid)
+
+        canonical = RestrictedCourseMetadataFactory(
+            content_key=self.course_key, content_type=COURSE,
+            unrestricted_parent=parent, catalog_query=None,
+            _json_metadata={'key': self.course_key, 'content_type': COURSE},
+        )
+        catalog_query = CatalogQueryFactory(content_filter={
+            RESTRICTED_RUNS_ALLOWED_KEY: {self.course_key: [self.restricted_run['key']]},
+        })
+        per_query = RestrictedCourseMetadataFactory(
+            content_key=self.course_key, content_type=COURSE,
+            unrestricted_parent=parent, catalog_query=catalog_query,
+            _json_metadata={'key': self.course_key, 'content_type': COURSE},
+        )
+
+        tasks._update_full_restricted_course_metadata(parent, None, dry_run=False)  # pylint: disable=protected-access
+
+        canonical.refresh_from_db()
+        per_query.refresh_from_db()
+        # pylint: disable=protected-access
+        self.assertEqual(canonical._json_metadata['advertised_course_run_uuid'], self.non_restricted_uuid)
+        self.assertEqual(per_query._json_metadata['advertised_course_run_uuid'], self.non_restricted_uuid)
+
+    @mock.patch('enterprise_catalog.apps.api.tasks._fetch_courses_by_keys')
+    def test_unicorn_course_keeps_restricted_advertised_run(self, mock_fetch):
+        """
+        A "unicorn" course whose unrestricted parent has no advertised run keeps
+        discovery's restricted advertised run (it is only indexed for catalogs that
+        explicitly allow the restricted run).
+        """
+        mock_fetch.return_value = [self.full_restricted_metadata]
+        parent = self._make_parent(None)
+
+        canonical = RestrictedCourseMetadataFactory(
+            content_key=self.course_key, content_type=COURSE,
+            unrestricted_parent=parent, catalog_query=None,
+            _json_metadata={'key': self.course_key, 'content_type': COURSE},
+        )
+
+        tasks._update_full_restricted_course_metadata(parent, None, dry_run=False)  # pylint: disable=protected-access
+
+        canonical.refresh_from_db()
+        # pylint: disable=protected-access
+        self.assertEqual(canonical._json_metadata['advertised_course_run_uuid'], self.restricted_uuid)
 
 
 @ddt.ddt

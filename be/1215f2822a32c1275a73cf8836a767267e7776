@@ -1,0 +1,22 @@
+docs/algolia-reindexing/videos.md
+  s_13011905dc7920::t_9e383c2510414c 1-186
+docs/algolia-reindexing/tech-spec.md
+  s_13011905dc7920::t_12b821c72b5aa7 693-696
+  s_13011905dc7920::t_95be604673732d 904-910,915-916
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "be1215f2822a32c1275a73cf8836a767267e7776",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

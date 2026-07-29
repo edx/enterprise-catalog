@@ -1,0 +1,26 @@
+docs/translations/tech-spec-translation-pipeline.md
+  s_1cedb137a99e8f::t_fc320b7b5401ac 1-317
+  s_1cedb137a99e8f::t_77b3c434dbcb8c 318-320
+docs/translations/current-state.md
+  s_1cedb137a99e8f::t_9a81e864bb3971 30-33
+  s_1cedb137a99e8f::t_50d589d53cb3e1 79-108
+  s_1cedb137a99e8f::t_f08982835208c7 27-29
+  s_1cedb137a99e8f::t_388fc73d44fef3 34-36,76-78
+  s_1cedb137a99e8f::t_b5bcfbb88012cc 109-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d9c36f6f1b8499805840a2d00d10dce9aac534ca",
+  "prompts": {},
+  "sessions": {
+    "s_1cedb137a99e8f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16a0a922-8d49-4593-885a-d8531664f308",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

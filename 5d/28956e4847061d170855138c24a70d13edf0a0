@@ -1,0 +1,22 @@
+enterprise_catalog/apps/search/tests/test_tasks.py
+  s_53b6e19ecc7771::t_50a05c47e8019d 1194-1208
+  s_53b6e19ecc7771::t_008b11a8788ba1 900-960
+  s_53b6e19ecc7771::t_0adfe2920b14c3 550-570
+  s_53b6e19ecc7771::t_514e30c9475bfb 1399-1412
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5d28956e4847061d170855138c24a70d13edf0a0",
+  "prompts": {},
+  "sessions": {
+    "s_53b6e19ecc7771": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "99cc193b-bb06-4e05-aa1e-381eba01c3a5",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

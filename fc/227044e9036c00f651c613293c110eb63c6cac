@@ -1,0 +1,33 @@
+enterprise_catalog/apps/search/indexing_mappings.py
+  13011905dc79203b 1-83,86-105
+enterprise_catalog/apps/search/tests/test_tasks.py
+  13011905dc79203b 1-349
+enterprise_catalog/apps/search/tasks.py
+  13011905dc79203b 1-243
+enterprise_catalog/apps/search/tests/test_indexing_mappings.py
+  13011905dc79203b 1-122,124-136,138
+scripts/algolia_batch_smoke.py
+  13011905dc79203b 1-167
+enterprise_catalog/settings/base.py
+  13011905dc79203b 10,442-447
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fc227044e9036c00f651c613293c110eb63c6cac",
+  "prompts": {
+    "13011905dc79203b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages_url": "https://usegitai.com/cas/f579ab368dda0d8a87c4ddf4293fb6d26d035c8ac41b3f5178c95176d5321da3",
+      "total_additions": 890,
+      "total_deletions": 4,
+      "accepted_lines": 1005,
+      "overriden_lines": 0
+    }
+  }
+}

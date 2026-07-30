@@ -1,0 +1,49 @@
+enterprise_catalog/apps/search/tests/test_tasks.py
+  s_85d94237b8a314::t_0302079c730692 737-739,779,782,804,825,852,870,872,893-895,913,940,960,985,1010
+  s_85d94237b8a314::t_7dac49cdc3fd8c 688-689,691-692,694-695,697-699
+docs/algolia-reindexing/phase-4-plan.md
+  s_85d94237b8a314::t_5f87327f6c970d 51-52
+  s_85d94237b8a314::t_3821c3f15e2fe8 192-220
+docs/decisions/0013-dispatcher-serial-chain-ordering.rst
+  s_85d94237b8a314::t_5eb2b0f3388fc7 1-86
+enterprise_catalog/apps/search/tasks.py
+  s_85d94237b8a314::t_e6bb97c3fa49c5 53
+  s_85d94237b8a314::t_202129cc7ec342 1011
+  s_85d94237b8a314::t_b2ebc5df46841e 518-520
+  s_85d94237b8a314::t_73c8b2ad5e81be 604-608
+  s_85d94237b8a314::t_b56c182ed99f05 937-941
+  s_85d94237b8a314::t_403e3b16f1ce3e 505
+  s_85d94237b8a314::t_80789b1868039f 728
+  s_85d94237b8a314::t_e6fbd001ed2bc6 909-913
+  s_85d94237b8a314::t_029275fcad01c5 991-995
+  s_85d94237b8a314::t_ba4ae145efc581 789
+  s_85d94237b8a314::t_3ed3ef8e71475f 44,46,49
+  s_85d94237b8a314::t_a7118c609314c9 799-804
+  s_85d94237b8a314::t_b6b1922472c6f5 713-717
+  s_85d94237b8a314::t_5da699ddff8d5e 958-962
+  s_85d94237b8a314::t_7c5d8d0c6ec043 81-83
+  s_85d94237b8a314::t_bb3b5780fcd675 214-229,240,242,247-248,253-254,273-274,276-296,298-302
+  s_85d94237b8a314::t_2611d1989ca2c6 547-550
+  s_85d94237b8a314::t_3519a62551408d 669-674
+  s_85d94237b8a314::t_c08ca125544b64 739
+  s_85d94237b8a314::t_443239c2620424 590-594
+  s_85d94237b8a314::t_7bac8b5783fda4 564-566
+  s_85d94237b8a314::t_82457c0368142f 631-636
+  s_85d94237b8a314::t_7910ac6838566f 409-414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "26a2cd203374ecd3f927f01c2240b291f1852df1",
+  "prompts": {},
+  "sessions": {
+    "s_85d94237b8a314": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "57592e2b-e24c-4d8d-af89-57ad65a300b9",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

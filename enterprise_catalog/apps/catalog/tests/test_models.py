@@ -1432,6 +1432,20 @@ class TestRestrictedRunsModels(TestCase):
         self.assertEqual(record.unrestricted_parent, parent_record)
         self.assertIsNone(record.catalog_query)
 
+    def test_store_canonical_record_missing_parent_returns_none(self):
+        """
+        When the unrestricted parent ContentMetadata doesn't exist yet,
+        _store_record should return None rather than raise DoesNotExist.
+        """
+        content_metadata_dict = {
+            'key': 'edX+no-parent-course',
+            'uuid': '22222222-2222-2222-2222-222222222222',
+            'content_type': COURSE,
+            'course_runs': [],
+        }
+        result = RestrictedCourseMetadata.store_canonical_record(content_metadata_dict)
+        self.assertIsNone(result)
+
     def test_store_record_with_query(self):
         """
         Tests that a restricted course to be associated with a particular query

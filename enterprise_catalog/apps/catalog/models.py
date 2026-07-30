@@ -996,7 +996,14 @@ class RestrictedCourseMetadata(BaseContentMetadata):
             raise Exception('Can only store RestrictedContentMetadata with content type of course')
 
         course_key = course_metadata_dict['key']
-        parent_record = ContentMetadata.objects.get(content_key=course_key, content_type=COURSE)
+        try:
+            parent_record = ContentMetadata.objects.get(content_key=course_key, content_type=COURSE)
+        except ContentMetadata.DoesNotExist:
+            LOGGER.warning(
+                'Skipping RestrictedCourseMetadata for %s: unrestricted parent ContentMetadata does not exist.',
+                course_key,
+            )
+            return None
 
         defaults = {}
         if content_uuid := get_content_uuid(course_metadata_dict):
@@ -1028,7 +1035,8 @@ class RestrictedCourseMetadata(BaseContentMetadata):
         and the restricted course runs explicitly allowed by the provided catalog query.
         """
         course_record = cls._store_record(course_metadata_dict, catalog_query, is_full_update=is_full_update)
-        course_record.update_course_run_relationships()
+        if course_record:
+            course_record.update_course_run_relationships()
         return course_record
 
     @classmethod
@@ -1812,11 +1820,13 @@ def synchronize_restricted_content(catalog_query, dry_run=False):
         if dry_run:
             continue
 
-        RestrictedCourseMetadata.store_canonical_record(course_dict)
+        if not RestrictedCourseMetadata.store_canonical_record(course_dict):
+            continue
         restricted_course_record = RestrictedCourseMetadata.store_record_with_query(
             course_dict, catalog_query,
         )
-        results.append(restricted_course_record.content_key)
+        if restricted_course_record:
+            results.append(restricted_course_record.content_key)
 
     restricted_course_run_keys = list(catalog_query.restricted_courses_by_run_key.keys())
     run_content_filter = {

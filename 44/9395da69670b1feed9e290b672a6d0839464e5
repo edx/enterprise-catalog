@@ -1,0 +1,24 @@
+enterprise_catalog/apps/api/tasks.py
+  s_5937d1a218c98d::t_9fd22923c0ab7b 376-386,392-396
+  s_5937d1a218c98d::t_02992f2355d358 397
+enterprise_catalog/apps/api/tests/test_tasks.py
+  s_5937d1a218c98d::t_968ec525020fbc 21,25-26,37
+  s_5937d1a218c98d::t_30d7161ba467f0 356-459
+  s_5937d1a218c98d::t_cb0a6a482da031 355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "449395da69670b1feed9e290b672a6d0839464e5",
+  "prompts": {},
+  "sessions": {
+    "s_5937d1a218c98d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf14b901-399b-414a-9277-e68e3148a018",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

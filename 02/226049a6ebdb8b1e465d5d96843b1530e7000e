@@ -1,0 +1,28 @@
+.gitignore
+  13011905dc79203b 115-117
+enterprise_catalog/apps/api_client/algolia.py
+  13011905dc79203b 137-268
+enterprise_catalog/apps/api_client/tests/test_algolia.py
+  13011905dc79203b 1-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "02226049a6ebdb8b1e465d5d96843b1530e7000e",
+  "prompts": {
+    "13011905dc79203b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 528,
+      "total_deletions": 611,
+      "accepted_lines": 478,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/9a40419cdfc6054812924775cd9a89691a69b28f8e745a12087516febf8ceb56"
+    }
+  }
+}

@@ -1432,6 +1432,32 @@ class TestRestrictedRunsModels(TestCase):
         self.assertEqual(record.unrestricted_parent, parent_record)
         self.assertIsNone(record.catalog_query)
 
+    def test_store_canonical_record_raises_for_non_course_content_type(self):
+        """
+        _store_record raises when the content_type is not COURSE.
+        """
+        with self.assertRaises(Exception) as ctx:
+            RestrictedCourseMetadata.store_canonical_record({
+                'key': 'program+test',
+                'content_type': PROGRAM,
+                'course_runs': [],
+            })
+        self.assertIn('content type of course', str(ctx.exception))
+
+    def test_store_canonical_record_missing_parent_returns_none(self):
+        """
+        When the unrestricted parent ContentMetadata doesn't exist yet,
+        _store_record should return None rather than raise DoesNotExist.
+        """
+        content_metadata_dict = {
+            'key': 'edX+no-parent-course',
+            'uuid': '22222222-2222-2222-2222-222222222222',
+            'content_type': COURSE,
+            'course_runs': [],
+        }
+        result = RestrictedCourseMetadata.store_canonical_record(content_metadata_dict)
+        self.assertIsNone(result)
+
     def test_store_record_with_query(self):
         """
         Tests that a restricted course to be associated with a particular query
@@ -1673,6 +1699,76 @@ class TestRestrictedRunsModels(TestCase):
         )
         self.assertEqual(restricted_runs[0].json_metadata['other'], 'stuff')
         self.assertEqual(restricted_runs[1].json_metadata['other'], 'things')
+
+    @override_settings(DISCOVERY_CATALOG_QUERY_CACHE_TIMEOUT=0)
+    @override_settings(SHOULD_FETCH_RESTRICTED_COURSE_RUNS=True)
+    @mock.patch('enterprise_catalog.apps.catalog.models.DiscoveryApiClient')
+    def test_synchronize_restricted_content_skips_when_canonical_record_missing_parent(self, mock_client):
+        """
+        When store_canonical_record returns None (parent ContentMetadata absent),
+        the course is skipped and not included in results.
+        """
+        catalog_query = factories.CatalogQueryFactory(
+            content_filter={
+                'restricted_runs_allowed': {
+                    'course:edX+orphan': ['course-v1:edX+orphan+run1'],
+                },
+            },
+        )
+        course_dict = {
+            'key': 'edX+orphan',
+            'uuid': '33333333-3333-3333-3333-333333333333',
+            'content_type': COURSE,
+            'course_runs': [],
+        }
+        mock_retrieve = mock_client.return_value.retrieve_metadata_for_content_filter
+        mock_retrieve.side_effect = [
+            [course_dict],
+            [],
+        ]
+
+        # No parent ContentMetadata exists for 'edX+orphan'.
+        result = synchronize_restricted_content(catalog_query)
+
+        self.assertEqual(result, [])
+        self.assertFalse(
+            RestrictedCourseMetadata.objects.filter(content_key='edX+orphan').exists()
+        )
+
+    @override_settings(DISCOVERY_CATALOG_QUERY_CACHE_TIMEOUT=0)
+    @override_settings(SHOULD_FETCH_RESTRICTED_COURSE_RUNS=True)
+    @mock.patch('enterprise_catalog.apps.catalog.models.RestrictedCourseMetadata.store_record_with_query')
+    @mock.patch('enterprise_catalog.apps.catalog.models.DiscoveryApiClient')
+    def test_synchronize_restricted_content_skips_when_store_record_with_query_returns_none(
+        self, mock_client, mock_store_with_query,
+    ):
+        """
+        When store_record_with_query returns None, the course key is not appended to results.
+        """
+        catalog_query = factories.CatalogQueryFactory(
+            content_filter={
+                'restricted_runs_allowed': {
+                    'course:edX+course': ['course-v1:edX+course+run2'],
+                },
+            },
+        )
+        course_dict = {
+            'key': 'edX+course',
+            'uuid': '44444444-4444-4444-4444-444444444444',
+            'content_type': COURSE,
+            'course_runs': [],
+        }
+        factories.ContentMetadataFactory.create(content_key='edX+course', content_type=COURSE)
+        mock_retrieve = mock_client.return_value.retrieve_metadata_for_content_filter
+        mock_retrieve.side_effect = [
+            [course_dict],
+            [],
+        ]
+        mock_store_with_query.return_value = None
+
+        result = synchronize_restricted_content(catalog_query)
+
+        self.assertEqual(result, [])
 
 
 @ddt.ddt

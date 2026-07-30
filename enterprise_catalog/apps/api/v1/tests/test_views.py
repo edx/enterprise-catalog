@@ -1,6 +1,8 @@
 import copy
+import io
 import json
 import uuid
+import zipfile
 from collections import OrderedDict
 from datetime import datetime
 from unittest import mock
@@ -801,7 +803,7 @@ class EnterpriseCatalogCsvDataViewTests(APITestMixin):
         """
         Tests a successful request with facets.
         """
-        mock_algolia_client.return_value.algolia_index.search.side_effect = [self.mock_algolia_hits, {'hits': []}]
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = self.mock_algolia_hits['hits']
         url = self._get_contains_content_base_url()
         facets = 'language=English'
         response = self.client.get(f'{url}?{facets}')
@@ -817,8 +819,8 @@ class EnterpriseCatalogCsvDataViewTests(APITestMixin):
         """
         Tests that the view properly handles situations where data is missing from the Algolia hit.
         """
-        mock_side_effects = [self._get_mock_algolia_hits_with_missing_values(), {'hits': []}]
-        mock_algolia_client.return_value.algolia_index.search.side_effect = mock_side_effects
+        mock_hits = self._get_mock_algolia_hits_with_missing_values()['hits']
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = mock_hits
         url = self._get_contains_content_base_url()
         facets = 'language=English'
         response = self.client.get(f'{url}?{facets}')
@@ -837,6 +839,109 @@ class EnterpriseCatalogCsvDataViewTests(APITestMixin):
             'csv_data': expected_csv_data
         }
         assert response.data == expected_response
+
+    @mock.patch('enterprise_catalog.apps.api.v1.views.catalog_csv_data.DiscoveryApiClient')
+    @mock.patch('enterprise_catalog.apps.api.v1.views.catalog_csv_data.get_initialized_algolia_client')
+    def test_csv_data_returns_more_than_1000_hits(self, mock_algolia_client, mock_discovery_client):
+        """Regression test: exports must not be capped at Algolia's 1000-hit `search()` limit."""
+        mock_discovery_client.return_value.get_courses.return_value = []
+        num_hits = 1500
+        mock_hits = [
+            {
+                'aggregation_key': f'course:Org+{i}',
+                'key': f'Org+{i}',
+                'content_type': 'course',
+                'title': f'Course {i}',
+                'enterprise_catalog_query_titles': ['Subscription'],
+                'advertised_course_run': {},
+            }
+            for i in range(num_hits)
+        ]
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = mock_hits
+        url = self._get_contains_content_base_url()
+        facets = 'enterprise_catalog_query_titles=Subscription'
+        response = self.client.get(f'{url}?{facets}')
+
+        assert response.status_code == 200
+        # header row + one row per hit
+        assert response.data['csv_data'].count('\r\n') == num_hits + 1
+        assert mock_algolia_client.return_value.algolia_index.search.called is False
+
+
+class EnterpriseCatalogCsvViewTests(APITestMixin):
+    """
+    Tests for the CatalogCsvView view (the streaming CSV download endpoint).
+    """
+    mock_algolia_hits = EnterpriseCatalogCsvDataViewTests.mock_algolia_hits
+    expected_result_data = EnterpriseCatalogCsvDataViewTests.expected_result_data
+
+    def setUp(self):
+        super().setUp()
+        self.set_up_staff_user()
+
+    def _get_contains_content_base_url(self):
+        """
+        Helper to construct the base url for the catalog_csv endpoint
+        """
+        return reverse('api:v1:catalog-csv')
+
+    def _get_csv_content(self, response):
+        """
+        Helper to fully consume a streamed CSV response and decode it, stripping the leading BOM.
+        """
+        content = b''.join(response.streaming_content)
+        return content.decode('utf-8-sig')
+
+    def test_facet_validation(self):
+        """
+        Tests that the view validates Algolia facets provided by query params
+        """
+        url = self._get_contains_content_base_url()
+        invalid_facets = 'invalid_facet=wrong'
+        response = self.client.get(f'{url}?{invalid_facets}')
+        assert response.status_code == 400
+        assert response.data == "Error: invalid facet(s): ['invalid_facet'] provided."
+
+    @mock.patch('enterprise_catalog.apps.api.v1.views.catalog_csv.get_initialized_algolia_client')
+    def test_valid_facet_validation(self, mock_algolia_client):
+        """
+        Tests a successful request with facets.
+        """
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = self.mock_algolia_hits['hits']
+        url = self._get_contains_content_base_url()
+        facets = 'language=English'
+        response = self.client.get(f'{url}?{facets}')
+        assert response.status_code == 200
+        assert response['Content-Type'] == 'text/csv;charset=utf-8'
+        assert self._get_csv_content(response) == self.expected_result_data
+
+    @mock.patch('enterprise_catalog.apps.api.v1.views.catalog_csv.DiscoveryApiClient')
+    @mock.patch('enterprise_catalog.apps.api.v1.views.catalog_csv.get_initialized_algolia_client')
+    def test_csv_returns_more_than_1000_hits(self, mock_algolia_client, mock_discovery_client):
+        """Regression test: exports must not be capped at Algolia's 1000-hit `search()` limit."""
+        mock_discovery_client.return_value.get_courses.return_value = []
+        num_hits = 1500
+        mock_hits = [
+            {
+                'aggregation_key': f'course:Org+{i}',
+                'key': f'Org+{i}',
+                'content_type': 'course',
+                'title': f'Course {i}',
+                'enterprise_catalog_query_titles': ['Subscription'],
+                'advertised_course_run': {},
+            }
+            for i in range(num_hits)
+        ]
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = mock_hits
+        url = self._get_contains_content_base_url()
+        facets = 'enterprise_catalog_query_titles=Subscription'
+        response = self.client.get(f'{url}?{facets}')
+
+        assert response.status_code == 200
+        content = self._get_csv_content(response)
+        # header row + one row per hit
+        assert content.count('\r\n') == num_hits + 1
+        assert mock_algolia_client.return_value.algolia_index.search.called is False
 
 
 class EnterpriseCatalogWorkbookViewTests(APITestMixin):
@@ -1034,7 +1139,7 @@ class EnterpriseCatalogWorkbookViewTests(APITestMixin):
                 "objectID": "course-3543aa4e-3c64-4d9a-a343-5d5eda1dacf7-catalog-query-uuids-0"
             },
             {
-                "aggregation_key": "course:MITx+18.01.2x",
+                "aggregation_key": "program:MITx+18.01.2x",
                 "course_keys": ['MITx+18.01.2x'],
                 "content_type": "program",
                 "enterprise_catalog_query_titles": ["A la carte", "Business", "DemoX"],
@@ -1066,7 +1171,7 @@ class EnterpriseCatalogWorkbookViewTests(APITestMixin):
         """
         Tests when algolia returns no hits.
         """
-        mock_algolia_client.return_value.algolia_index.search.side_effect = [{'hits': []}]
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = []
         url = self._get_contains_content_base_url()
         facets = 'language=English'
         response = self.client.get(f'{url}?{facets}')
@@ -1077,7 +1182,7 @@ class EnterpriseCatalogWorkbookViewTests(APITestMixin):
         """
         Tests basic, successful output.
         """
-        mock_algolia_client.return_value.algolia_index.search.side_effect = [self.mock_algolia_hits, {'hits': []}]
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = self.mock_algolia_hits['hits']
         url = self._get_contains_content_base_url()
         facets = 'language=English'
         response = self.client.get(f'{url}?{facets}')
@@ -1088,11 +1193,61 @@ class EnterpriseCatalogWorkbookViewTests(APITestMixin):
         """
         Tests basic, successful output
         """
-        mock_algolia_client.return_value.algolia_index.search.side_effect = [self.mock_algolia_hits, {'hits': []}]
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = self.mock_algolia_hits['hits']
         url = self._get_contains_content_base_url()
         facets = 'language=English&use_learner_portal_url=true'
         response = self.client.get(f'{url}?{facets}')
         assert response.status_code == 200
+
+    @mock.patch('enterprise_catalog.apps.api.v1.views.catalog_workbook.get_initialized_algolia_client')
+    def test_workbook_includes_more_than_1000_hits(self, mock_algolia_client):
+        """Regression test: exports must not be capped at Algolia's 1000-hit `search()` limit."""
+        num_hits = 1500
+        mock_hits = [
+            {
+                'aggregation_key': f'course:Org+{i}',
+                'key': f'Org+{i}',
+                'content_type': 'course',
+                'title': f'Course {i}',
+                'enterprise_catalog_query_titles': ['Subscription'],
+                'advertised_course_run': {},
+                'course_runs': [],
+            }
+            for i in range(num_hits)
+        ]
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = mock_hits
+        url = self._get_contains_content_base_url()
+        facets = 'enterprise_catalog_query_titles=Subscription'
+        response = self.client.get(f'{url}?{facets}')
+
+        assert response.status_code == 200
+        assert mock_algolia_client.return_value.algolia_index.search.called is False
+
+    @mock.patch('enterprise_catalog.apps.api.v1.views.catalog_workbook.get_initialized_algolia_client')
+    def test_workbook_includes_course_runs_sheet(self, mock_algolia_client):
+        """Regression test: an active course run must produce a populated 'Course Runs' sheet."""
+        hit = {
+            'aggregation_key': 'course:edX+DemoX',
+            'key': 'edX+DemoX',
+            'content_type': 'course',
+            'title': 'Demo Course',
+            'course_runs': [
+                {
+                    'key': 'course-v1:edX+DemoX+1T2024',
+                    'is_active': True,
+                    'pacing_type': 'instructor_paced',
+                },
+            ],
+        }
+        mock_algolia_client.return_value.algolia_index.browse_objects.return_value = [hit]
+        url = self._get_contains_content_base_url()
+        facets = 'language=English'
+        response = self.client.get(f'{url}?{facets}')
+
+        assert response.status_code == 200
+        with zipfile.ZipFile(io.BytesIO(response.content)) as workbook_zip:
+            workbook_xml = workbook_zip.read('xl/workbook.xml').decode('utf-8')
+        assert 'Course Runs' in workbook_xml
 
 
 class EnterpriseCatalogContainsContentItemsTests(APITestMixin):

@@ -51,26 +51,13 @@ class CatalogCsvDataView(GenericAPIView):
         # discovery to gather extra, non-indexed fields
         discovery_client = DiscoveryApiClient()
 
-        facet_filters = []
-        for facet_name, facet_values in facets.items():
-            combined_facets = []
-            for facet_value in facet_values:
-                combined_facets.append(f'{facet_name}:{facet_value}')
-            facet_filters.append(combined_facets)
+        facet_filters = export_utils.build_facet_filters(facets)
+        hits = export_utils.browse_all_hits(algolia_client.algolia_index, algoliaQuery, facet_filters)
 
-        search_options = {
-            'facetFilters': facet_filters,
-            'attributesToRetrieve': export_utils.ALGOLIA_ATTRIBUTES_TO_RETRIEVE,
-            'hitsPerPage': 100,
-            'page': 0,
-        }
-
-        # Algolia search will only retrieve all results if you query by empty string.
         algolia_hits = []
-        page = algolia_client.algolia_index.search(algoliaQuery, search_options)
-        while len(page['hits']) > 0:
+        for hits_chunk in export_utils.chunked(hits, 100):
             course_keys_chunk = []
-            for hit in page.get('hits', []):
+            for hit in hits_chunk:
                 # ignore program data (for now)
                 if hit.get('content_type') != 'course':
                     continue
@@ -87,16 +74,13 @@ class CatalogCsvDataView(GenericAPIView):
 
             # combine discovery metadata with the algolia results
             # append the hit to the results
-            for hit in page.get('hits', []):
+            for hit in hits_chunk:
                 # ignore program data (for now)
                 if hit.get('content_type') != 'course':
                     continue
                 if course_by_key.get(hit.get('key')):
                     hit['discovery_course'] = course_by_key.get(hit.get('key'))
                 algolia_hits.append(hit)
-
-            search_options['page'] = search_options['page'] + 1
-            page = algolia_client.algolia_index.search(algoliaQuery, search_options)
 
         with StringIO() as file:
             writer = csv.writer(file)

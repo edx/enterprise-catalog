@@ -1,4 +1,5 @@
 import io
+import itertools
 import logging
 import time
 
@@ -61,25 +62,18 @@ class CatalogWorkbookView(GenericAPIView):
 
         algolia_client = get_initialized_algolia_client()
 
-        facet_filters = []
-        for facet_name, facet_values in facets.items():
-            combined_facets = []
-            for facet_value in facet_values:
-                combined_facets.append(f'{facet_name}:{facet_value}')
-            facet_filters.append(combined_facets)
+        facet_filters = export_utils.build_facet_filters(facets)
+        hits_iterator = iter(export_utils.browse_all_hits(algolia_client.algolia_index, algoliaQuery, facet_filters))
 
-        search_options = {
-            'facetFilters': facet_filters,
-            'attributesToRetrieve': export_utils.ALGOLIA_ATTRIBUTES_TO_RETRIEVE,
-            'hitsPerPage': 100,
-            'page': 0,
-        }
-
-        # Algolia search will only retrieve all results if you query by empty string.
-        page = algolia_client.algolia_index.search(algoliaQuery, search_options)
-
-        if len(page['hits']) == 0:
+        # Peek at the first hit to detect an empty result set (mirrors the old
+        # `if len(page['hits']) == 0` check) without consuming it - `all_hits` below puts
+        # it back at the front of the stream via `itertools.chain`.
+        try:
+            first_hit = next(hits_iterator)
+        except StopIteration:
             return Response(f'Error: invalid query: {algoliaQuery} provided.', status=HTTP_400_BAD_REQUEST)
+
+        all_hits = itertools.chain([first_hit], hits_iterator)
 
         # content row index, starting at 1 which is after header row
         course_row_num = 1
@@ -90,48 +84,45 @@ class CatalogWorkbookView(GenericAPIView):
         edx_course_results_found = False
         edx_program_results_found = False
         course_run_results_found = False
-        while len(page['hits']) > 0:
-            for hit in page.get('hits', []):
-                if hit.get('content_type') == 'course':
-                    is_exec_ed = hit.get('course_type') == 'executive-education-2u'
-                    if is_exec_ed:
-                        if not exec_ed_results_found:
-                            exec_ed_results_found = True
-                            exec_ed_worksheet = workbook.add_worksheet('Executive Education')
-                            export_utils.write_headers_to_sheet(
-                                exec_ed_worksheet, export_utils.CSV_EXEC_ED_COURSE_HEADERS, header_format
-                            )
-                        course_row = export_utils.exec_ed_course_to_row(hit, use_learner_portal_url)
-                        exec_ed_row_num = write_row_data(course_row, exec_ed_worksheet, exec_ed_row_num)
-                    else:
-                        if not edx_course_results_found:
-                            edx_course_results_found = True
-                            course_worksheet = workbook.add_worksheet('Courses')
-                            export_utils.write_headers_to_sheet(
-                                course_worksheet, export_utils.CSV_COURSE_HEADERS, header_format
-                            )
-                        course_row = export_utils.course_hit_to_row(hit, use_learner_portal_url)
-                        course_row_num = write_row_data(course_row, course_worksheet, course_row_num)
-                    for course_run in export_utils.course_hit_runs(hit):
-                        if not course_run_results_found:
-                            course_run_results_found = True
-                            course_run_worksheet = workbook.add_worksheet('Course Runs')
-                            export_utils.write_headers_to_sheet(
-                                course_run_worksheet, export_utils.CSV_COURSE_RUN_HEADERS, header_format
-                            )
-                        course_run_row = export_utils.course_run_to_row(hit, course_run)
-                        course_run_row_num = write_row_data(course_run_row, course_run_worksheet, course_run_row_num)
-                if hit.get('content_type') == 'program':
-                    if not edx_program_results_found:
-                        edx_program_results_found = True
-                        program_worksheet = workbook.add_worksheet('Programs')
+        for hit in all_hits:
+            if hit.get('content_type') == 'course':
+                is_exec_ed = hit.get('course_type') == 'executive-education-2u'
+                if is_exec_ed:
+                    if not exec_ed_results_found:
+                        exec_ed_results_found = True
+                        exec_ed_worksheet = workbook.add_worksheet('Executive Education')
                         export_utils.write_headers_to_sheet(
-                            program_worksheet, export_utils.CSV_PROGRAM_HEADERS, header_format
+                            exec_ed_worksheet, export_utils.CSV_EXEC_ED_COURSE_HEADERS, header_format
                         )
-                    program_row = export_utils.program_hit_to_row(hit, use_learner_portal_url)
-                    program_row_num = write_row_data(program_row, program_worksheet, program_row_num)
-            search_options['page'] = search_options['page'] + 1
-            page = algolia_client.algolia_index.search(algoliaQuery, search_options)
+                    course_row = export_utils.exec_ed_course_to_row(hit, use_learner_portal_url)
+                    exec_ed_row_num = write_row_data(course_row, exec_ed_worksheet, exec_ed_row_num)
+                else:
+                    if not edx_course_results_found:
+                        edx_course_results_found = True
+                        course_worksheet = workbook.add_worksheet('Courses')
+                        export_utils.write_headers_to_sheet(
+                            course_worksheet, export_utils.CSV_COURSE_HEADERS, header_format
+                        )
+                    course_row = export_utils.course_hit_to_row(hit, use_learner_portal_url)
+                    course_row_num = write_row_data(course_row, course_worksheet, course_row_num)
+                for course_run in export_utils.course_hit_runs(hit):
+                    if not course_run_results_found:
+                        course_run_results_found = True
+                        course_run_worksheet = workbook.add_worksheet('Course Runs')
+                        export_utils.write_headers_to_sheet(
+                            course_run_worksheet, export_utils.CSV_COURSE_RUN_HEADERS, header_format
+                        )
+                    course_run_row = export_utils.course_run_to_row(hit, course_run)
+                    course_run_row_num = write_row_data(course_run_row, course_run_worksheet, course_run_row_num)
+            if hit.get('content_type') == 'program':
+                if not edx_program_results_found:
+                    edx_program_results_found = True
+                    program_worksheet = workbook.add_worksheet('Programs')
+                    export_utils.write_headers_to_sheet(
+                        program_worksheet, export_utils.CSV_PROGRAM_HEADERS, header_format
+                    )
+                program_row = export_utils.program_hit_to_row(hit, use_learner_portal_url)
+                program_row_num = write_row_data(program_row, program_worksheet, program_row_num)
 
         # Close the workbook before sending the data.
         workbook.close()

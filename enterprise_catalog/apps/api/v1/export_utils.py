@@ -129,6 +129,66 @@ ALGOLIA_ATTRIBUTES_TO_RETRIEVE = [
 DATE_FORMAT = "%Y-%m-%d"
 
 
+def build_facet_filters(facets):
+    """Build an Algolia `facetFilters` structure from facet_name -> [facet_values]."""
+    facet_filters = []
+    for facet_name, facet_values in facets.items():
+        facet_filters.append([f'{facet_name}:{facet_value}' for facet_value in facet_values])
+    return facet_filters
+
+
+def browse_all_hits(algolia_index, algolia_query, facet_filters, attributes_to_retrieve=None):
+    """
+    Return every hit via `browse_objects`, which (unlike `search`) has no `paginationLimitedTo`
+    cap. Also merges the per-record shards `search`'s `distinct` setting used to collapse.
+
+    Note: shards of the same `aggregation_key` aren't guaranteed to arrive adjacent to each
+    other in the browse cursor, so `_merge_sharded_hits` has to hold every hit in memory
+    rather than merging as a bounded streaming pass. Fine at current enterprise catalog sizes;
+    the hit count is logged so unexpectedly large exports are visible before it becomes one.
+    """
+    raw_hits = algolia_index.browse_objects({
+        'query': algolia_query,
+        'facetFilters': facet_filters,
+        'attributesToRetrieve': attributes_to_retrieve or ALGOLIA_ATTRIBUTES_TO_RETRIEVE,
+    })
+    merged_hits = _merge_sharded_hits(raw_hits)
+    logger.info('browse_all_hits merged %d hits for query %r', len(merged_hits), algolia_query)
+    return merged_hits
+
+
+def _merge_sharded_hits(hits):
+    """Collapse hits sharing an `aggregation_key` into one, unioning list-valued fields."""
+    merged_by_key = {}
+    for hit in hits:
+        agg_key = hit.get('aggregation_key')
+        if agg_key not in merged_by_key:
+            merged_by_key[agg_key] = dict(hit)
+            continue
+        existing = merged_by_key[agg_key]
+        for field, value in hit.items():
+            if not value:
+                continue
+            existing_value = existing.get(field)
+            if isinstance(value, list) and isinstance(existing_value, list):
+                existing[field] = existing_value + [item for item in value if item not in existing_value]
+            elif not existing_value:
+                existing[field] = value
+    return list(merged_by_key.values())
+
+
+def chunked(iterable, size):
+    """Yield successive lists of at most `size` items from `iterable`."""
+    chunk = []
+    for item in iterable:
+        chunk.append(item)
+        if len(chunk) >= size:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
+
+
 def write_headers_to_sheet(worksheet, headers, cell_format):
     """
     Helper function to write a given list of strings as a header row in a given worksheet.
@@ -149,7 +209,7 @@ def fetch_catalog_types(hit):
         'Subscription'
     ]
 
-    return [catalog for catalog in CATALOG_TYPES if catalog in hit.get('enterprise_catalog_query_titles')]
+    return [catalog for catalog in CATALOG_TYPES if catalog in (hit.get('enterprise_catalog_query_titles') or [])]
 
 
 def program_hit_to_row(hit, use_learner_portal_url=False):

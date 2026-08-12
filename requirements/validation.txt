@@ -58,7 +58,7 @@ billiard==4.2.4
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
-cachetools==7.1.6
+cachetools==7.1.7
     # via
     #   -r requirements/test.txt
     #   tox
@@ -76,7 +76,7 @@ certifi==2026.7.22
     #   httpcore
     #   httpx
     #   requests
-cffi==2.1.0
+cffi==2.1.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -129,11 +129,11 @@ colorama==0.4.6
     # via
     #   -r requirements/test.txt
     #   tox
-coverage[toml]==7.15.2
+coverage[toml]==7.15.4
     # via
     #   -r requirements/test.txt
     #   pytest-cov
-cryptography==49.0.0
+cryptography==50.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -167,7 +167,7 @@ distro==1.9.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   openai
-django==5.2.16
+django==5.2.17
     # via
     #   -c requirements/common_constraints.txt
     #   -c requirements/constraints.txt
@@ -261,7 +261,7 @@ djangoql==0.19.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-djangorestframework==3.17.1
+djangorestframework==3.18.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -337,11 +337,11 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.35.0
+faker==40.36.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==3.32.0
+filelock==3.32.2
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -441,7 +441,7 @@ narwhals==2.24.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   scikit-learn
-numpy==2.5.1
+numpy==2.5.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -458,7 +458,7 @@ openai==1.13.3
     #   -c requirements/constraints.txt
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-packaging==26.2
+packaging==26.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -466,12 +466,11 @@ packaging==26.2
     #   pyproject-api
     #   pytest
     #   tox
-platformdirs==4.11.0
+platformdirs==4.11.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pylint
-    #   python-discovery
     #   tox
     #   virtualenv
 pluggy==1.6.0
@@ -485,7 +484,7 @@ ply==3.11
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   djangoql
-prompt-toolkit==3.0.52
+prompt-toolkit==3.0.53
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -527,7 +526,7 @@ pyjwt[crypto]==2.13.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.0.6
+pylint==4.0.7
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -576,7 +575,7 @@ pytest==9.1.1
     #   pytest-django
 pytest-cov==7.1.0
     # via -r requirements/test.txt
-pytest-django==4.12.0
+pytest-django==4.14.0
     # via -r requirements/test.txt
 python-dateutil==2.9.0.post0
     # via
@@ -584,7 +583,7 @@ python-dateutil==2.9.0.post0
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
-python-discovery==1.5.0
+python-discovery==1.5.1
     # via
     #   -r requirements/test.txt
     #   tox
@@ -599,7 +598,7 @@ python3-openid==3.2.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   social-auth-core
-pytz==2026.2
+pytz==2026.3.post1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -611,7 +610,7 @@ pyyaml==6.0.3
     #   drf-spectacular
     #   edx-django-release-util
     #   responses
-redis==8.0.1
+redis==8.1.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -713,7 +712,7 @@ stevedore==5.9.0
     #   code-annotations
     #   edx-django-utils
     #   edx-opaque-keys
-tablib==3.9.0
+tablib==3.10.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -738,9 +737,9 @@ tomlkit==0.15.1
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.58.0
+tox==4.59.0
     # via -r requirements/test.txt
-tqdm==4.69.0
+tqdm==4.70.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -756,8 +755,9 @@ typing-extensions==4.16.0
     #   pydantic
     #   pydantic-core
     #   referencing
+    #   tox
     #   typing-inspection
-typing-inspection==0.4.2
+typing-inspection==0.4.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -790,7 +790,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.0
+virtualenv==21.7.4
     # via
     #   -r requirements/test.txt
     #   tox

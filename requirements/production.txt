@@ -51,7 +51,7 @@ certifi==2026.7.22
     #   httpcore
     #   httpx
     #   requests
-cffi==2.1.0
+cffi==2.1.1
     # via
     #   -r requirements/base.txt
     #   cryptography
@@ -85,7 +85,7 @@ code-annotations==3.0.0
     # via
     #   -r requirements/base.txt
     #   edx-toggles
-cryptography==49.0.0
+cryptography==50.0.0
     # via
     #   -r requirements/base.txt
     #   pyjwt
@@ -104,7 +104,7 @@ distro==1.9.0
     # via
     #   -r requirements/base.txt
     #   openai
-django==5.2.16
+django==5.2.17
     # via
     #   -r requirements/base.txt
     #   django-celery-results
@@ -169,7 +169,7 @@ django-waffle==5.0.0
     #   edx-toggles
 djangoql==0.19.1
     # via -r requirements/base.txt
-djangorestframework==3.17.1
+djangorestframework==3.18.0
     # via
     #   -r requirements/base.txt
     #   django-config-models
@@ -218,9 +218,9 @@ edx-toggles==6.0.0
     # via
     #   -r requirements/base.txt
     #   edx-auth-backends
-gevent==26.7.0
+gevent==26.8.0
     # via -r requirements/production.in
-greenlet==3.5.4
+greenlet==3.5.5
     # via gevent
 gunicorn==26.0.0
     # via -r requirements/production.in
@@ -286,7 +286,7 @@ narwhals==2.24.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
-numpy==2.5.1
+numpy==2.5.2
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -298,7 +298,7 @@ oauthlib==3.3.1
     #   social-auth-core
 openai==1.13.3
     # via -r requirements/base.txt
-packaging==26.2
+packaging==26.3
     # via
     #   -r requirements/base.txt
     #   gunicorn
@@ -307,7 +307,7 @@ ply==3.11
     # via
     #   -r requirements/base.txt
     #   djangoql
-prompt-toolkit==3.0.52
+prompt-toolkit==3.0.53
     # via
     #   -r requirements/base.txt
     #   click-repl
@@ -360,7 +360,7 @@ python3-openid==3.2.0
     # via
     #   -r requirements/base.txt
     #   social-auth-core
-pytz==2026.2
+pytz==2026.3.post1
     # via -r requirements/base.txt
 pyyaml==6.0.3
     # via
@@ -369,7 +369,7 @@ pyyaml==6.0.3
     #   code-annotations
     #   drf-spectacular
     #   edx-django-release-util
-redis==8.0.1
+redis==8.1.0
     # via -r requirements/base.txt
 referencing==0.37.0
     # via
@@ -439,7 +439,7 @@ stevedore==5.9.0
     #   code-annotations
     #   edx-django-utils
     #   edx-opaque-keys
-tablib==3.9.0
+tablib==3.10.0
     # via
     #   -r requirements/base.txt
     #   django-import-export
@@ -451,7 +451,7 @@ threadpoolctl==3.6.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
-tqdm==4.69.0
+tqdm==4.70.0
     # via
     #   -r requirements/base.txt
     #   openai
@@ -466,7 +466,7 @@ typing-extensions==4.16.0
     #   pydantic-core
     #   referencing
     #   typing-inspection
-typing-inspection==0.4.2
+typing-inspection==0.4.3
     # via
     #   -r requirements/base.txt
     #   pydantic

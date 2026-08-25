@@ -104,6 +104,7 @@ tx
 
 # claude code personalization
 .claude/settings.local.json
+.claude/worktrees/
 prompts.db
 .claude/worktrees/
 

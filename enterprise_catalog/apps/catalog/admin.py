@@ -211,6 +211,10 @@ class RestrictedRunAllowedForRestrictedCourseAdmin(UnchangeableMixin):
         'course',
         'run',
     )
+    autocomplete_fields = (
+        'course',
+        'run',
+    )
 
 
 @admin.register(CatalogQuery)

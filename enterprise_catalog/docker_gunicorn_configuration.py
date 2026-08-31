@@ -23,8 +23,9 @@ def close_all_caches():
     # We do this in a way that is safe for 1.4 and 1.8 while we still have some
     # 1.4 installations.
     from django.conf import settings  # pylint: disable=import-outside-toplevel
-    from django.core import \
-        cache as django_cache  # pylint: disable=import-outside-toplevel
+    from django.core import (  # pylint: disable=import-outside-toplevel
+        cache as django_cache,
+    )
     if hasattr(django_cache, 'caches'):
         get_cache = django_cache.caches.__getitem__
     else:

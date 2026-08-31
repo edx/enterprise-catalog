@@ -28,8 +28,9 @@ from drf_spectacular.views import (
 from enterprise_catalog.apps.ai_curation.api import urls as ai_curation_urls
 from enterprise_catalog.apps.api import urls as api_urls
 from enterprise_catalog.apps.core import views as core_views
-from enterprise_catalog.apps.core.admin_views import \
-    settings_view as admin_settings_view
+from enterprise_catalog.apps.core.admin_views import (
+    settings_view as admin_settings_view,
+)
 
 
 admin.autodiscover()

@@ -46,7 +46,7 @@ billiard==4.2.4
     # via
     #   -r requirements/base.txt
     #   celery
-cachetools==7.1.7
+cachetools==7.1.8
     # via tox
 celery==5.6.3
     # via
@@ -94,6 +94,10 @@ click-repl==0.3.0
     # via
     #   -r requirements/base.txt
     #   celery
+cloudpickle==3.1.2
+    # via
+    #   -r requirements/base.txt
+    #   joblib
 code-annotations==3.0.0
     # via
     #   -r requirements/base.txt
@@ -102,7 +106,7 @@ code-annotations==3.0.0
     #   edx-toggles
 colorama==0.4.6
     # via tox
-coverage[toml]==7.15.4
+coverage[toml]==7.16.0
     # via
     #   -r requirements/test.in
     #   pytest-cov
@@ -226,7 +230,7 @@ edx-celeryutils==2.0.0
     # via -r requirements/base.txt
 edx-django-release-util==1.5.0
     # via -r requirements/base.txt
-edx-django-utils==8.0.1
+edx-django-utils==8.0.2
     # via
     #   -r requirements/base.txt
     #   django-config-models
@@ -256,7 +260,7 @@ factory-boy==3.3.3
     # via -r requirements/test.in
 faker==40.37.0
     # via factory-boy
-filelock==3.32.4
+filelock==3.32.5
     # via
     #   python-discovery
     #   tox
@@ -285,13 +289,13 @@ inflection==0.5.1
     #   drf-spectacular
 iniconfig==2.3.0
     # via pytest
-isort==8.0.1
+isort==9.0.1
     # via pylint
 jinja2==3.1.6
     # via
     #   -r requirements/base.txt
     #   code-annotations
-joblib==1.5.3
+joblib==1.6.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -323,6 +327,8 @@ monotonic==1.6
     # via
     #   -r requirements/base.txt
     #   analytics-python
+mypy-extensions==1.1.0
+    # via isort
 mysqlclient==2.2.8
     # via -r requirements/base.txt
 narwhals==2.25.0
@@ -376,11 +382,11 @@ pycparser==3.0
     # via
     #   -r requirements/base.txt
     #   cffi
-pydantic==2.13.4
+pydantic==2.13.5
     # via
     #   -r requirements/base.txt
     #   openai
-pydantic-core==2.46.4
+pydantic-core==2.46.5
     # via
     #   -r requirements/base.txt
     #   pydantic
@@ -394,7 +400,7 @@ pyjwt[crypto]==2.13.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.0.7
+pylint==4.0.8
     # via
     #   edx-lint
     #   pylint-celery
@@ -433,7 +439,7 @@ python-dateutil==2.9.0.post0
     #   -r requirements/base.txt
     #   analytics-python
     #   celery
-python-discovery==1.5.3
+python-discovery==1.6.0
     # via
     #   tox
     #   virtualenv
@@ -550,7 +556,7 @@ tomlkit==0.15.1
     # via
     #   edx-lint
     #   pylint
-tox==4.60.1
+tox==4.61.2
     # via -r requirements/test.in
 tqdm==4.70.0
     # via
@@ -595,9 +601,9 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.5
+virtualenv==21.7.7
     # via tox
-wcwidth==0.8.2
+wcwidth==0.8.3
     # via
     #   -r requirements/base.txt
     #   prompt-toolkit

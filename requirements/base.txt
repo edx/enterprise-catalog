@@ -62,6 +62,8 @@ click-plugins==1.1.1.2
     # via celery
 click-repl==0.3.0
     # via celery
+cloudpickle==3.1.2
+    # via joblib
 code-annotations==3.0.0
     # via edx-toggles
 cryptography==50.0.1
@@ -166,7 +168,7 @@ edx-celeryutils==2.0.0
     # via -r requirements/base.in
 edx-django-release-util==1.5.0
     # via -r requirements/base.in
-edx-django-utils==8.0.1
+edx-django-utils==8.0.2
     # via
     #   -r requirements/base.in
     #   django-config-models
@@ -203,7 +205,7 @@ inflection==0.5.1
     # via drf-spectacular
 jinja2==3.1.6
     # via code-annotations
-joblib==1.5.3
+joblib==1.6.0
     # via scikit-learn
 jsonfield==3.2.0
     # via edx-celeryutils
@@ -245,9 +247,9 @@ psutil==7.2.2
     # via edx-django-utils
 pycparser==3.0
     # via cffi
-pydantic==2.13.4
+pydantic==2.13.5
     # via openai
-pydantic-core==2.46.4
+pydantic-core==2.46.5
     # via pydantic
 pyjwt[crypto]==2.13.0
     # via
@@ -368,7 +370,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-wcwidth==0.8.2
+wcwidth==0.8.3
     # via prompt-toolkit
 xlsxwriter==3.2.9
     # via -r requirements/base.in

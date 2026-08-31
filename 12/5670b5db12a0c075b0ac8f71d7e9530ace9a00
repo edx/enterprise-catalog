@@ -1,0 +1,26 @@
+enterprise_catalog/apps/api_client/tests/test_algolia.py
+  s_13011905dc7920::t_ef8bdc3ced0516 18,235,246,254,265,268,277,285,293,295,301
+enterprise_catalog/apps/api_client/algolia.py
+  s_13011905dc7920::t_59ab178a09790d 237,239-240,242-251,258,261,274,277,282
+scripts/algolia_batch_smoke.py
+  s_13011905dc7920::t_ef8bdc3ced0516 5,23,137-138
+docs/algolia-reindexing/tech-spec.md
+  s_13011905dc7920::t_c5c9852e549b76 490-492,494-499,501-503,505
+  s_13011905dc7920::t_ef8bdc3ced0516 306,664,677
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "125670b5db12a0c075b0ac8f71d7e9530ace9a00",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

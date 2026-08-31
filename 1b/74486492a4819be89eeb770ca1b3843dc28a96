@@ -1,0 +1,19 @@
+enterprise_catalog/apps/api/v1/views/enterprise_catalog_refresh_data_from_discovery.py
+  s_13011905dc7920::t_5bd627e624c1c7 15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "1b74486492a4819be89eeb770ca1b3843dc28a96",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

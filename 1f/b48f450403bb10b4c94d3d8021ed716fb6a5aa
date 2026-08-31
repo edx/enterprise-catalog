@@ -1,0 +1,26 @@
+enterprise_catalog/apps/catalog/models.py
+  12d0c26c1fde6a40 1208,1212-1227,1237-1241
+enterprise_catalog/apps/catalog/tests/test_models.py
+  12d0c26c1fde6a40 30,1784-1854
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "1fb48f450403bb10b4c94d3d8021ed716fb6a5aa",
+  "prompts": {
+    "12d0c26c1fde6a40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d765e8b5-12ad-4174-a80d-c073b8b9d08c",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 247,
+      "total_deletions": 152,
+      "accepted_lines": 95,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/598bab01d3fa4e745690eef9c142a488b8cda76af92086917e13ac2877be15f7"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+enterprise_catalog/settings/base.py
+  s_13011905dc7920::t_18fbe80d915bed 461-464
+enterprise_catalog/apps/api/v1/tests/test_views.py
+  s_13011905dc7920::t_15712bf5241a26 1922-2010
+enterprise_catalog/apps/catalog/management/commands/tests/test_update_content_metadata.py
+  s_13011905dc7920::t_bf86f3d916c2ed 4
+  s_13011905dc7920::t_6c471d37dd12dd 139-196
+enterprise_catalog/apps/api/v1/views/enterprise_catalog_refresh_data_from_discovery.py
+  s_13011905dc7920::t_40d06bceb093cc 1-2,15
+  s_13011905dc7920::t_00ed2681e3cf86 39-56
+enterprise_catalog/apps/catalog/management/commands/update_content_metadata.py
+  s_13011905dc7920::t_3633b7c19180f5 202-226
+  s_13011905dc7920::t_598bfab4a8f539 4,15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "7316ee7be4b6f64f47aeb52faff8205591157ba2",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

@@ -58,7 +58,7 @@ billiard==4.2.4
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
-cachetools==7.1.7
+cachetools==7.1.8
     # via
     #   -r requirements/test.txt
     #   tox
@@ -119,6 +119,11 @@ click-repl==0.3.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
+cloudpickle==3.1.2
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   joblib
 code-annotations==3.0.0
     # via
     #   -r requirements/quality.txt
@@ -129,7 +134,7 @@ colorama==0.4.6
     # via
     #   -r requirements/test.txt
     #   tox
-coverage[toml]==7.15.4
+coverage[toml]==7.16.0
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -299,7 +304,7 @@ edx-django-release-util==1.5.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-edx-django-utils==8.0.1
+edx-django-utils==8.0.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -341,7 +346,7 @@ faker==40.37.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==3.32.4
+filelock==3.32.5
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -378,7 +383,7 @@ iniconfig==2.3.0
     # via
     #   -r requirements/test.txt
     #   pytest
-isort==8.0.1
+isort==9.0.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -388,7 +393,7 @@ jinja2==3.1.6
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   code-annotations
-joblib==1.5.3
+joblib==1.6.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -432,6 +437,11 @@ monotonic==1.6
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   analytics-python
+mypy-extensions==1.1.0
+    # via
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+    #   isort
 mysqlclient==2.2.8
     # via
     #   -r requirements/quality.txt
@@ -501,12 +511,12 @@ pycparser==3.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   cffi
-pydantic==2.13.4
+pydantic==2.13.5
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   openai
-pydantic-core==2.46.4
+pydantic-core==2.46.5
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -526,7 +536,7 @@ pyjwt[crypto]==2.13.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.0.7
+pylint==4.0.8
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -583,7 +593,7 @@ python-dateutil==2.9.0.post0
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
-python-discovery==1.5.3
+python-discovery==1.6.0
     # via
     #   -r requirements/test.txt
     #   tox
@@ -737,7 +747,7 @@ tomlkit==0.15.1
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.60.1
+tox==4.61.2
     # via -r requirements/test.txt
 tqdm==4.70.0
     # via
@@ -790,11 +800,11 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.5
+virtualenv==21.7.7
     # via
     #   -r requirements/test.txt
     #   tox
-wcwidth==0.8.2
+wcwidth==0.8.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

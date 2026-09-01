@@ -34,8 +34,9 @@ from enterprise_catalog.apps.catalog.models import (
     _should_skip_course_update,
     _update_existing_content_metadata,
 )
-from enterprise_catalog.apps.catalog.models import \
-    create_content_metadata as create_content_metadata_func
+from enterprise_catalog.apps.catalog.models import (
+    create_content_metadata as create_content_metadata_func,
+)
 from enterprise_catalog.apps.catalog.models import (
     synchronize_restricted_content,
     update_contentmetadata_from_discovery,

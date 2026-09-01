@@ -323,7 +323,7 @@ Content Synchronization Flow
       4. update_full_content_metadata_task      /courses/ + /programs/, reviews, normalization
       5. dispatch_algolia_indexing              fan out batch indexing to Celery workers
 
-    Stragglers cron (~30 min): incremental_reindex_algolia
+    Stragglers cron: incremental_reindex_algolia
       dispatch_algolia_indexing(force=False)    stale and previously-failed records only
 
     On demand: POST .../refresh_metadata
@@ -333,6 +333,8 @@ Content Synchronization Flow
 ``ContentMetadata.modified`` is the hinge between the two halves. A record is reindexed when
 its ``modified`` timestamp outruns the ``last_indexed_at`` on its ``ContentMetadataIndexingState``
 row, so the Discovery sync only bumps ``modified`` when content actually changed.
+
+Both cron schedules live in argocd under 'prod-enterprise-catalog', not in this repository.
 
 Full detail lives in ``docs/references/content-sync-and-algolia-indexing.md``.
 

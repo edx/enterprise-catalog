@@ -22,7 +22,7 @@ than its parent, or when a prior attempt failed. Batches of 10 fan out across Ce
 upsert Algolia objects, and delete orphaned shards.
 
 Three triggers: the daily `update_content_metadata` chain, a stragglers cron running
-`incremental_reindex_algolia` every 30 minutes, and the per-catalog `refresh_metadata` API,
+`incremental_reindex_algolia`, and the per-catalog `refresh_metadata` API,
 which additionally diffs database membership against the index so catalog additions and
 removals reindex even when nothing about the content changed.
 

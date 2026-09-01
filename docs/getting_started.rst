@@ -74,8 +74,12 @@ from the celery tasks enqueued by these commands:
   for all content records of type ``course``  and update the enterprise-catalog content metadata records accordingly.
 - ``./manage.py update_full_content_metadata`` This does only the fetching of additional course metadata as
   described above.
-- ``./manage.py reindex_algolia`` This will rebuild our Algolia search index; it won't work locally unless
-  you configure your local enterprise-catalog service to point at a real Algolia index (like in a staging environment).
+- ``./manage.py incremental_reindex_algolia`` This indexes content whose ``ContentMetadata.modified`` timestamp has
+  outrun its last successful index, plus anything that failed on a previous attempt. Pass ``--force-all`` to reindex
+  every indexable record, ``--dry-run`` to see what would be dispatched without writing, and ``--content-type`` to
+  narrow to specific types. It won't work locally unless you configure your local enterprise-catalog service to point
+  at a real Algolia index (like in a staging environment). ``update_content_metadata`` already dispatches indexing as
+  its final step, so you only need this command for a stragglers pass or a forced rebuild.
 
 The celery tasks that underly these commands are configured to not run on the same input more than once every
 60 minutes - see the `Architectural Decisions Record <../decisions/0002-celery-task-restructuring.rst>`_
@@ -85,13 +89,19 @@ time in the same hour window will result in a ``TaskRecentlyRun`` error and no a
 **Note** You can can add a ``--force`` option to each of these commands; doing so will force the underlying celery
 task to run, regardless of how recently the same task with the same input was run in the past.
 
+``incremental_reindex_algolia`` is the exception: its dispatcher carries no semaphore, so it can run as often as you
+like. It takes ``--force-all`` rather than ``--force``, and that flag controls what gets indexed (everything, versus
+only stale records), not whether the task is allowed to run.
+
 Running Management Commands in Stage or Prod environments
 ---------------------------------------------------------
 
 The three commands described in the previous section each have corresponding jobs in argocd.tools.edx.org
 under 'prod-enterprise-catalog' section.
-``update_content_metadata`` and ``reindex_algolia`` are both run on a daily cron (so that new learning content that matches
-an existing content filter will be included in appropriate catalogs as the content is published).  Since these jobs
+``update_content_metadata`` runs on a daily cron (so that new learning content that matches
+an existing content filter will be included in appropriate catalogs as the content is published) and dispatches Algolia
+indexing when it finishes.  ``incremental_reindex_algolia`` runs on its own, more frequent cron to catch stale records
+and retry failures.  Since these jobs
 only execute the underlying management commands, they are subject to the same hour-long "lock".  In case you
 need to run the same job on the same input more frequently, the jobs can be run manually with the '--force' command in argocd.
 

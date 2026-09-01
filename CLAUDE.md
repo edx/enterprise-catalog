@@ -77,10 +77,13 @@ Read `docs/architecture_overview.rst` for comprehensive architecture details.
 Key management commands (run via `make app-shell` then execute):
 - `./manage.py update_content_metadata` - Sync content from Discovery Service to enterprise catalogs
 - `./manage.py update_full_content_metadata` - Fetch additional detailed course metadata
-- `./manage.py reindex_algolia` - Rebuild Algolia search index
+- `./manage.py incremental_reindex_algolia` - Index stale and previously-failed records (`--force-all` for everything)
 - `./manage.py migrate` - Apply database migrations
 
 Add `--force` flag to override celery task deduplication (tasks won't run more than once per hour by default).
+
+See `docs/references/content-sync-and-algolia-indexing.md` for how the Discovery sync and Algolia
+indexing pipelines fit together.
 
 ### Permissions and Authorization
 

@@ -87,6 +87,7 @@ The service is organized into several Django applications, each with specific re
     │   ├── video_catalog/    # Video content metadata management
     │   ├── jobs/             # Enterprise jobs data integration
     │   ├── academy/          # Academy content metadata organization
+    │   ├── search/           # Incremental Algolia indexing: state model, dispatchers, batch tasks
     │   ├── core/             # Shared utilities and base models
     │   └── track/            # Analytics and tracking
     └── settings/             # Environment-specific configurations
@@ -107,6 +108,10 @@ The service centers around these core models:
 
 **RestrictedCourseMetadata**
   Query-specific versions of courses with filtered restricted runs
+
+**ContentMetadataIndexingState**
+  Per-``ContentMetadata`` Algolia indexing state: last indexed time, the shard object IDs
+  produced, and the most recent failure. Drives staleness detection for incremental indexing.
 
 **EnterpriseCatalogRoleAssignment**
   Manages user permissions for catalog operations
@@ -307,24 +312,29 @@ Content Synchronization Flow
 
 .. code-block:: text
 
-    Discovery Service → Content Sync → Enterprise Catalog → Algolia Index
-                           │
-                           ▼
-                    ┌─────────────────┐
-                    │ Management      │
-                    │ Commands        │
-                    │                 │
-                    │ • update_       │
-                    │   content_      │
-                    │   metadata      │
-                    │                 │
-                    │ • update_full_  │
-                    │   content_      │
-                    │   metadata      │
-                    │                 │
-                    │ • reindex_      │
-                    │   algolia       │
-                    └─────────────────┘
+    course-discovery ──▶ ContentMetadata (MySQL) ──▶ Algolia index
+           sync                            incremental indexing
+
+    Daily cron: update_content_metadata
+      1. fetch_missing_pathway_metadata_task    load pathways + their members
+      2. fetch_missing_course_metadata_task     load program-only courses
+      3. update_catalog_metadata_task (group)   /search/all/ per CatalogQuery,
+                                                rebuild memberships, sync restricted runs
+      4. update_full_content_metadata_task      /courses/ + /programs/, reviews, normalization
+      5. dispatch_algolia_indexing              fan out batch indexing to Celery workers
+
+    Stragglers cron (~30 min): incremental_reindex_algolia
+      dispatch_algolia_indexing(force=False)    stale and previously-failed records only
+
+    On demand: POST .../refresh_metadata
+      update_catalog_metadata_task → update_full_content_metadata_task
+        → dispatch_algolia_indexing_for_catalog_query   one catalog query's membership
+
+``ContentMetadata.modified`` is the hinge between the two halves. A record is reindexed when
+its ``modified`` timestamp outruns the ``last_indexed_at`` on its ``ContentMetadataIndexingState``
+row, so the Discovery sync only bumps ``modified`` when content actually changed.
+
+Full detail lives in ``docs/references/content-sync-and-algolia-indexing.md``.
 
 External Service Integrations
 ==============================
@@ -371,24 +381,32 @@ Algolia Search Platform
 **Purpose**: Fast search and content discovery
 
 **Integration Pattern**:
-- Content indexing via management commands
-- Real-time search queries from frontend
+- Incremental, per-record indexing dispatched to Celery workers by the ``search`` app
+- Real-time search queries from frontends, scoped by a secured API key
 - Faceted search and filtering
+
+Indexed content types are courses, programs, learner pathways, and videos. Course runs are
+never indexed; they contribute their catalog and customer UUIDs upward to the course, program,
+and pathway records that contain them.
+
+One content record is written as a set of **shards** sharing an ``aggregation_key`` of
+``{content_type}:{content_key}``. Catalog, customer, and catalog-query membership is chunked
+100 UUIDs to a shard, so a course in thousands of catalogs stays within Algolia's record size
+limits. The index sets ``attributeForDistinct: aggregation_key`` with ``distinct: True``, so a
+search returns one hit per content item regardless of shard count.
 
 .. code-block:: text
 
-    Content Updates → Algolia Indexing → Search Results
-                          │
-                          ▼
-                   ┌─────────────────┐
-                   │ Index Structure │
-                   │                 │
-                   │ • Courses       │
-                   │ • Programs      │
-                   │ • Learning      │
-                   │   Paths         │
-                   │ • Videos        │
-                   └─────────────────┘
+    dispatch_algolia_indexing
+        │  decides what is stale, orders courses → programs → pathways → videos
+        ▼
+    index_{courses,programs,pathways,videos}_batch_in_algolia   (batches of 10; videos 20)
+        │  resolve decisions → bulk save + delete (per-record fallback) → stamp state rows
+        ▼
+    Algolia index ──▶ frontends, via secured API keys restricted to the caller's catalog queries
+
+Membership attributes are declared ``unretrievableAttributes``: a client can filter on them but
+cannot read another customer's UUIDs back out.
 
 Celery Task Processing
 ----------------------
@@ -396,10 +414,15 @@ Celery Task Processing
 **Purpose**: Asynchronous task execution for data synchronization
 
 **Task Types**:
-- Content metadata synchronization
-- Algolia index updates
+- Content metadata synchronization from Discovery
+- Incremental Algolia indexing, dispatched as small per-content-type batches
 - Bulk data processing
 - Periodic maintenance tasks
+
+The indexing dispatcher sequences content types with nested Celery chords rather than a chain
+of groups. Program and pathway staleness depends on child ``last_indexed_at`` timestamps, which
+are only written once the child batches finish, so all courses must complete before programs
+start and all programs before pathways. See ``docs/decisions/0013-dispatcher-serial-chain-ordering.rst``.
 
 Authorization and Permissions
 =============================
@@ -481,11 +504,14 @@ Key Development Commands
 
 .. code-block:: bash
 
-    # Sync content from Discovery Service
+    # Sync content from Discovery Service, then index everything that changed
     ./manage.py update_content_metadata --force
 
-    # Update Algolia search index
-    ./manage.py reindex_algolia --force
+    # Index stale and previously-failed records only
+    ./manage.py incremental_reindex_algolia
+
+    # Reindex every indexable record regardless of staleness
+    ./manage.py incremental_reindex_algolia --force-all
 
     # Apply database migrations
     ./manage.py migrate
@@ -544,7 +570,9 @@ Common Issues
 **Search Results Empty**:
 1. Check Algolia index status
 2. Verify catalog query filters
-3. Rebuild index: ``./manage.py reindex_algolia --force``
+3. Check the content's ``ContentMetadataIndexingState`` row in Django admin for
+   ``last_failure_at`` / ``failure_reason``
+4. Rebuild index: ``./manage.py incremental_reindex_algolia --force-all``
 
 **Permission Denied**:
 1. Verify JWT token validity

@@ -1,0 +1,22 @@
+enterprise_catalog/apps/search/tests/test_tasks.py
+  s_cb6b3bf57bffe8::t_96532e2fd40545 1296-1310,1315-1317,1324
+  s_cb6b3bf57bffe8::t_0eec5f6fb93c05 1666-1668,1671-1675,1677-1681,1686
+  s_cb6b3bf57bffe8::t_cf17f11c458942 1311-1314,1318-1323
+  s_cb6b3bf57bffe8::t_fba4856c5e348a 1669-1670,1676,1682-1685
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8cb4384b73e618f65595589b6ad529b8da12cc7e",
+  "prompts": {},
+  "sessions": {
+    "s_cb6b3bf57bffe8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84721c0d-5a0f-4592-81ae-07e7842717ec",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

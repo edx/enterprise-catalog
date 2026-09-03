@@ -651,3 +651,103 @@ class SecuredAlgoliaAPIKeyErrorResponseSerializer(BaseErrorSerializer):
     """
     Serializer for the error response of the secured Algolia API key endpoint.
     """
+
+
+class ContentMembershipDebugContentSerializer(BaseSerializer):
+    """
+    Local ContentMetadata state for the content-membership debug endpoint.
+
+    The key set is the same whether or not the content exists locally: when it was never synced
+    from Discovery, ``exists`` is False and every other field is null.
+    """
+    exists = serializers.BooleanField(help_text='Whether a local ContentMetadata record exists.')
+    content_type = serializers.CharField(allow_null=True)
+    content_uuid = serializers.UUIDField(allow_null=True)
+    parent_content_key = serializers.CharField(allow_null=True)
+    created = serializers.DateTimeField(allow_null=True)
+    modified = serializers.DateTimeField(
+        allow_null=True,
+        help_text='When the local ContentMetadata record last changed.',
+    )
+    discovery_modified = serializers.CharField(
+        allow_null=True,
+        help_text="Discovery's own modified timestamp, mirrored into json_metadata for courses only.",
+    )
+
+
+class ContentMembershipDebugCatalogSerializer(BaseSerializer):
+    """
+    One catalog's membership verdict for the requested content key.
+    """
+    catalog_uuid = serializers.UUIDField()
+    title = serializers.CharField(allow_null=True)
+    catalog_query_id = serializers.IntegerField(allow_null=True)
+    catalog_query_uuid = serializers.UUIDField(allow_null=True)
+    contains_content = serializers.BooleanField(
+        help_text='Membership excluding restricted runs, i.e. v1 semantics.',
+    )
+    contains_content_including_restricted = serializers.BooleanField(
+        help_text='Membership including restricted runs, i.e. v2 semantics.',
+    )
+    restricted_only = serializers.BooleanField(
+        help_text=(
+            'True when the catalog contains the content only by way of a restricted run. '
+            'Distinguishes "not in the catalog" from "in the catalog but hidden".'
+        ),
+    )
+    matched_content_keys = serializers.ListField(child=serializers.CharField())
+    restricted_runs_allowed = serializers.DictField(
+        allow_null=True,
+        help_text="The catalog query's restricted_runs_allowed filter, if any.",
+    )
+    catalog_query_modified = serializers.DateTimeField(
+        allow_null=True,
+        help_text=(
+            'When the catalog query last changed. The closest available stand-in for when '
+            'membership changed: the CatalogQuery/ContentMetadata M2M has no through model, no '
+            'history, and is rewritten wholesale on every sync, so no per-membership timestamp '
+            'exists to return.'
+        ),
+    )
+    enterprise_catalog_modified = serializers.DateTimeField(
+        help_text='When the EnterpriseCatalog record last changed. The other membership stand-in.',
+    )
+    indexed_after_last_membership_change = serializers.BooleanField(
+        allow_null=True,
+        help_text=(
+            'Whether the last Algolia index run postdates the last catalog query change. '
+            'False means the index is behind. Null when either timestamp is missing.'
+        ),
+    )
+
+
+class ContentMembershipDebugAlgoliaSerializer(BaseSerializer):
+    """
+    Algolia indexing state, read from the database only.
+
+    The endpoint makes no outbound Algolia call, so nothing here confirms which customer or
+    catalog UUIDs were present in the indexed record. Use
+    ``indexed_after_last_membership_change`` on each catalog instead.
+    """
+    indexing_state_exists = serializers.BooleanField()
+    last_indexed_at = serializers.DateTimeField(allow_null=True)
+    removed_from_index_at = serializers.DateTimeField(allow_null=True)
+    last_failure_at = serializers.DateTimeField(allow_null=True)
+    failure_reason = serializers.CharField(allow_null=True)
+    is_stale = serializers.BooleanField(allow_null=True)
+    algolia_object_ids = serializers.ListField(child=serializers.CharField())
+
+
+class ContentMembershipDebugResponseSerializer(BaseSerializer):
+    """
+    Serializer for the response of the content-membership debug endpoint.
+    """
+    enterprise_uuid = serializers.UUIDField()
+    content_key = serializers.CharField()
+    content = ContentMembershipDebugContentSerializer()
+    catalogs = ContentMembershipDebugCatalogSerializer(many=True)
+    catalogs_containing_content = serializers.ListField(child=serializers.UUIDField())
+    catalogs_containing_content_including_restricted = serializers.ListField(
+        child=serializers.UUIDField(),
+    )
+    algolia = ContentMembershipDebugAlgoliaSerializer()

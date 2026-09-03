@@ -4,6 +4,9 @@ URL definitions for enterprise catalog API version 2.
 from django.urls import path, re_path
 from rest_framework.routers import DefaultRouter
 
+from enterprise_catalog.apps.api.v1.views.content_membership_debug import (
+    ContentMembershipDebugView,
+)
 from enterprise_catalog.apps.api.v2.views.enterprise_catalog_contains_content_items import (
     EnterpriseCatalogContainsContentItemsV2,
 )
@@ -27,6 +30,15 @@ urlpatterns = [
         r'^enterprise-catalogs/(?P<uuid>[\S]+)/get_content_metadata',
         EnterpriseCatalogGetContentMetadataV2.as_view({'get': 'get'}),
         name='get-content-metadata-v2'
+    ),
+    # Reuses the v1 view rather than subclassing it: unlike the other v2 views, this one has
+    # no include_restricted flag to flip. It already reports both the restricted and
+    # unrestricted membership answers side by side, so there is nothing version-dependent
+    # left to override.
+    path(
+        'enterprise-customer/<enterprise_uuid>/content-membership-debug/<content_key>/',
+        ContentMembershipDebugView.as_view(),
+        name='content-membership-debug'
     ),
     path(
         'enterprise-customer/<enterprise_uuid>/content-metadata/<content_identifier>/',

@@ -17,6 +17,9 @@ from enterprise_catalog.apps.api.v1.views.catalog_query import (
 from enterprise_catalog.apps.api.v1.views.catalog_workbook import (
     CatalogWorkbookView,
 )
+from enterprise_catalog.apps.api.v1.views.content_membership_debug import (
+    ContentMembershipDebugView,
+)
 from enterprise_catalog.apps.api.v1.views.content_metadata import (
     ContentMetadataView,
 )
@@ -120,6 +123,11 @@ urlpatterns = [
         'enterprise-customer/<enterprise_uuid>/content-metadata/<content_identifier>/',
         EnterpriseCustomerViewSet.as_view({'get': 'content_metadata'}),
         name='customer-content-metadata-retrieve'
+    ),
+    path(
+        'enterprise-customer/<enterprise_uuid>/content-membership-debug/<content_key>/',
+        ContentMembershipDebugView.as_view(),
+        name='content-membership-debug'
     ),
     path(
         'catalog-queries/get_query_by_hash',

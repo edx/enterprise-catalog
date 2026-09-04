@@ -5,9 +5,11 @@ from django.urls import reverse
 from rest_framework import status
 
 from enterprise_catalog.apps.api.v1.tests.mixins import APITestMixin
+from enterprise_catalog.apps.catalog.constants import COURSE, PROGRAM
 from enterprise_catalog.apps.catalog.tests.factories import (
     USER_PASSWORD,
     CatalogQueryFactory,
+    ContentMetadataFactory,
     EnterpriseCatalogFactory,
     UserFactory,
 )
@@ -61,6 +63,41 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
         self.assertEqual(
             response.data['content_filter'],
             {'partner': 'edx', 'content_type': 'course'},
+        )
+        self.assertEqual(response.data['course_count'], 0)
+
+    def test_get_by_uuid_counts_only_course_metadata(self):
+        """
+        GET /api/v1/catalog-queries/<uuid>/ counts only associated course content.
+        """
+        courses = ContentMetadataFactory.create_batch(2, content_type=COURSE)
+        program = ContentMetadataFactory(content_type=PROGRAM)
+        self.catalog_query.contentmetadata_set.add(*courses, program)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['course_count'], 2)
+
+    def test_get_by_uuid_response_schema_includes_course_count(self):
+        """
+        GET /api/v1/catalog-queries/<uuid>/ includes existing fields and course_count.
+        """
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            set(response.data.keys()),
+            {
+                'id',
+                'uuid',
+                'content_filter',
+                'content_filter_hash',
+                'title',
+                'created',
+                'modified',
+                'course_count',
+            },
         )
 
     def test_get_by_uuid_success_for_non_staff_catalog_admin(self):

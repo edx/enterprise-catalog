@@ -14,7 +14,7 @@ analytics-python==1.4.post1
     # via -r requirements/base.in
 annotated-types==0.8.0
     # via pydantic
-anyio==4.14.2
+anyio==4.15.0
     # via
     #   httpx
     #   openai
@@ -134,7 +134,7 @@ django-model-utils==5.0.0
     #   -r requirements/base.in
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.20.3
+django-modeltranslation==0.20.4
     # via -r requirements/base.in
 django-simple-history==3.13.0
     # via
@@ -176,7 +176,7 @@ edx-django-utils==8.0.2
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   edx-toggles
-edx-drf-extensions==10.7.0
+edx-drf-extensions==10.8.0
     # via
     #   -r requirements/base.in
     #   edx-rbac
@@ -260,7 +260,7 @@ pyjwt[crypto]==2.13.0
     #   social-auth-core
 pymemcache==4.0.0
     # via -r requirements/base.in
-pymongo==4.17.0
+pymongo==4.18.0
     # via edx-opaque-keys
 pynacl==1.6.2
     # via edx-django-utils

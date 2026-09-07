@@ -23,7 +23,7 @@ annotated-types==0.8.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pydantic
-anyio==4.14.2
+anyio==4.15.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -246,7 +246,7 @@ django-model-utils==5.0.0
     #   -r requirements/test.txt
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.20.3
+django-modeltranslation==0.20.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -313,7 +313,7 @@ edx-django-utils==8.0.2
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   edx-toggles
-edx-drf-extensions==10.7.0
+edx-drf-extensions==10.8.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -342,7 +342,7 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.37.0
+faker==40.38.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
@@ -476,7 +476,7 @@ packaging==26.3
     #   pyproject-api
     #   pytest
     #   tox
-platformdirs==4.11.5
+platformdirs==4.11.7
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -564,7 +564,7 @@ pymemcache==4.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-pymongo==4.17.0
+pymongo==4.18.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -800,7 +800,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.7
+virtualenv==21.7.8
     # via
     #   -r requirements/test.txt
     #   tox

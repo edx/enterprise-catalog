@@ -1,0 +1,29 @@
+enterprise_catalog/apps/search/tasks.py
+  s_13011905dc7920::t_d4aa307517cb21 84
+  s_13011905dc7920::t_ded978d469a51b 57
+enterprise_catalog/apps/search/tests/test_tasks.py
+  s_13011905dc7920::t_2ee58890028c61 746-748
+  s_13011905dc7920::t_6c813a92714156 16
+  s_13011905dc7920::t_e7ea6d9d0534d3 1188-1243
+  s_13011905dc7920::t_dba3719bd0c2dc 54
+  s_13011905dc7920::t_6ea3757e60a2a7 36,40
+  s_13011905dc7920::t_c5673e545cb8cc 1686-1723
+  s_13011905dc7920::t_dfc7a2f97aabad 21
+  s_13011905dc7920::t_4b5b8489917b68 1729
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "97bc167ba9255cb677114b944a3db7e6adcfadfc",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+enterprise_catalog/apps/api/v1/tests/test_views.py
+  s_13011905dc7920::t_bb0b70245be17b 1876,1880,1886,1898
+docs/algolia-reindexing/plans/v1-decommission-plan.md
+  s_13011905dc7920::t_0eb2d691026b66 37
+  s_13011905dc7920::t_b0738297c6ffa5 7,11-13,15,17,19,21-23,27-28,31-36,38-73,77,80
+  s_13011905dc7920::t_c72c1f75889d5f 78-79
+  s_13011905dc7920::t_3ec8c1ebeeac74 81-82
+enterprise_catalog/apps/api_client/tests/test_algolia.py
+  s_13011905dc7920::t_3883d4e7e43bec 45-63
+enterprise_catalog/apps/api/v1/views/enterprise_catalog_refresh_data_from_discovery.py
+  s_13011905dc7920::t_fe4538ded2613f 1,39-43
+enterprise_catalog/apps/catalog/management/commands/tests/test_update_content_metadata.py
+  s_13011905dc7920::t_793e35a455cee9 4,48,57-58,73,82-83,102,111-112,125,134-135,157,162,175,180
+enterprise_catalog/apps/catalog/management/commands/update_content_metadata.py
+  s_13011905dc7920::t_a45758b767460a 13
+  s_13011905dc7920::t_1b018f65fceeec 182-195,197-202
+enterprise_catalog/apps/api_client/algolia.py
+  s_13011905dc7920::t_a575cfa448fc25 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "666a557e445a6ea3669696b2eed263ad088333af",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    }
+  }
+}

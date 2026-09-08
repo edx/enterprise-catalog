@@ -1,0 +1,26 @@
+enterprise_catalog/apps/catalog/models.py
+  29bd125b29faa9ae 1250,1253-1254,1257,1266-1267,1269,1280,1486-1494,1501,1505-1520,1523,1532-1536,1554-1566
+enterprise_catalog/apps/catalog/tests/test_models.py
+  29bd125b29faa9ae 29,1948,1953-1955,1991,1997,2029,2035,2082,2087-2089,2137,2143,2153-2324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "372b865443f8673bfa6e5b751d81c364419bc5d3",
+  "prompts": {
+    "29bd125b29faa9ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f31f7a8-8808-4f36-bd3e-5eb1e686424f",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 240,
+      "total_deletions": 24,
+      "accepted_lines": 240,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/d055daf9b2d59b279f0f6ace86e09a70f09f9a10522606a5586f1979aa944ce1"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+docs/algolia-reindexing/plans/v1-decommission-plan.md
+  s_13011905dc7920::t_0eb2d691026b66 1-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d5e989798ad0bb7ff260222fff7ee093237f15e3",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+enterprise_catalog/apps/api/tasks.py
+  s_4dd4eb4935a8a8::t_068010eeac1355 376-385,391-397
+enterprise_catalog/apps/api/tests/test_tasks.py
+  s_4dd4eb4935a8a8::t_3d63b0c55c91ce 21,25-26,37,355-459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0dda5fd0c2b77c2ffee34dc0214a1aa369548078",
+  "prompts": {},
+  "sessions": {
+    "s_4dd4eb4935a8a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "652507f9-9970-4dc2-bb29-7f9038093df0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "rgopalrao-sonata-png <rgopalrao-sonata@2u.com>"
+    }
+  }
+}

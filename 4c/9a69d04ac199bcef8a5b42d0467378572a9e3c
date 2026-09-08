@@ -1,0 +1,36 @@
+docs/architecture_overview.rst
+  s_005029522fafae::t_1c6d694cddbd3f 315-337
+  s_005029522fafae::t_0095389b10285d 507,510-514
+  s_005029522fafae::t_fdbcda63bc1600 112-115
+  s_005029522fafae::t_324a4958d1b4e6 384-385,388-397,400-409,417-418,422-425
+  s_005029522fafae::t_caec4be5a43791 573-575
+  s_005029522fafae::t_09433d7bd493f5 90
+  s_005029522fafae::t_9b5ee453fc59a7 426
+docs/getting_started.rst
+  s_005029522fafae::t_734629f1186a55 92-95
+  s_005029522fafae::t_8ada740dc1402c 77-82
+  s_005029522fafae::t_a2dc2a982813a9 101-104
+docs/algolia-reindexing/README.md
+  s_005029522fafae::t_b3dbfd8b048f71 1,3-5,7-48
+docs/references/content-sync-and-algolia-indexing.md
+  s_005029522fafae::t_74a13529cd7edf 1-338
+CLAUDE.md
+  s_005029522fafae::t_63aaa73c7afa33 80,85-86
+  s_005029522fafae::t_fb468cd44ac94b 87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "4c9a69d04ac199bcef8a5b42d0467378572a9e3c",
+  "prompts": {},
+  "sessions": {
+    "s_005029522fafae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b03bc974-dd16-4e5d-b679-3215d7a0fd71",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

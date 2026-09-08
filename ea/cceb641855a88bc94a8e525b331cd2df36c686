@@ -1,0 +1,23 @@
+enterprise_catalog/apps/catalog/models.py
+  s_5937d1a218c98d::t_25682333b08cac 1038-1039
+  s_5937d1a218c98d::t_f6fe949fd77533 999-1006
+  s_5937d1a218c98d::t_e4334e5ea1b2cc 1823-1824,1828-1829
+enterprise_catalog/apps/catalog/tests/test_models.py
+  s_5937d1a218c98d::t_972c90739ae55a 1435-1448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "eacceb641855a88bc94a8e525b331cd2df36c686",
+  "prompts": {},
+  "sessions": {
+    "s_5937d1a218c98d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf14b901-399b-414a-9277-e68e3148a018",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

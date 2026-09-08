@@ -1,0 +1,28 @@
+enterprise_catalog/apps/api/tasks.py
+  s_8a5efc8a490535::t_0bb9e62b1efd36 317-321
+  s_8a5efc8a490535::t_baced3a802d2c5 316
+  s_8a5efc8a490535::t_daa436402571d8 322-324
+  s_8a5efc8a490535::t_32ed7edc8097b8 296,314,337,347-348,518,528-529
+enterprise_catalog/apps/api/tests/test_tasks.py
+  s_8a5efc8a490535::t_b8cdea50801050 402-403,405
+  s_8a5efc8a490535::t_dccd0749631271 446
+  s_8a5efc8a490535::t_8d3d0d56bae0ae 570,573-577
+  s_8a5efc8a490535::t_2f905a9edda679 404,409-411
+  s_8a5efc8a490535::t_f41e0907ab614e 578
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "460bc1b9196b5dac5813f9c5168bf82d459ba797",
+  "prompts": {},
+  "sessions": {
+    "s_8a5efc8a490535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec08cd97-3e90-4ff3-a103-63457e498f2e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

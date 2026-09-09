@@ -116,6 +116,7 @@ class CatalogQuerySerializer(serializers.ModelSerializer):
     """
     Serializer for the `CatalogQuery` model
     """
+    course_count = serializers.SerializerMethodField()
     content_filter = serializers.JSONField(
         read_only=True,
         help_text="Elastic search content filter used to determine content ownership of the query."
@@ -129,7 +130,24 @@ class CatalogQuerySerializer(serializers.ModelSerializer):
             'content_filter',
             'content_filter_hash',
             'title',
+            'created',
+            'modified',
+            'course_count',
         ]
+        read_only_fields = [
+            'id',
+            'uuid',
+            'content_filter',
+            'content_filter_hash',
+            'title',
+            'created',
+            'modified',
+            'course_count',
+        ]
+
+    def get_course_count(self, obj):
+        """Return total associated course content metadata items."""
+        return obj.contentmetadata_set.filter(content_type=COURSE).count()
 
 
 class EnterpriseCatalogSerializer(serializers.ModelSerializer):

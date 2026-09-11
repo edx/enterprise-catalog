@@ -23,7 +23,7 @@ annotated-types==0.8.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pydantic
-anyio==4.15.0
+anyio==4.15.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -58,7 +58,7 @@ billiard==4.2.4
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
-build==1.6.0
+build==1.6.1
     # via
     #   -r requirements/pip-tools.txt
     #   pip-tools
@@ -262,7 +262,7 @@ django-model-utils==5.0.0
     #   -r requirements/test.txt
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.20.4
+django-modeltranslation==0.20.6
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -282,7 +282,7 @@ djangoql==0.19.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-djangorestframework==3.18.0
+djangorestframework==3.18.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -364,7 +364,7 @@ faker==40.38.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==3.32.5
+filelock==3.32.6
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -482,12 +482,12 @@ mysqlclient==2.2.8
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-narwhals==2.25.0
+narwhals==2.26.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   scikit-learn
-numpy==2.5.2
+numpy==2.5.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -519,7 +519,7 @@ path==16.16.0
     # via edx-i18n-tools
 pip-tools==7.6.1
     # via -r requirements/pip-tools.txt
-platformdirs==4.11.7
+platformdirs==4.11.8
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -611,7 +611,7 @@ pymemcache==4.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-pymongo==4.18.0
+pymongo==4.18.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -652,7 +652,7 @@ python-discovery==1.6.0
     #   virtualenv
 python-memcached==1.62
     # via -r requirements/dev.in
-python-slugify==8.0.4
+python-slugify==9.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -715,7 +715,7 @@ rules==3.5
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-scikit-learn==1.9.0
+scikit-learn==1.9.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -805,7 +805,7 @@ tomlkit==0.15.1
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.61.2
+tox==4.61.4
     # via -r requirements/test.txt
 tqdm==4.70.0
     # via
@@ -861,7 +861,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.8
+virtualenv==21.7.9
     # via
     #   -r requirements/test.txt
     #   tox

@@ -16,7 +16,7 @@ annotated-types==0.8.0
     # via
     #   -r requirements/base.txt
     #   pydantic
-anyio==4.15.0
+anyio==4.15.1
     # via
     #   -r requirements/base.txt
     #   httpx
@@ -161,7 +161,7 @@ django-model-utils==5.0.0
     #   -r requirements/base.txt
     #   edx-celeryutils
     #   edx-rbac
-django-modeltranslation==0.20.4
+django-modeltranslation==0.20.6
     # via -r requirements/base.txt
 django-simple-history==3.13.0
     # via -r requirements/base.txt
@@ -173,7 +173,7 @@ django-waffle==5.0.0
     #   edx-toggles
 djangoql==0.19.1
     # via -r requirements/base.txt
-djangorestframework==3.18.0
+djangorestframework==3.18.1
     # via
     #   -r requirements/base.txt
     #   django-config-models
@@ -286,11 +286,11 @@ monotonic==1.6
     #   analytics-python
 mysqlclient==2.2.8
     # via -r requirements/base.txt
-narwhals==2.25.0
+narwhals==2.26.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
-numpy==2.5.2
+numpy==2.5.3
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -340,7 +340,7 @@ pyjwt[crypto]==2.13.0
     #   social-auth-core
 pymemcache==4.0.0
     # via -r requirements/base.txt
-pymongo==4.18.0
+pymongo==4.18.1
     # via
     #   -r requirements/base.txt
     #   edx-opaque-keys
@@ -355,7 +355,7 @@ python-dateutil==2.9.0.post0
     #   celery
 python-memcached==1.62
     # via -r requirements/production.in
-python-slugify==8.0.4
+python-slugify==9.0.0
     # via
     #   -r requirements/base.txt
     #   code-annotations
@@ -399,7 +399,7 @@ rpds-py==2026.6.3
     #   referencing
 rules==3.5
     # via -r requirements/base.txt
-scikit-learn==1.9.0
+scikit-learn==1.9.1
     # via -r requirements/base.txt
 scipy==1.18.1
     # via

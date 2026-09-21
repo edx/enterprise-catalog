@@ -42,11 +42,11 @@ backoff==1.10.0
     # via
     #   -r requirements/base.txt
     #   analytics-python
-billiard==4.2.4
+billiard==4.3.0
     # via
     #   -r requirements/base.txt
     #   celery
-cachetools==7.1.8
+cachetools==7.2.0
     # via tox
 celery==5.6.3
     # via
@@ -90,7 +90,7 @@ click-plugins==1.1.1.2
     # via
     #   -r requirements/base.txt
     #   celery
-click-repl==0.3.0
+click-repl==0.4.0
     # via
     #   -r requirements/base.txt
     #   celery
@@ -106,7 +106,7 @@ code-annotations==3.0.0
     #   edx-toggles
 colorama==0.4.6
     # via tox
-coverage[toml]==7.16.0
+coverage[toml]==7.16.1
     # via
     #   -r requirements/test.in
     #   pytest-cov
@@ -238,7 +238,7 @@ edx-django-utils==8.0.2
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   edx-toggles
-edx-drf-extensions==10.8.0
+edx-drf-extensions==10.9.0
     # via
     #   -r requirements/base.txt
     #   edx-rbac
@@ -258,9 +258,9 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.in
-faker==40.38.0
+faker==40.39.0
     # via factory-boy
-filelock==3.32.6
+filelock==3.32.7
     # via
     #   python-discovery
     #   tox
@@ -277,7 +277,7 @@ httpx==0.28.1
     # via
     #   -r requirements/base.txt
     #   openai
-idna==3.19
+idna==3.20
     # via
     #   -r requirements/base.txt
     #   anyio
@@ -329,7 +329,7 @@ monotonic==1.6
     #   analytics-python
 mypy-extensions==1.1.0
     # via isort
-mysqlclient==2.2.8
+mysqlclient==2.3.0
     # via -r requirements/base.txt
 narwhals==2.26.0
     # via
@@ -356,7 +356,7 @@ packaging==26.3
     #   pyproject-api
     #   pytest
     #   tox
-platformdirs==4.11.8
+platformdirs==4.11.10
     # via
     #   pylint
     #   tox
@@ -392,7 +392,7 @@ pydantic-core==2.46.5
     #   pydantic
 pygments==2.21.0
     # via pytest
-pyjwt[crypto]==2.13.0
+pyjwt[crypto]==2.14.0
     # via
     #   -r requirements/base.txt
     #   drf-jwt
@@ -424,7 +424,7 @@ pynacl==1.6.2
     # via
     #   -r requirements/base.txt
     #   edx-django-utils
-pyproject-api==1.11.0
+pyproject-api==1.11.2
     # via tox
 pytest==9.1.1
     # via
@@ -439,7 +439,7 @@ python-dateutil==2.9.0.post0
     #   -r requirements/base.txt
     #   analytics-python
     #   celery
-python-discovery==1.6.0
+python-discovery==1.6.1
     # via
     #   tox
     #   virtualenv
@@ -546,7 +546,7 @@ text-unidecode==1.3
     # via
     #   -r requirements/base.txt
     #   python-slugify
-threadpoolctl==3.6.0
+threadpoolctl==3.7.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
@@ -556,9 +556,9 @@ tomlkit==0.15.1
     # via
     #   edx-lint
     #   pylint
-tox==4.61.4
+tox==4.61.5
     # via -r requirements/test.in
-tqdm==4.70.0
+tqdm==4.70.1
     # via
     #   -r requirements/base.txt
     #   openai
@@ -566,6 +566,7 @@ typing-extensions==4.16.0
     # via
     #   -r requirements/base.txt
     #   anyio
+    #   click-repl
     #   django-modeltranslation
     #   edx-opaque-keys
     #   openai
@@ -578,7 +579,7 @@ typing-inspection==0.4.4
     # via
     #   -r requirements/base.txt
     #   pydantic
-tzdata==2026.3
+tzdata==2026.4
     # via
     #   -r requirements/base.txt
     #   kombu
@@ -590,7 +591,7 @@ uritemplate==4.2.0
     # via
     #   -r requirements/base.txt
     #   drf-spectacular
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -r requirements/base.txt
     #   requests
@@ -601,9 +602,9 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.9
+virtualenv==21.7.12
     # via tox
-wcwidth==0.8.3
+wcwidth==0.8.4
     # via
     #   -r requirements/base.txt
     #   prompt-toolkit

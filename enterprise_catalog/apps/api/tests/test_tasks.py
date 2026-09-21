@@ -4,14 +4,21 @@ Tests for the enterprise_catalog API celery tasks
 
 import json
 import uuid
+from collections import Counter
 from datetime import timedelta
 from unittest import mock
 
 import ddt
 from celery import states
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django_celery_results.models import TaskResult
 
+from enterprise_catalog.apps.academy.tests.factories import (
+    AcademyFactory,
+    TagFactory,
+)
 from enterprise_catalog.apps.api import tasks
 from enterprise_catalog.apps.api.constants import CourseMode
 from enterprise_catalog.apps.api_client.discovery import CatalogQueryMetadata
@@ -889,3 +896,62 @@ class UpdateFullContentMetadataTaskTests(TestCase):
         assert course_run_json['uuid'] == course_run_uuid
         assert course_run_json['start'] == '2023-03-01T00:00:00Z'
         assert course_run_json['end'] == '2023-04-09T23:59:59Z'
+
+
+class GetAlgoliaProductsForBatchAcademyTagTests(TestCase):
+    """
+    Tests for academy tag collection in ``_get_algolia_products_for_batch``.
+    """
+
+    def _build_tagged_course(self, catalog, tag):
+        """
+        Create an indexable course in ``catalog``'s query and tag it with ``tag``.
+        """
+        course = ContentMetadataFactory(content_type=COURSE)
+        course.catalog_queries.set([catalog.catalog_query])
+        tag.content_metadata.add(course)
+        return course
+
+    def _run_batch(self, content_keys):
+        context_accumulator = {
+            'total_algolia_products_count': 0,
+            'generated_algolia_object_ids': set(),
+            'discarded_algolia_object_ids': Counter(),
+        }
+        return tasks._get_algolia_products_for_batch(  # pylint: disable=protected-access
+            0, content_keys, set(content_keys), {}, {}, context_accumulator,
+        )
+
+    def test_academy_tags_are_collected(self):
+        catalog = EnterpriseCatalogFactory()
+        tag = TagFactory()
+        AcademyFactory(enterprise_catalogs=[catalog], tags=[tag])
+        course = self._build_tagged_course(catalog, tag)
+
+        products = self._run_batch([course.content_key])
+
+        academy_tags = {
+            academy_tag
+            for product in products
+            for academy_tag in product.get('academy_tags', [])
+        }
+        assert tag.title in academy_tags
+
+    def test_tag_membership_does_not_query_per_content_key(self):
+        """
+        The tag -> content key lookup is served from the prefetch cache, so the tag join table is
+        hit only by the prefetch itself, not once per (tag, content key) pair.
+        """
+        catalog = EnterpriseCatalogFactory()
+        tags = [TagFactory(), TagFactory()]
+        AcademyFactory(enterprise_catalogs=[catalog], tags=tags)
+        courses = [self._build_tagged_course(catalog, tags[0]) for _ in range(3)]
+
+        with CaptureQueriesContext(connection) as capture:
+            self._run_batch([course.content_key for course in courses])
+
+        tag_queries = [
+            query for query in capture.captured_queries
+            if 'academy_tag_content_metadata' in query['sql']
+        ]
+        assert len(tag_queries) == 1

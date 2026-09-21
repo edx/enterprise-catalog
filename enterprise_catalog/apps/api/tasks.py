@@ -1085,6 +1085,10 @@ def _get_algolia_products_for_batch(
     academy_tags_by_key = defaultdict(set)
     video_ids_by_key = defaultdict(set)
 
+    # Small performance optimization: memoizes tag id -> set of tagged content keys,
+    # populated from the prefetched `tags__content_metadata` relation below.
+    content_keys_by_tag_id = {}
+
     catalog_query_uuid_by_catalog_uuid = defaultdict(set)
     customer_uuid_by_catalog_uuid = defaultdict(set)
     academy_uuids_by_catalog_uuid = defaultdict(set)
@@ -1211,7 +1215,13 @@ def _get_algolia_products_for_batch(
                     academy_uuids_by_key[content_key].add(str(academy.uuid))
                     academy_uuids_by_catalog_uuid[str(catalog.uuid)].add(str(academy.uuid))
                     for tag in associated_academy_tags:
-                        if tag.content_metadata.filter(content_key=content_key):
+                        if tag.id not in content_keys_by_tag_id:
+                            # Using .all() here takes advantage of the pre-fetched content metadtata
+                            # records associated with each tag.
+                            content_keys_by_tag_id[tag.id] = {
+                                tagged.content_key for tagged in tag.content_metadata.all()
+                            }
+                        if content_key in content_keys_by_tag_id[tag.id]:
                             academy_tags_by_key[content_key].add(str(tag.title))
                             academy_tags_by_catalog_uuid[str(catalog.uuid)].add(str(tag.title))
 

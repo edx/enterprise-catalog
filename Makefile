@@ -4,12 +4,12 @@ TOX = ''
         doc_requirements prod_requirements static shell test coverage \
         isort_check isort style lint quality pii_check validate \
         migrate html_coverage upgrade extract_translation dummy_translations \
-        compile_translations fake_translations  pull_translations \
-        push_translations start-devstack open-devstack  pkg-devstack \
+        compile_translations fake_translations pull_translations \
+        start-devstack open-devstack pkg-devstack \
         detect_changed_source_translations validate_translations \
         dev.provision dev.init dev.makemigrations dev.migrate dev.up \
         dev.up.build dev.down dev.destroy dev.stop docker_build \
-        shellcheck check_keywords install_transifex_client
+        shellcheck check_keywords
 
 COMMON_CONSTRAINTS_TXT=requirements/common_constraints.txt
 .PHONY: $(COMMON_CONSTRAINTS_TXT)
@@ -131,11 +131,10 @@ compile_translations: # compile translation files, outputting .po files for each
 
 fake_translations: ## generate and compile dummy translation files
 
-pull_translations: ## pull translations from Transifex
-	tx pull -t -a -f --mode reviewed
-
-push_translations: ## push source translation files (.po) from Transifex
-	tx push -s
+pull_translations: ## pull translations from edx/openedx-translations via atlas (OEP-58)
+	find enterprise_catalog/conf/locale -mindepth 1 -maxdepth 1 -type d -exec rm -r {} \;
+	atlas pull $(ATLAS_OPTIONS) translations/enterprise-catalog/enterprise_catalog/conf/locale:enterprise_catalog/conf/locale
+	python3 manage.py compilemessages
 
 start-devstack: ## run a local development copy of the server
 	docker-compose --x-networking up
@@ -210,7 +209,3 @@ docker_auth:
 
 check_keywords: ## Scan the Django models in all installed apps in this project for restricted field names
 	python manage.py check_reserved_keywords --override_file db_keyword_overrides.yml
-
-install_transifex_client: ## Install the Transifex client
-	curl -o- https://raw.githubusercontent.com/transifex/cli/master/install.sh | bash
-	git checkout -- LICENSE README.md

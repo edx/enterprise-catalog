@@ -1,0 +1,38 @@
+docs/how_to/add_an_algolia_sort_replica.rst
+  s_5b3f74dac56b59::t_3b6916dd539433 9-32,37,43,49-51,56-60,76-84,88-91,96,98-99,102,110-116,125-129,131-132,134-135,137,139-140
+enterprise_catalog/apps/api_client/tests/test_algolia.py
+  s_5b3f74dac56b59::t_5cb2180236e0b6 160-162
+enterprise_catalog/settings/base.py
+  s_5b3f74dac56b59::t_f43f054c628a5d 435-455,460,462-470
+docs/decisions/0014-newest-courses-sort-replica.rst
+  s_5b3f74dac56b59::t_c00bbae98d3d68 23-25
+  s_5b3f74dac56b59::t_6ef28035aba413 35-37
+  s_5b3f74dac56b59::t_b26dbcf622408b 60-74
+  s_5b3f74dac56b59::t_b0ab8c1d6a1d9c 105-116
+enterprise_catalog/apps/catalog/tests/test_algolia_utils.py
+  s_5b3f74dac56b59::t_fc4988de3955e1 287-288,292-294,303-309
+  s_5b3f74dac56b59::t_2601a882c42a68 1086,1088,1092-1095,1098,1111,1121,1137
+enterprise_catalog/apps/catalog/algolia_utils.py
+  s_5b3f74dac56b59::t_bca02c9c16290c 75-78,81-85
+  s_5b3f74dac56b59::t_7efff9ee9f4401 243,245-249,252-255
+enterprise_catalog/apps/api_client/algolia.py
+  s_5b3f74dac56b59::t_4d0587149b160d 52,54-56,59-62
+enterprise_catalog/settings/production.py
+  s_5b3f74dac56b59::t_9742a00dfc75f7 24-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "43c6165727fafd39f5f8c845682c63f5faf16d5f",
+  "prompts": {},
+  "sessions": {
+    "s_5b3f74dac56b59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "74052e79-677e-4296-80c2-f0c854f8d61d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Brian Beggs <macdiesel@gmail.com>"
+    }
+  }
+}

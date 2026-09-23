@@ -1,0 +1,31 @@
+scripts/validate_algolia_indices.py
+  s_13011905dc7920::t_f1fce073581154 859-860
+  s_13011905dc7920::t_0d1f88cb9a3f50 813
+  s_13011905dc7920::t_d0eaca8645eb78 26-29
+  s_13011905dc7920::t_220e35b9dbe9f5 22-25
+  s_13011905dc7920::t_12d90a58816026 833
+  s_13011905dc7920::t_d106850655e402 87-106
+  s_13011905dc7920::t_4fa1e5b36613b8 721-800
+  s_13011905dc7920::t_4d1959fd9b9f27 851-852
+  s_13011905dc7920::t_99d88ce4fbbbbf 632-720
+  s_13011905dc7920::t_93cbf0bea84cbf 814
+docs/algolia-reindexing/v2-index-validation-status.md
+  s_13011905dc7920::t_510ebe55331018 35-45,53
+  s_13011905dc7920::t_d0355a6e27c4ea 8-13,18-33,51-52,54,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "c02b82e0447f196275434f871eeacba1b98b86bf",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

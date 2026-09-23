@@ -1,0 +1,29 @@
+scripts/algolia_batch_smoke.py
+  s_13011905dc7920::t_ef8bdc3ced0516 5,23,137-138
+docs/algolia-reindexing/tech-spec.md
+  s_13011905dc7920::t_b8e0c6268c2d94 712-714
+  s_13011905dc7920::t_5591a54334fb86 754-760
+  s_13011905dc7920::t_ef8bdc3ced0516 306,664,677
+  s_13011905dc7920::t_b702fe044867f6 704-711
+  s_13011905dc7920::t_c5c9852e549b76 490-492,494-499,501-503,505
+enterprise_catalog/apps/api_client/tests/test_algolia.py
+  s_13011905dc7920::t_ef8bdc3ced0516 18,233,235,241-243,246,248,254,260,265-266,268,274,277,281,285,293,295,301
+enterprise_catalog/apps/api_client/algolia.py
+  s_13011905dc7920::t_59ab178a09790d 237,239-240,242-251,258,261,274,277,282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "991184aaa24a1abd2030c11c85820fe630c91e0e",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

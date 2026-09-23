@@ -1,0 +1,26 @@
+enterprise_catalog/apps/api_client/algolia.py
+  12d0c26c1fde6a40 208-367
+enterprise_catalog/apps/api_client/tests/test_algolia.py
+  12d0c26c1fde6a40 1-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "3f93ca8c825ded6a603424cb2dd566a48671e855",
+  "prompts": {
+    "12d0c26c1fde6a40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d765e8b5-12ad-4174-a80d-c073b8b9d08c",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 423,
+      "total_deletions": 0,
+      "accepted_lines": 423,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/e20dbe614c6d170457c529b1a2cee4dfc0618dfc2086be11a5514d6b0cc6fe10"
+    }
+  }
+}

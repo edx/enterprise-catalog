@@ -1,0 +1,33 @@
+docs/security/algolia-api-key-plan.md
+  s_027540cace5fe1::t_011167552fd9aa 79,81-83
+  s_027540cace5fe1::t_3e9493f85134a4 57-59,61
+  s_027540cace5fe1::t_a4ba551f3fc35d 133-134
+  s_027540cace5fe1::t_b22edf8567f66f 1-2,5-6,15-24,26,30,41,45-49,54-56,62-64,66-72,131-132
+  s_027540cace5fe1::t_f9ca57dab53c4e 7-14
+  s_027540cace5fe1::t_4a45cf96236a3a 60
+  s_027540cace5fe1::t_5972e1c3d28b9b 73-78,80,84,87-96,119
+  s_027540cace5fe1::t_65e9c9aa81b972 120-121,123-125,130
+  s_027540cace5fe1::t_ff26f394395c27 98-118
+  s_027540cace5fe1::t_d2621f62974903 25,29,31-40,42-44
+  s_027540cace5fe1::t_3f154288e3575d 50-53
+  s_027540cace5fe1::t_d63efad43666ba 122
+  s_027540cace5fe1::t_212e71e765bc68 85-86
+  s_027540cace5fe1::t_329675cceb0e5a 27-28
+  s_027540cace5fe1::t_f48607fc1030eb 97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2728040888fa6eed34ab1bda9248f8d31255070a",
+  "prompts": {},
+  "sessions": {
+    "s_027540cace5fe1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e4cc90e-7d29-4555-b59d-52076688f5a6",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

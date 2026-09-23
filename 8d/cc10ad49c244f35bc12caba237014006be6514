@@ -1,0 +1,26 @@
+docs/algolia-reindexing/algolia-frontend-architecture.md
+  9b7fc1303e27e557 1-79
+docs/algolia-reindexing/tech-spec.md
+  9b7fc1303e27e557 3-6,39-49,67-69,71-72,81-111,171-172,204,206-222,228,283,285-294,336-391,413-414,429,515,530-532,543,640,642,644-665,667,670-671,673,675-679,681-707,710-728,750,761,764,790-826,829-869,888-890
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "8dcc10ad49c244f35bc12caba237014006be6514",
+  "prompts": {
+    "9b7fc1303e27e557": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bffd1219-9430-42f2-b969-684577ff1818",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 1087,
+      "total_deletions": 134,
+      "accepted_lines": 1017,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/ad2d92b6c5fc4566bd6fe004c5899ddcdbd4aa81335de722b94fb9cb3ba9e0a6"
+    }
+  }
+}

@@ -27,6 +27,7 @@ edx_rbac
 edx-rest-api-client
 edx-toggles
 mysqlclient
+openedx-atlas             # pulls translations from edx/openedx-translations at build time (make pull_translations)
 pymemcache
 pytz
 jsonfield2

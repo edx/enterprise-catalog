@@ -9,7 +9,7 @@ algoliasearch==3.0.0
     #   -c requirements/constraints.txt
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-amqp==5.3.1
+amqp==5.4.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -349,7 +349,7 @@ edx-rbac==3.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-edx-rest-api-client==7.0.0
+edx-rest-api-client==7.1.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -364,7 +364,7 @@ faker==40.39.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==3.32.7
+filelock==4.0.3
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -499,13 +499,13 @@ oauthlib==3.3.1
     #   -r requirements/test.txt
     #   requests-oauthlib
     #   social-auth-core
-openedx-atlas==0.7.1
-    # via
-    #   -r requirements/quality.txt
-    #   -r requirements/test.txt
 openai==1.13.3
     # via
     #   -c requirements/constraints.txt
+    #   -r requirements/quality.txt
+    #   -r requirements/test.txt
+openedx-atlas==0.7.1
+    # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
 packaging==26.3
@@ -523,7 +523,7 @@ path==16.16.0
     # via edx-i18n-tools
 pip-tools==7.6.1
     # via -r requirements/pip-tools.txt
-platformdirs==4.11.10
+platformdirs==4.11.12
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -554,7 +554,7 @@ psutil==7.2.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-django-utils
-pycodestyle==2.14.0
+pycodestyle==2.15.0
     # via -r requirements/quality.txt
 pycparser==3.0
     # via
@@ -578,7 +578,7 @@ pygments==2.21.0
     #   -r requirements/test.txt
     #   diff-cover
     #   pytest
-pyjwt[crypto]==2.14.0
+pyjwt[crypto]==2.15.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -587,7 +587,7 @@ pyjwt[crypto]==2.14.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.0.8
+pylint==4.0.9
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -615,7 +615,7 @@ pymemcache==4.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-pymongo==4.18.1
+pymongo==4.18.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -656,7 +656,7 @@ python-discovery==1.6.1
     #   virtualenv
 python-memcached==1.62
     # via -r requirements/dev.in
-python-slugify==9.0.0
+python-slugify==9.1.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -666,7 +666,7 @@ python3-openid==3.2.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   social-auth-core
-pytz==2026.3.post1
+pytz==2026.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -809,7 +809,7 @@ tomlkit==0.15.1
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.61.5
+tox==4.64.2
     # via -r requirements/test.txt
 tqdm==4.70.1
     # via
@@ -866,11 +866,11 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.12
+virtualenv==21.12.1
     # via
     #   -r requirements/test.txt
     #   tox
-wcwidth==0.8.4
+wcwidth==0.9.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

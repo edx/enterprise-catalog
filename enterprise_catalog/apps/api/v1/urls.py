@@ -12,6 +12,7 @@ from enterprise_catalog.apps.api.v1.views.catalog_csv_data import (
     CatalogCsvDataView,
 )
 from enterprise_catalog.apps.api.v1.views.catalog_query import (
+    CatalogQueryCourseCountView,
     CatalogQueryViewSet,
 )
 from enterprise_catalog.apps.api.v1.views.catalog_workbook import (
@@ -148,6 +149,11 @@ urlpatterns = [
         'catalog-queries/<uuid:uuid>/',
         CatalogQueryViewSet.as_view({'get': 'get_by_uuid'}),
         name='get-query-by-uuid'
+    ),
+    path(
+        'catalog-queries/<uuid:uuid>/course-count/',
+        CatalogQueryCourseCountView.as_view(),
+        name='catalog-query-course-count'
     ),
 ]
 

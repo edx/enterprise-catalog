@@ -181,7 +181,6 @@ class CatalogQueryCourseCountView(APIView):
         Returns:
 
         * 200: `{"uuid": "<catalog query uuid>", "course_count": <int>}`
-        * 401: If the request is unauthenticated
         * 404: If no CatalogQuery matches the given UUID
         """
         catalog_query = get_object_or_404(CatalogQuery, uuid=uuid)

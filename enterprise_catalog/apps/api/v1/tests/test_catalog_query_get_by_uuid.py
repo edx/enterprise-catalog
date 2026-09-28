@@ -255,6 +255,22 @@ class TestCatalogQueryCourseCountView(APITestMixin):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_jwt_authenticated_caller_with_no_roles_gets_count(self):
+        """
+        A server-to-server caller authenticating only via a JWT cookie with no roles gets 200.
+        """
+        self.client.logout()
+        self.set_jwt_cookie()
+        self.catalog_query.contentmetadata_set.add(ContentMetadataFactory(content_type=COURSE))
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json(), {
+            'uuid': str(self.catalog_query.uuid),
+            'course_count': 1,
+        })
+
     def test_unauthenticated_returns_401(self):
         """
         With no session and no JWT cookie the request is rejected as unauthenticated.

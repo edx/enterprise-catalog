@@ -130,6 +130,13 @@ class CatalogQuerySerializer(serializers.ModelSerializer):
             'content_filter_hash',
             'title',
         ]
+        read_only_fields = [
+            'id',
+            'uuid',
+            'content_filter',
+            'content_filter_hash',
+            'title',
+        ]
 
 
 class EnterpriseCatalogSerializer(serializers.ModelSerializer):

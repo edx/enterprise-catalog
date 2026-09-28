@@ -5,7 +5,11 @@ from django.urls import reverse
 from rest_framework import status
 
 from enterprise_catalog.apps.api.v1.tests.mixins import APITestMixin
-from enterprise_catalog.apps.catalog.constants import COURSE, PROGRAM
+from enterprise_catalog.apps.catalog.constants import (
+    COURSE,
+    LEARNER_PATHWAY,
+    PROGRAM,
+)
 from enterprise_catalog.apps.catalog.tests.factories import (
     USER_PASSWORD,
     CatalogQueryFactory,
@@ -63,41 +67,6 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
         self.assertEqual(
             response.data['content_filter'],
             {'partner': 'edx', 'content_type': 'course'},
-        )
-        self.assertEqual(response.data['course_count'], 0)
-
-    def test_get_by_uuid_counts_only_course_metadata(self):
-        """
-        GET /api/v1/catalog-queries/<uuid>/ counts only associated course content.
-        """
-        courses = ContentMetadataFactory.create_batch(2, content_type=COURSE)
-        program = ContentMetadataFactory(content_type=PROGRAM)
-        self.catalog_query.contentmetadata_set.add(*courses, program)
-
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['course_count'], 2)
-
-    def test_get_by_uuid_response_schema_includes_course_count(self):
-        """
-        GET /api/v1/catalog-queries/<uuid>/ includes existing fields and course_count.
-        """
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            set(response.data.keys()),
-            {
-                'id',
-                'uuid',
-                'content_filter',
-                'content_filter_hash',
-                'title',
-                'created',
-                'modified',
-                'course_count',
-            },
         )
 
     def test_get_by_uuid_success_for_non_staff_catalog_admin(self):
@@ -219,3 +188,101 @@ class TestCatalogQueryGetByUuidAction(APITestMixin):
         POST, PUT, and DELETE /api/v1/catalog-queries/<uuid>/ return 405.
         """
         self._assert_method_not_allowed(method_name)
+
+
+@ddt.ddt
+class TestCatalogQueryCourseCountView(APITestMixin):
+    """
+    Tests for GET /api/v1/catalog-queries/<uuid>/course-count/
+    """
+
+    def setUp(self):
+        """
+        Authenticate as a plain user with no enterprise, provisioning or operator role.
+        """
+        super().setUp()
+        self.user = UserFactory()
+        self.client.login(username=self.user.username, password=USER_PASSWORD)
+        self.remove_role_assignments()
+        self.catalog_query = CatalogQueryFactory()
+        self.url = self._get_url(self.catalog_query.uuid)
+
+    def _get_url(self, query_uuid):
+        return reverse(
+            'api:v1:catalog-query-course-count',
+            kwargs={'uuid': str(query_uuid)},
+        )
+
+    @ddt.data(
+        # No content at all.
+        ({}, 0),
+        # Only courses are counted.
+        ({COURSE: 2, LEARNER_PATHWAY: 1, PROGRAM: 1}, 2),
+        # Non-course content only.
+        ({LEARNER_PATHWAY: 1, PROGRAM: 2}, 0),
+    )
+    @ddt.unpack
+    def test_course_count(self, content_counts_by_type, expected_course_count):
+        """
+        A caller with no roles gets 200 and a count of only the COURSE content in the query.
+        """
+        for content_type, count in content_counts_by_type.items():
+            content = ContentMetadataFactory.create_batch(count, content_type=content_type)
+            self.catalog_query.contentmetadata_set.add(*content)
+        # Content attached to a different query must not be counted.
+        other_query = CatalogQueryFactory()
+        other_query.contentmetadata_set.add(ContentMetadataFactory(content_type=COURSE))
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json(), {
+            'uuid': str(self.catalog_query.uuid),
+            'course_count': expected_course_count,
+        })
+
+    def test_response_has_only_uuid_and_course_count(self):
+        """
+        The response exposes no CatalogQuery fields beyond uuid and course_count.
+        """
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(set(response.json().keys()), {'uuid', 'course_count'})
+
+    def test_unknown_uuid_returns_404(self):
+        response = self.client.get(self._get_url(uuid_lib.uuid4()))
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_jwt_authenticated_caller_with_no_roles_gets_count(self):
+        """
+        A server-to-server caller authenticating only via a JWT cookie with no roles gets 200.
+        """
+        self.client.logout()
+        self.set_jwt_cookie()
+        self.catalog_query.contentmetadata_set.add(ContentMetadataFactory(content_type=COURSE))
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json(), {
+            'uuid': str(self.catalog_query.uuid),
+            'course_count': 1,
+        })
+
+    def test_unauthenticated_returns_401(self):
+        """
+        With no session and no JWT cookie the request is rejected as unauthenticated.
+        """
+        self.client.logout()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @ddt.data('post', 'put', 'patch', 'delete')
+    def test_write_methods_not_allowed(self, method_name):
+        response = getattr(self.client, method_name)(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)

@@ -1,12 +1,22 @@
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.utils.functional import cached_property
+from drf_spectacular.utils import (
+    OpenApiResponse,
+    extend_schema,
+    inline_serializer,
+)
 from edx_rbac.mixins import PermissionRequiredForListingMixin
-from rest_framework import status, viewsets
+from edx_rest_framework_extensions.auth.jwt.authentication import (
+    JwtAuthentication,
+)
+from rest_framework import permissions, serializers, status, viewsets
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ParseError
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from enterprise_catalog.apps.api.v1.decorators import (
     require_at_least_one_query_parameter,
@@ -16,6 +26,7 @@ from enterprise_catalog.apps.api.v1.serializers import (
     CatalogQuerySerializer,
 )
 from enterprise_catalog.apps.api.v1.views.base import BaseViewSet
+from enterprise_catalog.apps.catalog.constants import COURSE
 from enterprise_catalog.apps.catalog.models import (
     CatalogQuery,
     EnterpriseCatalog,
@@ -134,3 +145,44 @@ class CatalogQueryViewSet(viewsets.ReadOnlyModelViewSet, BaseViewSet, Permission
         catalog_query = get_object_or_404(queryset, uuid=uuid)
         serializer = self.get_serializer(catalog_query)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class CatalogQueryCourseCountView(APIView):
+    """
+    Read-only view returning the number of courses in a CatalogQuery.
+
+    Intended for server-to-server callers (e.g. enterprise-access). Deliberately standalone
+    rather than an action on ``CatalogQueryViewSet`` so it does not inherit that viewset's
+    edx-rbac admin checks: any authenticated caller may read the count.
+    """
+    authentication_classes = [JwtAuthentication, SessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name='CatalogQueryCourseCountResponse',
+                fields={
+                    'uuid': serializers.UUIDField(),
+                    'course_count': serializers.IntegerField(),
+                },
+            ),
+            401: OpenApiResponse(description='Unauthenticated.'),
+            404: OpenApiResponse(description='No CatalogQuery matches the given UUID.'),
+        },
+    )
+    def get(self, request, uuid):
+        """
+        Return the number of courses associated with a CatalogQuery.
+
+        `GET /api/v1/catalog-queries/{uuid}/course-count/`
+
+        Returns:
+
+        * 200: `{"uuid": "<catalog query uuid>", "course_count": <int>}`
+        * 404: If no CatalogQuery matches the given UUID
+        """
+        catalog_query = get_object_or_404(CatalogQuery, uuid=uuid)
+        course_count = catalog_query.contentmetadata_set.filter(content_type=COURSE).count()
+        return Response({'uuid': str(catalog_query.uuid), 'course_count': course_count})

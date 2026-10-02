@@ -8,7 +8,7 @@ algoliasearch==3.0.0
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/base.txt
-amqp==5.3.1
+amqp==5.4.0
     # via
     #   -r requirements/base.txt
     #   kombu
@@ -29,7 +29,7 @@ asgiref==3.12.1
     #   django
     #   django-cors-headers
     #   social-auth-app-django
-astroid==4.0.4
+astroid==4.3.3
     # via
     #   pylint
     #   pylint-celery
@@ -65,7 +65,7 @@ cffi==2.1.1
     #   -r requirements/base.txt
     #   cryptography
     #   pynacl
-charset-normalizer==3.5.1
+charset-normalizer==3.5.2
     # via
     #   -r requirements/base.txt
     #   requests
@@ -106,11 +106,11 @@ code-annotations==3.0.0
     #   edx-toggles
 colorama==0.4.6
     # via tox
-coverage[toml]==7.16.1
+coverage[toml]==7.16.2
     # via
     #   -r requirements/test.in
     #   pytest-cov
-cryptography==50.0.1
+cryptography==50.0.2
     # via
     #   -r requirements/base.txt
     #   pyjwt
@@ -224,13 +224,13 @@ drf-jwt==1.19.2
     #   edx-drf-extensions
 drf-spectacular==0.30.0
     # via -r requirements/base.txt
-edx-auth-backends==5.0.0
+edx-auth-backends==5.1.0
     # via -r requirements/base.txt
 edx-celeryutils==2.0.0
     # via -r requirements/base.txt
 edx-django-release-util==1.5.0
     # via -r requirements/base.txt
-edx-django-utils==8.0.2
+edx-django-utils==8.1.0
     # via
     #   -r requirements/base.txt
     #   django-config-models
@@ -244,13 +244,13 @@ edx-drf-extensions==10.9.0
     #   edx-rbac
 edx-lint==6.2.0
     # via -r requirements/test.in
-edx-opaque-keys==4.0.0
+edx-opaque-keys==4.0.1
     # via
     #   -r requirements/base.txt
     #   edx-drf-extensions
 edx-rbac==3.0.0
     # via -r requirements/base.txt
-edx-rest-api-client==7.0.0
+edx-rest-api-client==7.1.0
     # via -r requirements/base.txt
 edx-toggles==6.0.0
     # via
@@ -258,9 +258,9 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.in
-faker==40.39.0
+faker==40.40.0
     # via factory-boy
-filelock==3.32.7
+filelock==4.0.9
     # via
     #   python-discovery
     #   tox
@@ -289,7 +289,7 @@ inflection==0.5.1
     #   drf-spectacular
 iniconfig==2.3.0
     # via pytest
-isort==9.0.1
+isort==9.0.2
     # via pylint
 jinja2==3.1.6
     # via
@@ -340,17 +340,17 @@ numpy==2.5.3
     #   -r requirements/base.txt
     #   scikit-learn
     #   scipy
-oauthlib==3.3.1
+oauthlib==4.0.0
     # via
     #   -r requirements/base.txt
     #   requests-oauthlib
     #   social-auth-core
-openedx-atlas==0.7.1
-    # via -r requirements/base.txt
 openai==1.13.3
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/base.txt
+openedx-atlas==0.7.2
+    # via -r requirements/base.txt
 packaging==26.3
     # via
     #   -r requirements/base.txt
@@ -358,7 +358,8 @@ packaging==26.3
     #   pyproject-api
     #   pytest
     #   tox
-platformdirs==4.11.10
+    #   virtualenv
+platformdirs==4.12.2
     # via
     #   pylint
     #   tox
@@ -394,7 +395,7 @@ pydantic-core==2.46.5
     #   pydantic
 pygments==2.21.0
     # via pytest
-pyjwt[crypto]==2.14.0
+pyjwt[crypto]==2.15.1
     # via
     #   -r requirements/base.txt
     #   drf-jwt
@@ -402,7 +403,7 @@ pyjwt[crypto]==2.14.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.0.8
+pylint==4.1.1
     # via
     #   edx-lint
     #   pylint-celery
@@ -418,7 +419,7 @@ pylint-plugin-utils==0.9.0
     #   pylint-django
 pymemcache==4.0.0
     # via -r requirements/base.txt
-pymongo==4.18.1
+pymongo==4.18.2
     # via
     #   -r requirements/base.txt
     #   edx-opaque-keys
@@ -445,7 +446,7 @@ python-discovery==1.6.1
     # via
     #   tox
     #   virtualenv
-python-slugify==9.0.0
+python-slugify==9.1.2
     # via
     #   -r requirements/base.txt
     #   code-annotations
@@ -453,7 +454,7 @@ python3-openid==3.2.0
     # via
     #   -r requirements/base.txt
     #   social-auth-core
-pytz==2026.3.post1
+pytz==2026.4
     # via -r requirements/base.txt
 pyyaml==6.0.3
     # via
@@ -558,7 +559,7 @@ tomlkit==0.15.1
     # via
     #   edx-lint
     #   pylint
-tox==4.61.5
+tox==4.64.7
     # via -r requirements/test.in
 tqdm==4.70.1
     # via
@@ -604,9 +605,9 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.12
+virtualenv==21.14.3
     # via tox
-wcwidth==0.8.4
+wcwidth==0.9.1
     # via
     #   -r requirements/base.txt
     #   prompt-toolkit

@@ -866,7 +866,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.7.12
+virtualenv==21.7.13
     # via
     #   -r requirements/test.txt
     #   tox

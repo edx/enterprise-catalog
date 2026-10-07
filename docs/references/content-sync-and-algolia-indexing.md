@@ -76,6 +76,19 @@ filter disallows restricted runs, so `_update_full_restricted_course_metadata` r
 unrestricted parent's `advertised_course_run_uuid` after the restricted fetch overwrites it.
 Without that, a restricted run leaks into records for catalogs that shouldn't see it.
 
+Two gotchas from ENT-12315:
+
+- Any `RestrictedRunAllowedForRestrictedCourse` row hides that run from every catalog, including
+  catalogs that never listed it. A public run wrongly listed in `restricted_runs_allowed` therefore
+  disappeared everywhere (enterprise-subsidy saw a 404).
+- A run is restricted iff it has a `restriction_type` (`RestrictedCourseMetadata.is_restricted_run`).
+  Runs listed in `restricted_runs_allowed` without one are skipped, with a single warning logged from
+  `update_course_run_relationships` (or from `synchronize_restricted_content` for runs absent from the
+  nested course payload), and are also skipped in `synchronize_restricted_content`. An
+  existing bad row is only removed by the next successful content-metadata sync of that catalog query
+  (needs `SHOULD_FETCH_RESTRICTED_COURSE_RUNS` on; use `--force` to bypass the hourly dedupe). The
+  misconfigured `content_filter` still needs fixing, or the warning repeats on every sync.
+
 ### Videos take a separate route in
 
 Videos never come through `/search/all/` and are not part of the daily chain. They start as a

@@ -870,6 +870,14 @@ class RestrictedCourseMetadata(BaseContentMetadata):
         return f"<{self.__class__.__name__} for '{self.content_key}' and CatalogQuery ({catalog_query_id})>"
 
     @staticmethod
+    def is_restricted_run(run):
+        """
+        A run is restricted iff it has a ``restriction_type``. Both halves of the
+        restricted/unrestricted split must use this so they remain exact opposites.
+        """
+        return run.get(COURSE_RUN_RESTRICTION_TYPE_KEY) is not None
+
+    @staticmethod
     def allowed_runs_for_course(course_metadata_dict, catalog_query):
         """
         Given a ``course_metadata_dict``, returns a filtered list of ``course_runs``
@@ -879,7 +887,7 @@ class RestrictedCourseMetadata(BaseContentMetadata):
         restricted_runs = RestrictedCourseMetadata.restricted_runs_for_course(course_metadata_dict, catalog_query)
         unrestricted_runs = [
             run for run in course_metadata_dict['course_runs']
-            if run.get(COURSE_RUN_RESTRICTION_TYPE_KEY) is None
+            if not RestrictedCourseMetadata.is_restricted_run(run)
         ]
         return unrestricted_runs + restricted_runs
 
@@ -888,12 +896,13 @@ class RestrictedCourseMetadata(BaseContentMetadata):
         """
         Given a ``course_metadata_dict``, returns a filtered list of ``course_runs``
         containing only restricted runs that are allowed by
-        the provided ``catalog_query``.
+        the provided ``catalog_query``.  Runs listed as allowed by the query that
+        have no ``restriction_type`` are not actually restricted, so they are ignored.
         """
         allowed_restricted_runs = catalog_query.restricted_runs_allowed.get(course_metadata_dict['key'], [])
         return [
             run for run in course_metadata_dict['course_runs']
-            if run['key'] in allowed_restricted_runs
+            if run['key'] in allowed_restricted_runs and RestrictedCourseMetadata.is_restricted_run(run)
         ]
 
     @property
@@ -939,6 +948,16 @@ class RestrictedCourseMetadata(BaseContentMetadata):
             '%s has existing course run relationships %s prior to updating',
             self, existing_relationships,
         )
+
+        # Logged here, and only here, because this is where the relationship rows are decided.
+        allowed_run_keys = self.catalog_query.restricted_runs_allowed.get(self.content_key, [])
+        for run in self.json_metadata.get('course_runs', []):
+            if run['key'] in allowed_run_keys and not self.is_restricted_run(run):
+                LOGGER.warning(
+                    'Ignoring non-restricted run %s of course %s listed in restricted_runs_allowed of '
+                    'catalog query %s (uuid %s)',
+                    run['key'], self.content_key, self.catalog_query.id, self.catalog_query.uuid,
+                )
 
         restricted_runs = []
 
@@ -1836,8 +1855,19 @@ def synchronize_restricted_content(catalog_query, dry_run=False):
     course_run_payload = discovery_client.retrieve_metadata_for_content_filter(
         run_content_filter, QUERY_FOR_RESTRICTED_RUNS,
     )
+    # Runs nested in the course payloads were already warned about in update_course_run_relationships().
+    nested_run_keys = {
+        run.get('key') for course_dict in course_payload for run in course_dict.get('course_runs', [])
+    }
     for course_run_dict in course_run_payload:
         course_run_key = get_content_key(course_run_dict)
+        if not RestrictedCourseMetadata.is_restricted_run(course_run_dict):
+            if course_run_key not in nested_run_keys:
+                LOGGER.warning(
+                    'Ignoring non-restricted run %s listed in restricted_runs_allowed of catalog query %s (uuid %s)',
+                    course_run_key, catalog_query.id, catalog_query.uuid,
+                )
+            continue
         LOGGER.info(
             'Storing restricted course run %s for catalog_query %s',
             course_run_dict.get('key'), catalog_query.id,

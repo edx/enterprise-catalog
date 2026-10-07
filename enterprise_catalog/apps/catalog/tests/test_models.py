@@ -26,6 +26,7 @@ from enterprise_catalog.apps.catalog.constants import (
 from enterprise_catalog.apps.catalog.models import (
     ContentMetadata,
     RestrictedCourseMetadata,
+    RestrictedRunAllowedForRestrictedCourse,
     _check_content_association_threshold,
     _execute_updates_existing_records_avoid_deadlock,
     _get_defaults_from_metadata,
@@ -1549,6 +1550,149 @@ class TestRestrictedRunsModels(TestCase):
             ['course-v1:edX+course+run2'],
         )
 
+    @staticmethod
+    def _course_with_public_and_restricted_runs():
+        """
+        Course dict modeled on the ENT-12315 incident: one restricted run, plus
+        a public run that is NOT restricted.
+        """
+        return {
+            'key': 'edX+MIXED',
+            'uuid': '33333333-3333-3333-3333-333333333333',
+            'content_type': COURSE,
+            'course_runs': [
+                {
+                    'key': 'course-v1:edX+MIXED+3T2026a',
+                    'status': 'published',
+                    'uuid': str(uuid4()),
+                    COURSE_RUN_RESTRICTION_TYPE_KEY: RESTRICTION_FOR_B2B,
+                },
+                {
+                    'key': 'course-v1:edX+MIXED+3T2026',
+                    'status': 'published',
+                    'uuid': str(uuid4()),
+                },
+            ],
+        }
+
+    @staticmethod
+    def _catalog_query_allowing_runs(run_keys):
+        return factories.CatalogQueryFactory(
+            content_filter={'restricted_runs_allowed': {'course:edX+MIXED': run_keys}},
+        )
+
+    @ddt.data(
+        # (allowed run keys, expected returned run keys)
+        (['course-v1:edX+MIXED+3T2026a'], ['course-v1:edX+MIXED+3T2026a']),
+        (['course-v1:edX+MIXED+3T2026'], []),
+        (['course-v1:edX+MIXED+3T2026a', 'course-v1:edX+MIXED+3T2026'], ['course-v1:edX+MIXED+3T2026a']),
+    )
+    @ddt.unpack
+    def test_restricted_runs_for_course(self, allowed_keys, expected_keys):
+        """
+        Only runs with a restriction_type are returned, and the lookup itself never logs.
+        """
+        course_dict = self._course_with_public_and_restricted_runs()
+        catalog_query = self._catalog_query_allowing_runs(allowed_keys)
+
+        with self.assertNoLogs('enterprise_catalog.apps.catalog.models', level='WARNING'):
+            result = RestrictedCourseMetadata.restricted_runs_for_course(course_dict, catalog_query)
+
+        self.assertEqual([run['key'] for run in result], expected_keys)
+
+    @ddt.data(
+        # (allowed run keys, expected ignored (warned) run keys)
+        (['course-v1:edX+MIXED+3T2026a'], []),
+        (['course-v1:edX+MIXED+3T2026'], ['course-v1:edX+MIXED+3T2026']),
+        (['course-v1:edX+MIXED+3T2026a', 'course-v1:edX+MIXED+3T2026'], ['course-v1:edX+MIXED+3T2026']),
+    )
+    @ddt.unpack
+    def test_store_record_warns_once_per_ignored_run(self, allowed_keys, ignored_keys):
+        """
+        A full store warns exactly once per allow-listed run without a restriction_type,
+        with structured args naming the run, course and query.
+        """
+        course_dict = self._course_with_public_and_restricted_runs()
+        catalog_query = self._catalog_query_allowing_runs(allowed_keys)
+        factories.ContentMetadataFactory.create(content_key='edX+MIXED', content_type=COURSE)
+        logger_name = 'enterprise_catalog.apps.catalog.models'
+
+        if ignored_keys:
+            with self.assertLogs(logger_name, level='WARNING') as logs:
+                RestrictedCourseMetadata.store_record_with_query(course_dict, catalog_query)
+            self.assertEqual(
+                [record.args for record in logs.records],
+                [(key, 'edX+MIXED', catalog_query.id, catalog_query.uuid) for key in ignored_keys],
+            )
+        else:
+            with self.assertNoLogs(logger_name, level='WARNING'):
+                RestrictedCourseMetadata.store_record_with_query(course_dict, catalog_query)
+
+    def test_non_restricted_run_in_restricted_runs_allowed_has_no_adverse_effect(self):
+        """
+        A non-restricted run mistakenly listed in restricted_runs_allowed is not duplicated in the
+        RestrictedCourseMetadata JSON and gets no RestrictedRunAllowedForRestrictedCourse row.
+        """
+        course_dict = self._course_with_public_and_restricted_runs()
+        catalog_query = self._catalog_query_allowing_runs([
+            'course-v1:edX+MIXED+3T2026a',
+            'course-v1:edX+MIXED+3T2026',
+        ])
+        factories.ContentMetadataFactory.create(content_key='edX+MIXED', content_type=COURSE)
+
+        record = RestrictedCourseMetadata.store_record_with_query(course_dict, catalog_query)
+
+        # Not duplicated in the JSON.
+        self.assertEqual(
+            record.json_metadata['course_run_keys'],
+            ['course-v1:edX+MIXED+3T2026', 'course-v1:edX+MIXED+3T2026a'],
+        )
+        self.assertEqual(
+            [run['key'] for run in record.json_metadata['course_runs']],
+            ['course-v1:edX+MIXED+3T2026', 'course-v1:edX+MIXED+3T2026a'],
+        )
+        # Only the really-restricted run gets a relationship row.
+        self.assertEqual(
+            list(RestrictedRunAllowedForRestrictedCourse.objects.values_list('run__content_key', flat=True)),
+            ['course-v1:edX+MIXED+3T2026a'],
+        )
+
+    def test_existing_bad_relationship_row_is_removed_on_next_store(self):
+        """
+        A RestrictedRunAllowedForRestrictedCourse row already created for the public run
+        (the production state after the incident) is cleaned up by the next store.
+        """
+        course_dict = self._course_with_public_and_restricted_runs()
+        catalog_query = self._catalog_query_allowing_runs([
+            'course-v1:edX+MIXED+3T2026a',
+            'course-v1:edX+MIXED+3T2026',
+        ])
+        factories.ContentMetadataFactory.create(content_key='edX+MIXED', content_type=COURSE)
+        record = RestrictedCourseMetadata.store_record_with_query(course_dict, catalog_query)
+        public_run = factories.ContentMetadataFactory.create(
+            content_key='course-v1:edX+MIXED+3T2026',
+            content_type=COURSE_RUN,
+            parent_content_key='edX+MIXED',
+        )
+        RestrictedRunAllowedForRestrictedCourse.objects.create(course=record, run=public_run)
+
+        RestrictedCourseMetadata.store_record_with_query(course_dict, catalog_query)
+
+        self.assertEqual(
+            list(RestrictedRunAllowedForRestrictedCourse.objects.values_list('run__content_key', flat=True)),
+            ['course-v1:edX+MIXED+3T2026a'],
+        )
+        # The public run is visible again to a catalog that does not allow any restricted runs.
+        other_query = factories.CatalogQueryFactory(content_filter={'content_type': 'course'})
+        other_catalog = factories.EnterpriseCatalogFactory(catalog_query=other_query)
+        public_run_key = 'course-v1:edX+MIXED+3T2026'
+        other_query.contentmetadata_set.add(public_run)
+        self.assertTrue(other_catalog.contains_content_keys([public_run_key]))
+        self.assertEqual(
+            [item.content_key for item in other_catalog.get_matching_content([public_run_key])],
+            [public_run_key],
+        )
+
     @override_settings(SHOULD_FETCH_RESTRICTED_COURSE_RUNS=False)
     @mock.patch('enterprise_catalog.apps.catalog.models.DiscoveryApiClient')
     def test_synchronize_restricted_content_feature_disabled(self, mock_client):
@@ -1704,6 +1848,50 @@ class TestRestrictedRunsModels(TestCase):
     @override_settings(DISCOVERY_CATALOG_QUERY_CACHE_TIMEOUT=0)
     @override_settings(SHOULD_FETCH_RESTRICTED_COURSE_RUNS=True)
     @mock.patch('enterprise_catalog.apps.catalog.models.DiscoveryApiClient')
+    def test_synchronize_restricted_content_skips_top_level_run_without_restriction_type(self, mock_client):
+        """
+        A top-level run payload lacking ``restriction_type`` is not stored as a restricted run,
+        while a sibling payload that has it still is.
+        """
+        catalog_query = factories.CatalogQueryFactory(
+            content_filter={
+                'restricted_runs_allowed': {
+                    'course:edX+course': ['course-v1:edX+course+run1', 'course-v1:edX+course+run2'],
+                },
+            },
+        )
+        course_dict = {
+            'key': 'edX+course',
+            'aggregation_key': 'course:edX+course',
+            'uuid': '11111111-1111-1111-1111-111111111111',
+            'content_type': COURSE,
+            'course_runs': [],
+        }
+        course_run_results = [
+            {'key': 'course-v1:edX+course+run1', 'aggregation_key': 'courserun:edX+course', 'uuid': str(uuid4())},
+            {
+                'key': 'course-v1:edX+course+run2',
+                'aggregation_key': 'courserun:edX+course',
+                COURSE_RUN_RESTRICTION_TYPE_KEY: RESTRICTION_FOR_B2B,
+                'uuid': str(uuid4()),
+            },
+        ]
+        factories.ContentMetadataFactory.create(content_key='edX+course', content_type=COURSE)
+        mock_client.return_value.retrieve_metadata_for_content_filter.side_effect = [
+            [course_dict],
+            course_run_results,
+        ]
+
+        result = synchronize_restricted_content(catalog_query)
+
+        self.assertEqual(result, ['edX+course', 'course-v1:edX+course+run2'])
+        self.assertFalse(
+            RestrictedCourseMetadata.objects.filter(content_key='course-v1:edX+course+run1').exists()
+        )
+
+    @override_settings(DISCOVERY_CATALOG_QUERY_CACHE_TIMEOUT=0)
+    @override_settings(SHOULD_FETCH_RESTRICTED_COURSE_RUNS=True)
+    @mock.patch('enterprise_catalog.apps.catalog.models.DiscoveryApiClient')
     def test_synchronize_restricted_content_skips_when_canonical_record_missing_parent(self, mock_client):
         """
         When store_canonical_record returns None (parent ContentMetadata absent),
@@ -1735,6 +1923,46 @@ class TestRestrictedRunsModels(TestCase):
         self.assertFalse(
             RestrictedCourseMetadata.objects.filter(content_key='edX+orphan').exists()
         )
+
+    @override_settings(SHOULD_FETCH_RESTRICTED_COURSE_RUNS=True)
+    @mock.patch('enterprise_catalog.apps.catalog.models.DiscoveryApiClient')
+    def test_synchronize_restricted_content_skips_non_restricted_runs(self, mock_client):
+        """
+        A public run listed in restricted_runs_allowed is neither stored as restricted nor returned.
+        """
+        course_dict = self._course_with_public_and_restricted_runs()
+        catalog_query = self._catalog_query_allowing_runs([
+            'course-v1:edX+MIXED+3T2026a',
+            'course-v1:edX+MIXED+3T2026',
+        ])
+        factories.ContentMetadataFactory.create(content_key='edX+MIXED', content_type=COURSE)
+        run_payload = [
+            dict(run, aggregation_key='courserun:edX+MIXED') for run in course_dict['course_runs']
+        ]
+        mock_client.return_value.retrieve_metadata_for_content_filter.side_effect = [[course_dict], run_payload]
+
+        result = synchronize_restricted_content(catalog_query)
+
+        self.assertEqual(result, ['edX+MIXED', 'course-v1:edX+MIXED+3T2026a'])
+
+    @override_settings(SHOULD_FETCH_RESTRICTED_COURSE_RUNS=True)
+    @mock.patch('enterprise_catalog.apps.catalog.models.DiscoveryApiClient')
+    def test_synchronize_restricted_content_warns_for_standalone_non_restricted_run(self, mock_client):
+        """
+        A non-restricted run present only in the standalone run payload is still warned about.
+        """
+        catalog_query = self._catalog_query_allowing_runs(['course-v1:edX+MIXED+3T2026'])
+        course_dict = {'key': 'edX+MIXED', 'content_type': COURSE, 'course_runs': []}
+        factories.ContentMetadataFactory.create(content_key='edX+MIXED', content_type=COURSE)
+        run_payload = [{
+            'key': 'course-v1:edX+MIXED+3T2026', 'content_type': COURSE_RUN, 'aggregation_key': 'courserun:edX+MIXED',
+        }]
+        mock_client.return_value.retrieve_metadata_for_content_filter.side_effect = [[course_dict], run_payload]
+
+        with self.assertLogs('enterprise_catalog.apps.catalog.models', level='WARNING') as logs:
+            synchronize_restricted_content(catalog_query)
+
+        self.assertTrue(any('Ignoring non-restricted run course-v1:edX+MIXED+3T2026' in m for m in logs.output))
 
     @override_settings(DISCOVERY_CATALOG_QUERY_CACHE_TIMEOUT=0)
     @override_settings(SHOULD_FETCH_RESTRICTED_COURSE_RUNS=True)

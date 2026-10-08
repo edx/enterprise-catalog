@@ -1,2 +1,16 @@
-# Grant all Enterprise/B2B squads merge permission to entire repo.
-* @edx/enterprise-titans @edx/enterprise-markhors @edx/enterprise-sunrise @edx/enterprise-lakshy
+# Tiered ownership model:
+# - @edx/enterprise-titans is the internal backstop: required reviewer for everything not explicitly matched below.
+# - @edx/enterprise-sunrise and @edx/enterprise-lakshy are contractor teams that co-own application code,
+#   docs, and markdown files so they can review and merge in those areas independently.
+# More specific rules below override this catch-all.
+
+# Catch-all: Titans are required reviewers for anything not matched by a more specific rule.
+* @edx/enterprise-titans
+
+# Application code: all three teams share ownership so contractor teams can review and merge.
+/enterprise_catalog/ @edx/enterprise-titans @edx/enterprise-sunrise @edx/enterprise-lakshy
+
+# Docs and markdown: lower-risk areas all teams can own.
+/docs/ @edx/enterprise-titans @edx/enterprise-sunrise @edx/enterprise-lakshy
+*.md @edx/enterprise-titans @edx/enterprise-sunrise @edx/enterprise-lakshy
+*.rst @edx/enterprise-titans @edx/enterprise-sunrise @edx/enterprise-lakshy

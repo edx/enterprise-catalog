@@ -9,7 +9,7 @@ algoliasearch==3.0.0
     #   -c requirements/constraints.txt
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-amqp==5.4.0
+amqp==5.4.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -36,7 +36,7 @@ asgiref==3.12.1
     #   django
     #   django-cors-headers
     #   social-auth-app-django
-astroid==4.3.3
+astroid==4.3.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -53,7 +53,7 @@ backoff==1.10.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   analytics-python
-billiard==4.3.0
+billiard==4.3.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -62,7 +62,7 @@ build==1.6.1
     # via
     #   -r requirements/pip-tools.txt
     #   pip-tools
-cachetools==7.2.0
+cachetools==7.2.1
     # via
     #   -r requirements/test.txt
     #   tox
@@ -120,7 +120,7 @@ click-plugins==1.1.1.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
-click-repl==0.4.0
+click-repl==0.4.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -184,7 +184,7 @@ distro==1.9.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   openai
-django==5.2.17
+django==5.2.18
     # via
     #   -c requirements/common_constraints.txt
     #   -c requirements/constraints.txt
@@ -282,7 +282,7 @@ djangoql==0.19.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-djangorestframework==3.18.1
+djangorestframework==3.18.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -294,7 +294,7 @@ djangorestframework-xml==2.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-dnspython==2.8.0
+dnspython==2.9.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -360,11 +360,11 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.40.0
+faker==40.41.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==4.0.9
+filelock==4.0.12
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -403,7 +403,7 @@ inflection==0.5.1
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   drf-spectacular
-iniconfig==2.3.0
+iniconfig==2.3.1
     # via
     #   -r requirements/test.txt
     #   pytest
@@ -456,7 +456,7 @@ lxml[html-clean]==6.1.3
     #   lxml-html-clean
 lxml-html-clean==0.4.5
     # via lxml
-markupsafe==3.0.3
+markupsafe==3.0.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -522,9 +522,9 @@ packaging==26.3
     #   wheel
 path==17.1.1
     # via edx-i18n-tools
-pip-tools==7.6.1
+pip-tools==7.6.2
     # via -r requirements/pip-tools.txt
-platformdirs==4.12.2
+platformdirs==4.12.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -557,17 +557,17 @@ psutil==7.2.2
     #   edx-django-utils
 pycodestyle==2.15.0
     # via -r requirements/quality.txt
-pycparser==3.0
+pycparser==3.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   cffi
-pydantic==2.13.5
+pydantic==2.14.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   openai
-pydantic-core==2.46.5
+pydantic-core==2.50.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -588,7 +588,7 @@ pyjwt[crypto]==2.15.1
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.1.1
+pylint==4.1.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -616,7 +616,7 @@ pymemcache==4.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-pymongo==4.18.2
+pymongo==4.18.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -626,7 +626,7 @@ pynacl==1.6.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-django-utils
-pyproject-api==1.11.2
+pyproject-api==1.11.4
     # via
     #   -r requirements/test.txt
     #   tox
@@ -657,7 +657,7 @@ python-discovery==1.6.1
     #   virtualenv
 python-memcached==1.62
     # via -r requirements/dev.in
-python-slugify==9.1.2
+python-slugify==9.1.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -667,7 +667,7 @@ python3-openid==3.2.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   social-auth-core
-pytz==2026.4
+pytz==2026.5
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -710,7 +710,7 @@ responses==0.26.3
     # via
     #   -r requirements/dev.in
     #   -r requirements/test.txt
-rpds-py==2026.6.3
+rpds-py==2026.9.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -734,7 +734,7 @@ semantic-version==2.10.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-drf-extensions
-simplejson==4.1.2
+simplejson==4.2.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -810,7 +810,7 @@ tomlkit==0.15.1
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.64.7
+tox==4.64.10
     # via -r requirements/test.txt
 tqdm==4.70.1
     # via
@@ -839,7 +839,7 @@ typing-inspection==0.4.4
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pydantic
-tzdata==2026.4
+tzdata==2026.5
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -867,11 +867,11 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.14.3
+virtualenv==21.14.6
     # via
     #   -r requirements/test.txt
     #   tox
-wcwidth==0.9.1
+wcwidth==0.9.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -884,7 +884,7 @@ xlsxwriter==3.2.9
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-zipp==4.1.0
+zipp==4.1.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

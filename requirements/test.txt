@@ -46,7 +46,7 @@ billiard==4.3.1
     # via
     #   -r requirements/base.txt
     #   celery
-cachetools==7.2.2
+cachetools==7.2.4
     # via tox
 celery==5.6.3
     # via
@@ -54,7 +54,7 @@ celery==5.6.3
     #   -r requirements/base.txt
     #   django-celery-results
     #   edx-celeryutils
-certifi==2026.7.22
+certifi==2026.10.19
     # via
     #   -r requirements/base.txt
     #   httpcore
@@ -129,7 +129,7 @@ diff-match-patch==20241021
     #   django-import-export
 dill==0.4.1
     # via pylint
-distlib==0.4.3
+distlib==0.4.4
     # via virtualenv
 distro==1.9.0
     # via
@@ -182,7 +182,7 @@ django-dynamic-fixture==4.0.1
     # via -r requirements/test.in
 django-extensions==4.1
     # via -r requirements/base.txt
-django-import-export==4.4.2
+django-import-export==4.4.3
     # via -r requirements/base.txt
 django-log-request-id==2.1.2
     # via -r requirements/base.txt
@@ -260,7 +260,7 @@ factory-boy==3.3.3
     # via -r requirements/test.in
 faker==40.43.0
     # via factory-boy
-filelock==4.2.0
+filelock==4.2.4
     # via
     #   python-discovery
     #   tox
@@ -359,7 +359,7 @@ packaging==26.3
     #   pytest
     #   tox
     #   virtualenv
-platformdirs==4.13.3
+platformdirs==4.13.5
     # via
     #   pylint
     #   tox
@@ -427,7 +427,7 @@ pynacl==1.6.2
     # via
     #   -r requirements/base.txt
     #   edx-django-utils
-pyproject-api==1.11.7
+pyproject-api==1.12.0
     # via tox
 pytest==9.1.1
     # via
@@ -442,7 +442,7 @@ python-dateutil==2.9.0.post0
     #   -r requirements/base.txt
     #   analytics-python
     #   celery
-python-discovery==1.6.2
+python-discovery==1.6.4
     # via
     #   tox
     #   virtualenv
@@ -555,11 +555,11 @@ threadpoolctl==3.7.0
     #   scikit-learn
 tomli-w==1.2.0
     # via tox
-tomlkit==0.15.1
+tomlkit==0.15.2
     # via
     #   edx-lint
     #   pylint
-tox==4.65.6
+tox==4.67.1
     # via -r requirements/test.in
 tqdm==4.70.1
     # via
@@ -605,9 +605,9 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.14.8
+virtualenv==21.14.12
     # via tox
-wcwidth==0.9.2
+wcwidth==0.9.3
     # via
     #   -r requirements/base.txt
     #   prompt-toolkit

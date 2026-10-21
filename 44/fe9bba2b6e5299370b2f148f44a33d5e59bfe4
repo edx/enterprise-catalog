@@ -1,0 +1,26 @@
+enterprise_catalog/apps/search/management/commands/tests/test_incremental_reindex_algolia.py
+  12d0c26c1fde6a40 1-235
+enterprise_catalog/apps/search/management/commands/incremental_reindex_algolia.py
+  12d0c26c1fde6a40 1-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "44fe9bba2b6e5299370b2f148f44a33d5e59bfe4",
+  "prompts": {
+    "12d0c26c1fde6a40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d765e8b5-12ad-4174-a80d-c073b8b9d08c",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 373,
+      "total_deletions": 1,
+      "accepted_lines": 372,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/515b592e45762951014182bb794e5b88c1732fc5234998c2b976b74adfc508c4"
+    }
+  }
+}

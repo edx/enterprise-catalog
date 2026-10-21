@@ -1,0 +1,30 @@
+enterprise_catalog/apps/search/tests/test_tasks.py
+  s_cb6b3bf57bffe8::t_cb510298e7b06b 1271,1273,1280-1281
+  s_cb6b3bf57bffe8::t_8dc25f39ec10c0 1431
+  s_cb6b3bf57bffe8::t_1fa7d0f92748e6 752,754
+  s_cb6b3bf57bffe8::t_a06b936e1b03aa 1283,1285,1292-1293
+  s_cb6b3bf57bffe8::t_239f2539e0a9c9 1294
+enterprise_catalog/apps/search/tasks.py
+  s_cb6b3bf57bffe8::t_f323a289b04e79 430-432
+  s_cb6b3bf57bffe8::t_538683c59fd807 597
+  s_cb6b3bf57bffe8::t_70ff822c62e207 324-326
+  s_cb6b3bf57bffe8::t_f70b599535f479 372-398
+  s_cb6b3bf57bffe8::t_e5aeca437207de 53
+  s_cb6b3bf57bffe8::t_3d8128fc2e9251 482,484,486
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c4898374c36f23d131188f1fce18ebea378ca089",
+  "prompts": {},
+  "sessions": {
+    "s_cb6b3bf57bffe8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84721c0d-5a0f-4592-81ae-07e7842717ec",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

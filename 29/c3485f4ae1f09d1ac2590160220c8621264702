@@ -1,0 +1,52 @@
+enterprise_catalog/apps/api/v1/tests/test_views.py
+  s_fbbd9171ebd4b1::t_45e28d9c55e6f9 1241-1272
+  s_fbbd9171ebd4b1::t_71dad60b4ec18a 2,5
+enterprise_catalog/apps/api/v1/tests/test_export_utils.py
+  s_fbbd9171ebd4b1::t_fc8b58453a7cea 71-117
+requirements/base.txt
+  s_78b10486a3511a::t_36cfef28a13dfd 15,17,21,40,45,49,80,137,161,224,226,321,327,344,358
+requirements/common_constraints.txt
+  s_78b10486a3511a::t_d4c4ad35bdbbb4 21-26
+requirements/dev.txt
+  s_78b10486a3511a::t_5631ad615ba9b7 21,26,32,65,76,83,89,138,182,264,302,358,362,475,480,511,513,591,616,640,696,749,756,794,800,802,827,855
+requirements/django.txt
+  s_78b10486a3511a::t_e9f2c0466c75d0 1
+requirements/doc.txt
+  s_78b10486a3511a::t_47b5b300486449 21,25,30,60,70,76,81,121,154,213,251,287,291,333,371,377,399,436,466,485,503,541,550,592,598,603,610,651,656,658,678,701
+requirements/pip-tools.txt
+  s_78b10486a3511a::t_502a93b0c8c8af 15
+requirements/pip.txt
+  s_78b10486a3511a::t_47fece05b5c412 15
+requirements/production.txt
+  s_78b10486a3511a::t_fe07d659d952f2 15,19,24,48,54,59,107,162,189,221,223,285,289,454,473
+requirements/quality.txt
+  s_78b10486a3511a::t_0e536bdda6653f 17,21,26,55,61,66,121,178,207,305,309,327,373,466,472,499,503,522
+requirements/test.txt
+  s_78b10486a3511a::t_132346efde3fa8 17,21,26,49,57,63,68,105,192,221,257,259,328,332,353,406,422,437,479,515,521,550,554,556,575,598
+requirements/validation.txt
+  s_78b10486a3511a::t_01a798f47e1fe7 21,26,32,61,72,79,85,132,170,248,286,340,344,439,444,469,543,568,587,640,691,698,735,741,743,765,793
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "29c3485f4ae1f09d1ac2590160220c8621264702",
+  "prompts": {},
+  "sessions": {
+    "s_78b10486a3511a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ceebc966-b997-4e2a-ae01-5ad5c0dd4436",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "rgopalrao-sonata-png <rgopalrao-sonata@2u.com>"
+    },
+    "s_fbbd9171ebd4b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d448636-1091-4635-8529-55e1fdbb05bc",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "rgopalrao-sonata-png <rgopalrao-sonata@2u.com>"
+    }
+  }
+}

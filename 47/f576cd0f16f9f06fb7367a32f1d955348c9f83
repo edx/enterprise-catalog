@@ -1,0 +1,30 @@
+enterprise_catalog/apps/search/indexing_mappings.py
+  13011905dc79203b 40-43,50-52,64-65,84-85,102-103
+enterprise_catalog/apps/search/tests/test_indexing_mappings.py
+  13011905dc79203b 98-101,109,117-119,122-123,131-132,137
+enterprise_catalog/apps/api/tasks.py
+  13011905dc79203b 781-782,795,797,802,1245-1246,1275-1280
+enterprise_catalog/apps/search/tasks.py
+  13011905dc79203b 145-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "47f576cd0f16f9f06fb7367a32f1d955348c9f83",
+  "prompts": {
+    "13011905dc79203b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 87,
+      "accepted_lines": 76,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/e9819c5908c902296683a4f73acc2dfc9a28cba64f4edc55846eed41cb56285c"
+    }
+  }
+}

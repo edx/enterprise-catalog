@@ -1,0 +1,27 @@
+enterprise_catalog/apps/search/tasks.py
+  s_057ecba103cdfd::t_66feed8f54c025 326-328
+  s_057ecba103cdfd::t_f64ec1e2a85573 376-406
+enterprise_catalog/apps/search/tests/test_tasks.py
+  s_057ecba103cdfd::t_5f2de54b4bae9c 1287
+  s_057ecba103cdfd::t_bcefeccbb3617d 1257
+  s_057ecba103cdfd::t_552943d4d2bb98 1130-1140
+  s_057ecba103cdfd::t_9b485edd2fa5f9 1231-1233
+  s_057ecba103cdfd::t_fb6c5b80e4db86 1288-1297
+  s_057ecba103cdfd::t_74257202a719f1 1226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "43e7a528cb26352ebb542962062bb405be235244",
+  "prompts": {},
+  "sessions": {
+    "s_057ecba103cdfd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "2dfcc448-cecd-4b92-8eec-d391550f0dd1",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

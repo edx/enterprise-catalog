@@ -1,0 +1,41 @@
+enterprise_catalog/apps/search/models.py
+  13011905dc79203b 86-89,96,102
+scripts/algolia_batch_smoke.py
+  13011905dc79203b 4,129-130,147-148,162
+CLAUDE.md
+  13011905dc79203b 10-11
+enterprise_catalog/apps/search/tasks.py
+  13011905dc79203b 28-29,59-104,126-128,130,137-141,148-150,152,155-157,160-161,168-170,172,179,203-215,222-223,225-233,236,241-242,247-250,269-275,292,295,298-318
+enterprise_catalog/apps/search/tests/test_models.py
+  13011905dc79203b 102-116
+docs/decisions/0012-incremental-indexing-state-authority-and-outcome-contract.rst
+  13011905dc79203b 1-84
+enterprise_catalog/apps/api_client/algolia.py
+  13011905dc79203b 200,202,205-212,217-219,222,228-229
+enterprise_catalog/apps/search/tests/test_tasks.py
+  13011905dc79203b 4,25-26,34,38-39,43,59,114-117,145-146,163,185,207,212-261,265-268,271-280,289,291-292,294-319,324-326,337-399
+scripts/algolia_phase3_smoke.py
+  13011905dc79203b 1-255
+enterprise_catalog/apps/api_client/tests/test_algolia.py
+  13011905dc79203b 18,180,190,201,208,210,219,225,233,303,309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3e10b311d773b4feb94824c5862293f1f29a9f7b",
+  "prompts": {
+    "13011905dc79203b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages_url": "https://usegitai.com/cas/fc3a9f6dc23bcbaa755a79c3b40a67b489940a1849536a9c20e6bf97608f45b1",
+      "total_additions": 495,
+      "total_deletions": 207,
+      "accepted_lines": 608,
+      "overriden_lines": 0
+    }
+  }
+}

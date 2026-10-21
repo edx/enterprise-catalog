@@ -1,0 +1,58 @@
+scripts/algolia_integration/client.py
+  00468e5c860c9d3f 1-72
+enterprise_catalog/apps/api/v1/tests/test_enterprise_customer_views.py
+  00468e5c860c9d3f 6,528,531-535
+scripts/algolia_integration/__init__.py
+  00468e5c860c9d3f 1-11
+scripts/algolia_integration/config.py
+  00468e5c860c9d3f 1-124
+scripts/requirements.txt
+  00468e5c860c9d3f 1-7
+scripts/test_algolia_integration.py
+  00468e5c860c9d3f 1-272
+pytest.local.ini
+  00468e5c860c9d3f 19
+docs/how_to/algolia_integration_tests_pattern.md
+  00468e5c860c9d3f 1-130
+enterprise_catalog/apps/api/v1/views/enterprise_customer.py
+  00468e5c860c9d3f 4
+enterprise_catalog/apps/api_client/algolia.py
+  00468e5c860c9d3f 8-9,19-46,54-64,88-90,93,104,114-116,118-119,122,124,128,134,136-137,140-141,160,163,168-170,172,188-192,194-201,218,253-260,284,287
+enterprise_catalog/apps/api/tests/test_tasks.py
+  00468e5c860c9d3f 12,56-66,1381-1382,1390,1401,1404,1412-1417,1472-1475,1495,1497-1498,1507-1511,1513,1516,1523-1534,1537-1540,1556,1558
+enterprise_catalog/apps/catalog/algolia_utils.py
+  00468e5c860c9d3f 6,400-402,404,406
+enterprise_catalog/apps/catalog/tests/test_algolia_utils.py
+  00468e5c860c9d3f 1877,1883,1885-1888,1890-1893
+scripts/algolia_integration/test_scenarios.py
+  00468e5c860c9d3f 1-445
+.gitignore
+  00468e5c860c9d3f 75-77
+pytest.ini
+  00468e5c860c9d3f 12
+scripts/.env.example
+  00468e5c860c9d3f 1-35
+enterprise_catalog/apps/api/tasks.py
+  00468e5c860c9d3f 11,680-688,690-692,724
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1765b38507e35bec6fe5a740d1d7124924745bfe",
+  "prompts": {
+    "00468e5c860c9d3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ab840e1b-ed7f-4777-a843-affe92e55a77",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 1368,
+      "total_deletions": 244,
+      "accepted_lines": 1279,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/e78fb09f56fcd6df59192c1dfda5f2d4c22fffe01d581762da3998a71763012d"
+    }
+  }
+}

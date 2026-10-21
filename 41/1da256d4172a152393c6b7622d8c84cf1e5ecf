@@ -1,0 +1,45 @@
+enterprise_catalog/apps/api/v1/serializers.py
+  s_791ae924aa1f0d::t_ac5c91832d0356 654-659,662-663,668,670-741,746,748
+  s_791ae924aa1f0d::t_22617a88803cdc 660-661,664-667,669
+  s_791ae924aa1f0d::t_f41b8badd21fbd 742-745,747,749-753
+docs/references/content_membership_debug_endpoint.md
+  s_791ae924aa1f0d::t_1a87e2aeb22e1c 8,11-15,44-47,87-89
+  s_791ae924aa1f0d::t_1d190e3e5e200c 1-7,9-10,16-18,29-43,48-86
+  s_791ae924aa1f0d::t_77008225c66db1 19-28,101-106
+  s_791ae924aa1f0d::t_737014baa551d7 90-100
+  s_791ae924aa1f0d::t_1e4e9187411102 107-110
+enterprise_catalog/apps/api/v1/views/content_membership_debug.py
+  s_791ae924aa1f0d::t_cfba59938bdf76 25-28
+  s_791ae924aa1f0d::t_21ab5e1750ea58 1-6,13-20,29-39,50-156,254-264,269,271-292,294-305
+  s_791ae924aa1f0d::t_5aba72e638320d 7-12,21-24,157-253,265-268,270,293,306
+  s_791ae924aa1f0d::t_22617a88803cdc 40-49
+enterprise_catalog/apps/api/v2/urls.py
+  s_791ae924aa1f0d::t_3b8868a6d72301 7-9,34-41
+  s_791ae924aa1f0d::t_119d97471df941 42
+enterprise_catalog/apps/api/v2/tests/test_content_membership_debug.py
+  s_791ae924aa1f0d::t_48f79aae2663b0 4-10,12-13,15-22,24-25,27,29-101
+  s_791ae924aa1f0d::t_168d9296de6629 1-3,11,14,23,26,28
+enterprise_catalog/apps/api/v1/urls.py
+  s_791ae924aa1f0d::t_036a73460f4104 20-22,127-130
+  s_791ae924aa1f0d::t_8ac5a90d433f97 131
+enterprise_catalog/apps/api/v1/tests/test_content_membership_debug.py
+  s_791ae924aa1f0d::t_8ea43a680ed85d 2,4,6-8,10-25,27,29-165,170-210
+  s_791ae924aa1f0d::t_22617a88803cdc 166-169
+  s_791ae924aa1f0d::t_74beb204aeade8 1,3,5,9,26,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "411da256d4172a152393c6b7622d8c84cf1e5ecf",
+  "prompts": {},
+  "sessions": {
+    "s_791ae924aa1f0d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf000c81-a1ca-4c92-941c-2b37e6a59aaa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

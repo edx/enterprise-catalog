@@ -1,0 +1,23 @@
+docs/reindex-algolia-plan-v2.md
+  12d0c26c1fde6a40 289-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "bf2b5eef4734d5f94be6af4aedec2e0916c1012b",
+  "prompts": {
+    "12d0c26c1fde6a40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d765e8b5-12ad-4174-a80d-c073b8b9d08c",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 0,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    }
+  }
+}

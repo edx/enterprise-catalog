@@ -1,0 +1,19 @@
+enterprise_catalog/apps/catalog/algolia_utils.py
+  s_5b3f74dac56b59::t_6c0210d6d99d3c 241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "04d63ea770705d895f0b0a6b69ca338db8c70be8",
+  "prompts": {},
+  "sessions": {
+    "s_5b3f74dac56b59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "74052e79-677e-4296-80c2-f0c854f8d61d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Brian Beggs <macdiesel@gmail.com>"
+    }
+  }
+}

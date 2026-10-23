@@ -140,7 +140,7 @@ colorama==0.4.6
     # via
     #   -r requirements/test.txt
     #   tox
-coverage[toml]==7.16.2
+coverage[toml]==7.17.0
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -394,7 +394,7 @@ idna==3.20
     #   anyio
     #   httpx
     #   requests
-inflect==7.5.0
+inflect==7.6.0
     # via
     #   -r requirements/dev.in
     #   jinja2-pluralize
@@ -412,6 +412,8 @@ isort==9.0.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pylint
+jaraco-functools==4.6.0
+    # via inflect
 jinja2==3.1.6
     # via
     #   -r requirements/quality.txt
@@ -472,7 +474,9 @@ monotonic==1.6
     #   -r requirements/test.txt
     #   analytics-python
 more-itertools==11.2.1
-    # via inflect
+    # via
+    #   inflect
+    #   jaraco-functools
 mypy-extensions==1.1.0
     # via
     #   -r requirements/quality.txt
@@ -557,7 +561,7 @@ psutil==7.2.2
     #   edx-django-utils
 pycodestyle==2.15.0
     # via -r requirements/quality.txt
-pycparser==3.11
+pycparser==3.12
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -644,7 +648,7 @@ pytest-cov==7.1.0
     # via -r requirements/test.txt
 pytest-django==4.14.0
     # via -r requirements/test.txt
-python-dateutil==2.9.0.post0
+python-dateutil==3.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -844,7 +848,8 @@ tzdata==2026.5
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   kombu
-tzlocal==5.4.4
+    #   python-dateutil
+tzlocal==5.4.5
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -867,7 +872,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.14.12
+virtualenv==21.14.13
     # via
     #   -r requirements/test.txt
     #   tox
@@ -880,11 +885,11 @@ wheel==0.48.0
     # via
     #   -r requirements/pip-tools.txt
     #   pip-tools
-xlsxwriter==3.2.9
+xlsxwriter==3.3.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-zipp==4.1.1
+zipp==4.1.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

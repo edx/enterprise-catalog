@@ -89,6 +89,12 @@ Two gotchas from ENT-12315:
   (needs `SHOULD_FETCH_RESTRICTED_COURSE_RUNS` on; use `--force` to bypass the hourly dedupe). The
   misconfigured `content_filter` still needs fixing, or the warning repeats on every sync.
 
+All of this is gated by two settings: `SHOULD_FETCH_RESTRICTED_COURSE_RUNS` (sync) and
+`SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS` (Algolia). Both default to `False` in `base.py`;
+stage and prod set them to `True`. On devstack, set them in `settings/private.py`: devstack
+bind-mounts its own settings file over `settings/devstack.py`, so edits to the repo's copy don't
+load.
+
 ### Videos take a separate route in
 
 Videos never come through `/search/all/` and are not part of the daily chain. They start as a
@@ -174,6 +180,12 @@ course run, at least one owner, a marketing URL slug, and a verified upgrade dea
 future. Pathways are always indexable. The union of the three sets is
 `IndexingMappings.all_indexable_content_keys`, and anything outside it is removed from the
 index rather than skipped.
+
+With `SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS` on, courses are judged on their canonical
+`RestrictedCourseMetadata` (`prefetch_restricted_overrides()`), not on the plain
+`ContentMetadata`. That matters for a course whose only runs are restricted: its plain record
+has no runs and no advertised run, so judged on that alone it would never be indexed, even for
+the catalogs that allow those runs.
 
 ### Per-record state
 

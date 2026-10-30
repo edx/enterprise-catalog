@@ -29,7 +29,7 @@ anyio==4.15.1
     #   -r requirements/test.txt
     #   httpx
     #   openai
-asgiref==3.12.1
+asgiref==3.13.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -58,7 +58,7 @@ billiard==4.3.1
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
-cachetools==7.2.4
+cachetools==7.2.7
     # via
     #   -r requirements/test.txt
     #   tox
@@ -69,7 +69,7 @@ celery==5.6.3
     #   -r requirements/test.txt
     #   django-celery-results
     #   edx-celeryutils
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -232,7 +232,7 @@ django-extensions==4.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-django-import-export==4.4.3
+django-import-export==4.4.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -278,7 +278,7 @@ djangorestframework-xml==2.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-dnspython==2.9.0
+dnspython==2.9.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -313,7 +313,7 @@ edx-django-utils==8.1.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   edx-toggles
-edx-drf-extensions==10.9.0
+edx-drf-extensions==10.10.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -342,7 +342,7 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.43.0
+faker==40.44.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
@@ -446,7 +446,7 @@ mysqlclient==2.3.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-narwhals==2.27.1
+narwhals==2.28.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -481,7 +481,7 @@ packaging==26.3
     #   pytest
     #   tox
     #   virtualenv
-platformdirs==4.13.5
+platformdirs==4.14.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -516,12 +516,12 @@ pycparser==3.12
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   cffi
-pydantic==2.14.1
+pydantic==2.14.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   openai
-pydantic-core==2.50.1
+pydantic-core==2.50.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -579,11 +579,11 @@ pynacl==1.6.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-django-utils
-pyproject-api==1.12.0
+pyproject-api==1.12.2
     # via
     #   -r requirements/test.txt
     #   tox
-pytest==9.1.1
+pytest==9.2.0
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -598,7 +598,7 @@ python-dateutil==3.0.0
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
-python-discovery==1.6.4
+python-discovery==1.6.7
     # via
     #   -r requirements/test.txt
     #   tox
@@ -613,7 +613,7 @@ python3-openid==3.2.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   social-auth-core
-pytz==2026.5
+pytz==2026.6
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -752,7 +752,7 @@ tomlkit==0.15.2
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.67.1
+tox==4.67.4
     # via -r requirements/test.txt
 tqdm==4.70.1
     # via
@@ -778,7 +778,7 @@ typing-inspection==0.4.4
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   pydantic
-tzdata==2026.5
+tzdata==2026.6
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -807,16 +807,16 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.14.13
+virtualenv==21.15.1
     # via
     #   -r requirements/test.txt
     #   tox
-wcwidth==0.9.3
+wcwidth==0.9.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   prompt-toolkit
-xlsxwriter==3.3.0
+xlsxwriter==3.3.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

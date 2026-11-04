@@ -56,7 +56,7 @@ jobs:
         pip install --no-binary xmlsec xmlsec==1.3.13
     - name: Initiate services
       run: |
-        sudo /etc/init.d/mysql start
+        sudo systemctl start mysql.service
     - name: Reset mysql password
       run: |
         cat <<EOF | mysql -h 127.0.0.1 -u root --password=root

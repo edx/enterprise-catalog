@@ -1,0 +1,32 @@
+enterprise_catalog/apps/search/management/commands/tests/test_incremental_reindex_algolia.py
+  s_13011905dc7920::t_c0153d5b3ecbbd 21-22,43-48,190-191,193-194,204-209,213-214,218-219
+  s_13011905dc7920::t_f84160d5db7fb7 41-42,49
+  s_13011905dc7920::t_fa6ca44be81463 183-189,202-203,215-217,220
+  s_13011905dc7920::t_b5549d2a734322 19-20
+  s_13011905dc7920::t_a153e5a311160a 192,195-201,210-212
+enterprise_catalog/apps/search/management/commands/incremental_reindex_algolia.py
+  s_13011905dc7920::t_424bb983fa6be7 111-113
+  s_13011905dc7920::t_965ef46c647beb 14-15
+  s_13011905dc7920::t_91aa78288f00f5 12
+  s_13011905dc7920::t_bc75e9fe8c650d 13,16-17
+  s_13011905dc7920::t_2c65ee314e5a10 104-105,114
+  s_13011905dc7920::t_63f1720a0dd892 50-59,86,106-110
+enterprise_catalog/apps/search/indexing_mappings.py
+  s_13011905dc7920::t_c3f9cd6bc14617 105,107,114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "455f53e210324b2610f4d2aa07f08b71a8384bd7",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,22 @@
+enterprise_catalog/apps/api/v1/views/enterprise_catalog_refresh_data_from_discovery.py
+  s_13011905dc7920::t_b92f963467d44a 45,48
+  s_13011905dc7920::t_eb0a8ab0e9046c 1
+enterprise_catalog/apps/api/v1/tests/test_views.py
+  s_13011905dc7920::t_cad4395b0e3f18 1982,1991-1993
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a934dfb6f898f09cd97fa3617e5ffa49e0b26254",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+enterprise_catalog/apps/api/v1/views/enterprise_catalog_get_content_metadata.py
+  ca2732add8fc4d03 24-27,42
+enterprise_catalog/apps/api/v1/throttles.py
+  ca2732add8fc4d03 1-25
+enterprise_catalog/apps/api/v1/tests/test_views.py
+  ca2732add8fc4d03 1782-1838
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "8c2b041d4395fcb8467ce6ea102a365bbd362640",
+  "prompts": {
+    "ca2732add8fc4d03": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82246594-27e6-4a7e-ab18-d0ef04e20553",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 89,
+      "total_deletions": 0,
+      "accepted_lines": 87,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/be3de5d32549f7fc90b3e6617c5211bce84d35c5419c5341bae1f05123f04b8c"
+    }
+  }
+}

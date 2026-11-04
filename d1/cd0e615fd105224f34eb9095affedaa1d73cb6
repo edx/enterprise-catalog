@@ -1,0 +1,46 @@
+enterprise_catalog/apps/search/management/commands/run_algolia_integration_tests.py
+  s_53b6e19ecc7771::t_a4ec9783b99b8d 190-196
+  s_13011905dc7920::t_864107a2e1a85b 9-150,152-189,197-199,201-245
+  s_53b6e19ecc7771::t_2833c6c480e05d 200
+  s_53b6e19ecc7771::t_11ee5fe5a13b63 151
+tests/integration/algolia_reindexing/assertions.py
+  s_53b6e19ecc7771::t_9402bf74aeabd0 33-52,72-109
+  s_53b6e19ecc7771::t_6a36b5bdef7fe9 63-70
+docs/algolia-reindexing/plans/integration-test-plan.md
+  s_53b6e19ecc7771::t_706f5a4a61fb73 539
+  s_53b6e19ecc7771::t_e0e758d7a8564b 48
+tests/integration/fixtures/algolia_reindexing.json
+  s_53b6e19ecc7771::t_7e5a732497054a 30-292
+docs/algolia-reindexing/tech-spec.md
+  s_53b6e19ecc7771::t_5b7250b7d24ffa 767
+tests/integration/algolia_reindexing/scenarios.py
+  s_53b6e19ecc7771::t_c454be89f60129 108
+  s_53b6e19ecc7771::t_2738901b5d6c15 140-146
+  s_53b6e19ecc7771::t_15ff0b2cc8028d 168-188
+  s_53b6e19ecc7771::t_aaad80cdc5c2ae 35
+  s_53b6e19ecc7771::t_da31c48b9123ed 211-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d1cd0e615fd105224f34eb9095affedaa1d73cb6",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    },
+    "s_53b6e19ecc7771": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "99cc193b-bb06-4e05-aa1e-381eba01c3a5",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": null
+    }
+  }
+}

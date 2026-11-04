@@ -1,0 +1,42 @@
+docs/algolia-reindexing/tech-spec.md
+  9b7fc1303e27e557 3-6,67-68,116-118,120-121,130-160,211,336,338,340-343,345,356,411,413,427-428,430-431,433-435,437-447,449-451,453-457,459-462,524-535,557-558,573,668,685-686,795,797,799-813,815-818,820-821,823,827-828,832,834,841,847-872,875-878,880,882,884-893,949,957,1004-1009,1020-1045,1048-1052,1054-1088,1107-1108
+  667204f00b0dfa54 21-25,27,29,34-46,52-53,57-62,64,69-91,95-103,206,208,210,212-216,218,220-235,237,239-279,281,283-285,287-288,296-299,301,303-310,312,337,339,344,346-355,359,371,377-378,391,393,400-410,412,414-426,429,432,436,448,452,458,464-523,575-582,584-587,591,593,595,625-626,659,672,680,756-761,814,819,825-826,830-831,835-839,842-846,879,881,883,901,904-933,936-940,942,944-946,948,950-953,956,959-960,962,965-976,978,984-985,992,999-1003,1010-1019,1053
+docs/algolia-reindexing/algolia-frontend-architecture.md
+  9b7fc1303e27e557 1-79
+docs/algolia-reindexing/pitch.md
+  667204f00b0dfa54 51,54,56,60-61,67,73,79-80,83,86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "3fc46819bb9e19ddfea4074f2569e9871a8516ed",
+  "prompts": {
+    "667204f00b0dfa54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bc8e2d3-0f86-4ebe-98bb-7e8dfca02487",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 488,
+      "total_deletions": 262,
+      "accepted_lines": 395,
+      "overriden_lines": 0
+    },
+    "9b7fc1303e27e557": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bffd1219-9430-42f2-b969-684577ff1818",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 1087,
+      "total_deletions": 134,
+      "accepted_lines": 327,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/ad2d92b6c5fc4566bd6fe004c5899ddcdbd4aa81335de722b94fb9cb3ba9e0a6"
+    }
+  }
+}

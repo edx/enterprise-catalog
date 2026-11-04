@@ -1,0 +1,22 @@
+scripts/validate_algolia_indices.py
+  s_13011905dc7920::t_bf2d149ce8414f 4,6-7,9,11-35,53,56,161-184,214-318,342-513,607-616,620-622,626,628,630,633,635,640-642,644-645,647-651,653-656
+enterprise_catalog/apps/search/tasks.py
+  s_13011905dc7920::t_01d6c29a95ba7b 67-68
+  s_13011905dc7920::t_ba9c38096c3acd 283-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "61cf673dc8316156f3e940f18486981e19ff572e",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

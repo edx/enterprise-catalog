@@ -1,0 +1,50 @@
+docs/architecture_overview.rst
+  s_005029522fafae::t_1c6d694cddbd3f 315-325,327-336,339
+  s_005029522fafae::t_0095389b10285d 509,512-516
+  s_005029522fafae::t_fdbcda63bc1600 112-115
+  s_005029522fafae::t_324a4958d1b4e6 386-387,390-399,402-411,419-420,424-427
+  s_005029522fafae::t_caec4be5a43791 575-577
+  s_005029522fafae::t_09433d7bd493f5 90
+  s_005029522fafae::t_9b5ee453fc59a7 428
+  s_005029522fafae::t_3bebc98c1bfbb5 337-338
+  s_005029522fafae::t_15104d0356fe50 326
+docs/getting_started.rst
+  s_005029522fafae::t_734629f1186a55 92-95
+  s_005029522fafae::t_8ada740dc1402c 77-82
+  s_005029522fafae::t_a2dc2a982813a9 101-104
+docs/algolia-reindexing/README.md
+  s_005029522fafae::t_b3dbfd8b048f71 1,3-5,7-24,26-48
+  s_005029522fafae::t_f0c12c56389274 25
+docs/references/content-sync-and-algolia-indexing.md
+  s_005029522fafae::t_74a13529cd7edf 1-22,27-78,95-99,105-114,117,123-127,156-277,280-281,285-327,350-388,395-408,412-419
+  s_005029522fafae::t_9ee4855333cc8f 389-394
+  s_005029522fafae::t_02d8464b8d84cb 100-104
+  s_005029522fafae::t_f26167583eab14 23-26
+  s_005029522fafae::t_39851a4520c19f 328-349
+  s_005029522fafae::t_e485da4859e577 155
+  s_005029522fafae::t_abc1cc3986568f 79-94
+  s_005029522fafae::t_55570c9e24aa59 118-122,128-154
+  s_005029522fafae::t_0e2277ad4cc96d 278-279,282-283
+  s_005029522fafae::t_455fdb2f60ece5 284
+  s_005029522fafae::t_1a2ba0dd87ee9f 409-411
+  s_005029522fafae::t_1ef4a1dea57f55 115-116
+CLAUDE.md
+  s_005029522fafae::t_63aaa73c7afa33 80,85-86
+  s_005029522fafae::t_fb468cd44ac94b 87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2de94a63d0fa5839f509137911356232d67ebb44",
+  "prompts": {},
+  "sessions": {
+    "s_005029522fafae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b03bc974-dd16-4e5d-b679-3215d7a0fd71",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

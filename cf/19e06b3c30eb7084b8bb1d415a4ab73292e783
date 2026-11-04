@@ -1,0 +1,24 @@
+docs/decisions/0012-incremental-indexing-state-authority-and-outcome-contract.rst
+  13011905dc79203b 1-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "cf19e06b3c30eb7084b8bb1d415a4ab73292e783",
+  "prompts": {
+    "13011905dc79203b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 84,
+      "total_deletions": 0,
+      "accepted_lines": 175,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/d2b181a25d11f54245f84230fa8b16584ab1907f183bf64dc5d8baa4070f0b7e"
+    }
+  }
+}

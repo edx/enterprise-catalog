@@ -1,0 +1,45 @@
+enterprise_catalog/apps/api/v1/export_utils.py
+  s_78b10486a3511a::t_6212bf3f91abc7 132-143,145-151,159,161-164,190-205
+  s_78b10486a3511a::t_64af406e3f0141 226
+  s_78b10486a3511a::t_8e9c2316b5a3bb 144,152-158,160,165-189
+enterprise_catalog/apps/api/v1/tests/test_export_utils.py
+  s_78b10486a3511a::t_41d0558080b577 29-70
+  s_78b10486a3511a::t_b974cac4e81328 18-28
+enterprise_catalog/apps/api/v1/tests/test_views.py
+  s_78b10486a3511a::t_60dd544b6de8f6 1193
+  s_78b10486a3511a::t_d652441c9b97fb 1150
+  s_78b10486a3511a::t_4437ff00638539 1204
+  s_78b10486a3511a::t_103994b00fa43a 1210-1238
+  s_78b10486a3511a::t_8d286e1c1349ae 841-872
+  s_78b10486a3511a::t_f8e8ac555c6dc7 874-953
+  s_78b10486a3511a::t_0bd111b6aff91a 820-821
+  s_78b10486a3511a::t_ac8044fb689cca 804
+  s_78b10486a3511a::t_e138d23bf890f5 1182
+  s_78b10486a3511a::t_13fc0267799fef 873
+enterprise_catalog/apps/api/v1/views/catalog_workbook.py
+  s_78b10486a3511a::t_4171fe5f80780b 2
+  s_78b10486a3511a::t_4758299aa11a17 84-85
+  s_78b10486a3511a::t_a1a3cf5a2b99f3 86-108,110,112-122
+  s_78b10486a3511a::t_6ba8b356acdf10 74
+  s_78b10486a3511a::t_62b264c098cfd9 65-66,68-70,73
+enterprise_catalog/apps/api/v1/views/catalog_csv.py
+  s_78b10486a3511a::t_481db120271c35 51-54,56,73
+enterprise_catalog/apps/api/v1/views/catalog_csv_data.py
+  s_78b10486a3511a::t_87955bb2ac6e14 54-55,58,60,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bdc6c59f3fd870f82a96865e555c015dba61eae9",
+  "prompts": {},
+  "sessions": {
+    "s_78b10486a3511a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ceebc966-b997-4e2a-ae01-5ad5c0dd4436",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    }
+  }
+}

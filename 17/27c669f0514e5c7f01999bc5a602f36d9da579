@@ -1,0 +1,29 @@
+enterprise_catalog/apps/search/tests/test_tasks.py
+  s_13011905dc7920::t_80b8c42a31d6c8 556,560-563,596-597,599
+  s_13011905dc7920::t_b46c662896a50a 730,742,755,764,770,772-774,776-785
+docs/decisions/0012-incremental-indexing-state-authority-and-outcome-contract.rst
+  s_13011905dc7920::t_a24a85c8514d88 44-47
+enterprise_catalog/apps/search/tasks.py
+  s_13011905dc7920::t_57202d1509178f 187-197,201,203,212-214,217-218,226-230,235,247,258,267-269,272
+  s_13011905dc7920::t_12ae29910822f6 611-613
+  s_13011905dc7920::t_dc7bae5c1fca9d 524-526,530
+  s_13011905dc7920::t_a747391eb5d2db 614-616,620-623
+  s_13011905dc7920::t_86954490e6723a 289-293
+  s_13011905dc7920::t_b98b996493d81f 343-347,351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "1727c669f0514e5c7f01999bc5a602f36d9da579",
+  "prompts": {},
+  "sessions": {
+    "s_13011905dc7920": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

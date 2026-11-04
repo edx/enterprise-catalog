@@ -1,0 +1,23 @@
+enterprise_catalog/apps/catalog/management/commands/update_content_metadata.py
+  s_d74024c89964f3::t_bf4e3e44646c74 55,57,59,61-62,65
+  s_d74024c89964f3::t_76bda589bd3ba5 163
+enterprise_catalog/apps/catalog/management/commands/tests/test_update_content_metadata.py
+  s_d74024c89964f3::t_ede47c1f505674 71,100
+  s_d74024c89964f3::t_f5429b2af56c4e 123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "af28e5235b699e5055ebcc8133b805688d1081ad",
+  "prompts": {},
+  "sessions": {
+    "s_d74024c89964f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9d210d0-416c-447d-b382-acb748c6d968",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>"
+    }
+  }
+}

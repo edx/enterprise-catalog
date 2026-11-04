@@ -1,0 +1,24 @@
+scripts/compare_algolia_indices.py
+  12d0c26c1fde6a40 1-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "b5ea6810eb9d1d0c3a296f24d5a2e1649d4411ae",
+  "prompts": {
+    "12d0c26c1fde6a40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d765e8b5-12ad-4174-a80d-c073b8b9d08c",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Alexander Dusenbery <adusenbery@2u.com>",
+      "messages": [],
+      "total_additions": 270,
+      "total_deletions": 0,
+      "accepted_lines": 270,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/d2ce349b1c4a514217b5e765c96757972788822d073be3dd3b76dd2c4ea629be"
+    }
+  }
+}

@@ -229,7 +229,7 @@ numpy==2.5.4
     # via
     #   scikit-learn
     #   scipy
-oauthlib==4.0.0
+oauthlib==4.0.1
     # via
     #   requests-oauthlib
     #   social-auth-core

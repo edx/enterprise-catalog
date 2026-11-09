@@ -387,7 +387,7 @@ numpy==2.5.4
     #   -r requirements/test.txt
     #   scikit-learn
     #   scipy
-oauthlib==4.0.0
+oauthlib==4.0.1
     # via
     #   -r requirements/test.txt
     #   requests-oauthlib

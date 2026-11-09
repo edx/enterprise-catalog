@@ -1,0 +1,19 @@
+.github/workflows/upgrade-python-requirements.yml
+  s_a5d7c31485945b::t_cb92a9fb79a553 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1e57094899a97a733982f2de490b2522ef3250cb",
+  "prompts": {},
+  "sessions": {
+    "s_a5d7c31485945b": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "9a4ee715-076a-4923-b202-cf6ca304a690",
+        "model": "claude-haiku-5.5"
+      },
+      "human_author": "Hamzah Ullah <hamzahullah@yahoo.com>"
+    }
+  }
+}

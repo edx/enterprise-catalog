@@ -1,0 +1,33 @@
+requirements/base.txt
+  s_dd067bc5ec312d::t_3fbc2b42d6934f 40,128,376
+requirements/dev.txt
+  s_dd067bc5ec312d::t_c46e716b3298b6 65,76,178,251,367,527,629,653,807,813,870,874
+requirements/doc.txt
+  s_dd067bc5ec312d::t_b5c2ee0e2416a7 60,70,150,206,295,410,495,513,615,628,661,666,713,717
+requirements/pip.txt
+  s_dd067bc5ec312d::t_6178e001299f95 17
+requirements/production.txt
+  s_dd067bc5ec312d::t_eb8a0bdb1fdf77 48,155,501
+requirements/quality.txt
+  s_dd067bc5ec312d::t_19d6a7d593784e 55,171,335,507,553
+requirements/test.txt
+  s_dd067bc5ec312d::t_abf882384f948e 49,57,132,185,263,362,430,445,558,562,608,610
+requirements/validation.txt
+  s_dd067bc5ec312d::t_ab008da5ee4a40 61,72,166,235,349,484,582,601,749,755,809,813
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ef9f0b59b15a3da5b290de600e3fa6c3ec9bc2af",
+  "prompts": {},
+  "sessions": {
+    "s_dd067bc5ec312d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8845b45-fbd9-429f-a814-66604866278f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Hamzah Ullah <hamzahullah@yahoo.com>"
+    }
+  }
+}

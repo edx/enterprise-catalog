@@ -1,0 +1,30 @@
+enterprise_catalog/apps/search/models.py
+  13011905dc79203b 86-89,96,102
+enterprise_catalog/apps/search/tasks.py
+  13011905dc79203b 302-318
+enterprise_catalog/apps/search/tests/test_models.py
+  13011905dc79203b 102-116
+enterprise_catalog/apps/search/tests/test_tasks.py
+  13011905dc79203b 212-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "aceb8a9dbd0b897c0e76ace43c8b5786736cc4c2",
+  "prompts": {
+    "13011905dc79203b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987eb28f-93aa-425d-a324-7c03f06c6566",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Alexander Dusenbery",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 5,
+      "accepted_lines": 179,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/0e8d3b149e232aa0646020d4be2498771f5e813534a81227a8b0a7251bfeb7e8"
+    }
+  }
+}

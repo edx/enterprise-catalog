@@ -1,0 +1,19 @@
+pylintrc
+  s_30b13417138cb2::t_8f60d64905bea0 67,260-261,397-402
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0f56e8aa932c34746fd7274c6bfbd4413534ea01",
+  "prompts": {},
+  "sessions": {
+    "s_30b13417138cb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "871d5b58-57d1-43d4-b7f0-348d3f72fd3a",
+        "model": "unknown"
+      },
+      "human_author": "GitHub <noreply@github.com>"
+    }
+  }
+}

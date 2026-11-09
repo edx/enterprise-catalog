@@ -1,0 +1,19 @@
+.github/workflows/mysql-migrations-check.yml
+  s_9547236333088c::t_ed0d43032b476e 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a0b9d0666d19988fdad5d156624306d09f1f9422",
+  "prompts": {},
+  "sessions": {
+    "s_9547236333088c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce2d5571-329d-4b38-ab44-867c95188158",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Hamzah Ullah <hamzahullah@yahoo.com>"
+    }
+  }
+}

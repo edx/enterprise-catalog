@@ -1,11 +1,22 @@
 """
 Tests for ``enterprise_catalog.apps.search.indexing_mappings``.
 """
+from copy import deepcopy
 from unittest import mock
 
+import ddt
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 
+from enterprise_catalog.apps.catalog.constants import (
+    COURSE,
+    COURSE_RUN_RESTRICTION_TYPE_KEY,
+    RESTRICTION_FOR_B2B,
+)
+from enterprise_catalog.apps.catalog.tests.factories import (
+    ContentMetadataFactory,
+    RestrictedCourseMetadataFactory,
+)
 from enterprise_catalog.apps.search import indexing_mappings as mappings_module
 from enterprise_catalog.apps.search.indexing_mappings import (
     CACHE_KEY,
@@ -188,3 +199,48 @@ class TestComputeIndexingMappings(TestCase):
 
         self.assertIn('pathway-orphan', result.pathway_to_program_course_keys)
         self.assertEqual(result.pathway_to_program_course_keys['pathway-orphan'], set())
+
+
+@ddt.ddt
+class TestComputeIndexingMappingsRestrictedCourses(TestCase):
+    """
+    DB-backed tests for how ``_compute_indexing_mappings`` treats courses with
+    restricted runs.
+    """
+    # pylint: disable=protected-access
+
+    def setUp(self):
+        super().setUp()
+        # A course whose only run is restricted. Discovery's unrestricted view of it has no
+        # runs and no advertised run; the canonical restricted record has both.
+        self.restricted_only_course = ContentMetadataFactory(content_type=COURSE)
+        restricted_json = deepcopy(self.restricted_only_course._json_metadata)
+        restricted_json['course_runs'][0][COURSE_RUN_RESTRICTION_TYPE_KEY] = RESTRICTION_FOR_B2B
+        self.restricted_only_course._json_metadata.update({
+            'course_runs': [],
+            'advertised_course_run_uuid': None,
+        })
+        self.restricted_only_course.save()
+        RestrictedCourseMetadataFactory(
+            content_key=self.restricted_only_course.content_key,
+            unrestricted_parent=self.restricted_only_course,
+            catalog_query=None,
+            _json_metadata=restricted_json,
+        )
+        self.unrestricted_course = ContentMetadataFactory(content_type=COURSE)
+
+    @ddt.data(True, False)
+    def test_restricted_only_course_indexable_when_restricted_indexing_enabled(self, index_restricted):
+        """
+        A course whose only runs are restricted is indexable when
+        ``SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS`` is on, and not otherwise.
+        Courses with unrestricted runs are indexable either way.
+        """
+        with override_settings(SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS=index_restricted):
+            result = mappings_module._compute_indexing_mappings()
+
+        self.assertIn(self.unrestricted_course.content_key, result.all_indexable_content_keys)
+        self.assertEqual(
+            self.restricted_only_course.content_key in result.all_indexable_content_keys,
+            index_restricted,
+        )

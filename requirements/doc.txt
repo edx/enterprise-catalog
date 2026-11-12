@@ -57,11 +57,11 @@ billiard==4.3.2
     # via
     #   -r requirements/test.txt
     #   celery
-cachetools==7.2.8
+cachetools==8.0.0
     # via
     #   -r requirements/test.txt
     #   tox
-celery==5.6.3
+celery==5.7.0
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/test.txt
@@ -82,7 +82,7 @@ charset-normalizer==3.5.2
     # via
     #   -r requirements/test.txt
     #   requests
-click==8.5.0
+click==8.5.1
     # via
     #   -r requirements/test.txt
     #   celery
@@ -122,7 +122,7 @@ colorama==0.4.6
     # via
     #   -r requirements/test.txt
     #   tox
-coverage[toml]==7.17.1
+coverage[toml]==7.17.2
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -189,7 +189,7 @@ django-celery-results==2.6.0
     # via -r requirements/test.txt
 django-clearcache==1.2.1
     # via -r requirements/test.txt
-django-config-models==3.0.0
+django-config-models==3.1.0
     # via -r requirements/test.txt
 django-cors-headers==4.9.0
     # via -r requirements/test.txt
@@ -203,7 +203,7 @@ django-dynamic-fixture==4.0.1
     # via -r requirements/test.txt
 django-extensions==4.1
     # via -r requirements/test.txt
-django-import-export==4.4.4
+django-import-export==4.4.5
     # via -r requirements/test.txt
 django-log-request-id==2.1.2
     # via -r requirements/test.txt
@@ -254,9 +254,9 @@ drf-jwt==1.19.2
     #   edx-drf-extensions
 drf-spectacular==0.30.0
     # via -r requirements/test.txt
-edx-auth-backends==5.1.0
+edx-auth-backends==5.1.1
     # via -r requirements/test.txt
-edx-celeryutils==2.0.0
+edx-celeryutils==2.1.0
     # via -r requirements/test.txt
 edx-django-release-util==1.5.0
     # via -r requirements/test.txt
@@ -268,7 +268,7 @@ edx-django-utils==8.1.0
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   edx-toggles
-edx-drf-extensions==10.10.0
+edx-drf-extensions==10.11.0
     # via
     #   -r requirements/test.txt
     #   edx-rbac
@@ -278,9 +278,9 @@ edx-opaque-keys==4.0.1
     # via
     #   -r requirements/test.txt
     #   edx-drf-extensions
-edx-rbac==3.0.0
+edx-rbac==3.1.0
     # via -r requirements/test.txt
-edx-rest-api-client==7.1.0
+edx-rest-api-client==7.1.2
     # via -r requirements/test.txt
 edx-toggles==6.0.0
     # via
@@ -288,11 +288,11 @@ edx-toggles==6.0.0
     #   edx-auth-backends
 factory-boy==3.3.3
     # via -r requirements/test.txt
-faker==40.44.0
+faker==40.54.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==4.2.7
+filelock==4.2.10
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -374,7 +374,7 @@ mypy-extensions==1.2.0
     # via
     #   -r requirements/test.txt
     #   isort
-mysqlclient==2.3.0
+mysqlclient==2.3.1
     # via -r requirements/test.txt
 narwhals==2.28.0
     # via
@@ -406,7 +406,7 @@ packaging==26.3
     #   sphinx
     #   tox
     #   virtualenv
-platformdirs==4.14.3
+platformdirs==4.14.5
     # via
     #   -r requirements/test.txt
     #   pylint
@@ -434,11 +434,11 @@ pycparser==3.12
     # via
     #   -r requirements/test.txt
     #   cffi
-pydantic==2.14.2
+pydantic==2.14.3
     # via
     #   -r requirements/test.txt
     #   openai
-pydantic-core==2.50.2
+pydantic-core==2.50.4
     # via
     #   -r requirements/test.txt
     #   pydantic
@@ -491,7 +491,7 @@ pynacl==1.6.2
     # via
     #   -r requirements/test.txt
     #   edx-django-utils
-pyproject-api==1.12.3
+pyproject-api==1.12.5
     # via
     #   -r requirements/test.txt
     #   tox
@@ -504,12 +504,12 @@ pytest-cov==7.1.0
     # via -r requirements/test.txt
 pytest-django==4.14.0
     # via -r requirements/test.txt
-python-dateutil==4.0.0
+python-dateutil==2.9.0.post0
     # via
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
-python-discovery==1.9.2
+python-discovery==1.9.5
     # via
     #   -r requirements/test.txt
     #   tox
@@ -579,7 +579,7 @@ semantic-version==2.10.0
     # via
     #   -r requirements/test.txt
     #   edx-drf-extensions
-simplejson==4.2.0
+simplejson==4.3.0
     # via -r requirements/test.txt
 six==1.17.0
     # via
@@ -589,6 +589,7 @@ six==1.17.0
     #   edx-django-release-util
     #   edx-lint
     #   edx-rbac
+    #   python-dateutil
 sniffio==1.3.1
     # via
     #   -r requirements/test.txt
@@ -608,7 +609,7 @@ social-auth-core==4.9.1
     #   -r requirements/test.txt
     #   edx-auth-backends
     #   social-auth-app-django
-soupsieve==4.0
+soupsieve==4.1
     # via beautifulsoup4
 sphinx==9.1.1
     # via
@@ -648,7 +649,7 @@ text-unidecode==1.3
     # via
     #   -r requirements/test.txt
     #   python-slugify
-threadpoolctl==3.7.0
+threadpoolctl==3.8.0
     # via
     #   -r requirements/test.txt
     #   scikit-learn
@@ -661,7 +662,7 @@ tomlkit==0.15.2
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.67.8
+tox==4.67.13
     # via -r requirements/test.txt
 tqdm==4.70.1
     # via
@@ -681,14 +682,10 @@ typing-extensions==4.16.0
     #   referencing
     #   tox
     #   typing-inspection
-typing-inspection==0.4.4
+typing-inspection==0.4.5
     # via
     #   -r requirements/test.txt
     #   pydantic
-tzdata==2026.6
-    # via
-    #   -r requirements/test.txt
-    #   python-dateutil
 tzlocal==5.4.5
     # via
     #   -r requirements/test.txt
@@ -708,7 +705,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.15.4
+virtualenv==21.15.6
     # via
     #   -r requirements/test.txt
     #   tox

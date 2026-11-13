@@ -1,0 +1,29 @@
+enterprise_catalog/apps/api/v1/tests/test_views.py
+  s_ded187d38408cd::t_3fdb09b1459edb 1578-1602,1605
+  s_ded187d38408cd::t_a8283bcfa26871 1562-1563,1573
+  s_ded187d38408cd::t_faf026af41acdd 1567-1569
+  s_ded187d38408cd::t_07ef2c3652e70f 1656-1657
+  s_ded187d38408cd::t_1bdff3771f3f06 1576-1577
+  s_ded187d38408cd::t_fbceffc2a33a5f 1603-1604
+docs/decisions/0014-filter-content-after-pagination.rst
+  s_ded187d38408cd::t_065db4cf951377 1-76
+enterprise_catalog/apps/api/v1/views/enterprise_catalog_get_content_metadata.py
+  s_ded187d38408cd::t_297b73e3f6b2b4 267-276,295,308
+  s_ded187d38408cd::t_71f1826b1898cc 287-288,293-294,296-303,305-307,309-310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "e394e7f0dfa1ee8c1138190a31bb779dc35bfbe6",
+  "prompts": {},
+  "sessions": {
+    "s_ded187d38408cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "733660a2-4c1e-4bbe-bf30-ea3179ab0a1f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    }
+  }
+}

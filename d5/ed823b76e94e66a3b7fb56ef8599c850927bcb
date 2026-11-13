@@ -1,0 +1,11 @@
+enterprise_catalog/apps/catalog/models.py
+  12d0c26c1fde6a40 1163-1193,1200-1202,1210-1213,1215-1231,1235,1237-1238,1246-1249,1453,1457-1461
+enterprise_catalog/apps/catalog/tests/test_models.py
+  12d0c26c1fde6a40 29,32,1786-1972,1975-1986,1988-2031,2033-2092
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.9",
+  "base_commit_sha": "d5ed823b76e94e66a3b7fb56ef8599c850927bcb",
+  "prompts": {}
+}

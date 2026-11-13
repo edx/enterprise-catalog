@@ -1,0 +1,23 @@
+enterprise_catalog/apps/search/indexing_mappings.py
+  s_4da9fd77cc7ec7::t_02a65bd544602f 89-95
+enterprise_catalog/apps/search/tests/test_indexing_mappings.py
+  s_4da9fd77cc7ec7::t_42b9fcdd15a4e9 4,7,11-18,201-240
+docs/references/content-sync-and-algolia-indexing.md
+  s_4da9fd77cc7ec7::t_92a007cdf31747 92-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f1a6a2cf8e458f8d0ce128e0aa85aab4b44d4ce",
+  "prompts": {},
+  "sessions": {
+    "s_4da9fd77cc7ec7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d61ea677-2b62-4318-a536-8b21e6ea8f2b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Troy Sankey <tsankey@2u.com>"
+    }
+  }
+}

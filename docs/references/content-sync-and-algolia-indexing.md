@@ -89,6 +89,15 @@ Two gotchas from ENT-12315:
   (needs `SHOULD_FETCH_RESTRICTED_COURSE_RUNS` on; use `--force` to bypass the hourly dedupe). The
   misconfigured `content_filter` still needs fixing, or the warning repeats on every sync.
 
+"Unicorn" courses, whose only active runs are restricted, have no advertised run on the
+unrestricted record; only the canonical restricted row has one. Every indexability check for
+courses (`partition_course_keys_for_indexing`) must therefore run on a queryset with
+`prefetch_restricted_overrides()` when `SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS` is on, or the
+course is dropped with `Not indexing course ..., reason: no advertised course run`.
+The incremental pipeline's `_compute_indexing_mappings` originally shipped without this prefetch (only the
+removed v1 full-reindex path had it). `_get_algolia_products_for_batch` then assigns a unicorn course only to
+the catalog queries that allow its restricted runs.
+
 ### Videos take a separate route in
 
 Videos never come through `/search/all/` and are not part of the daily chain. They start as a

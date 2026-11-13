@@ -86,9 +86,13 @@ def _compute_indexing_mappings():
     """
     program_to_courses, pathway_to_programs_courses = _precalculate_content_mappings()
 
-    indexable_courses, _ = partition_course_keys_for_indexing(
-        ContentMetadata.objects.filter(content_type=COURSE)
-    )
+    courses_content_metadata = ContentMetadata.objects.filter(content_type=COURSE)
+    # Swap in each course's canonical restricted metadata so that "unicorn" courses
+    # (i.e. courses that contain only restricted runs) have an advertised run and are
+    # not discarded by partition_course_keys_for_indexing().
+    if getattr(settings, 'SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS', False):
+        courses_content_metadata = courses_content_metadata.prefetch_restricted_overrides()
+    indexable_courses, _ = partition_course_keys_for_indexing(courses_content_metadata)
     indexable_programs, _ = partition_program_keys_for_indexing(
         ContentMetadata.objects.filter(content_type=PROGRAM)
     )

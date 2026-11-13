@@ -1,11 +1,21 @@
 """
 Tests for ``enterprise_catalog.apps.search.indexing_mappings``.
 """
+import copy
 from unittest import mock
 
+import ddt
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 
+from enterprise_catalog.apps.catalog.constants import (
+    COURSE,
+    RESTRICTION_FOR_B2B,
+)
+from enterprise_catalog.apps.catalog.tests.factories import (
+    ContentMetadataFactory,
+    RestrictedCourseMetadataFactory,
+)
 from enterprise_catalog.apps.search import indexing_mappings as mappings_module
 from enterprise_catalog.apps.search.indexing_mappings import (
     CACHE_KEY,
@@ -188,3 +198,43 @@ class TestComputeIndexingMappings(TestCase):
 
         self.assertIn('pathway-orphan', result.pathway_to_program_course_keys)
         self.assertEqual(result.pathway_to_program_course_keys['pathway-orphan'], set())
+
+
+@ddt.ddt
+class TestComputeIndexingMappingsRestrictedCourses(TestCase):
+    """
+    DB-backed tests for how ``_compute_indexing_mappings`` treats courses with restricted runs.
+    """
+    # pylint: disable=protected-access
+
+    def _create_unicorn_course(self):
+        """
+        Create a "unicorn" course: the unrestricted record has no runs and no advertised run,
+        while the canonical (catalog_query=NULL) restricted override advertises a restricted run.
+        """
+        course = ContentMetadataFactory(content_type=COURSE)
+        restricted_json_metadata = copy.deepcopy(course._json_metadata)
+        restricted_json_metadata['course_runs'][0]['restriction_type'] = RESTRICTION_FOR_B2B
+        RestrictedCourseMetadataFactory(
+            content_key=course.content_key,
+            unrestricted_parent=course,
+            catalog_query=None,
+            _json_metadata=restricted_json_metadata,
+        )
+        course._json_metadata['course_runs'] = []
+        course._json_metadata['advertised_course_run_uuid'] = None
+        course.save()
+        return course
+
+    @ddt.data(True, False)
+    def test_unicorn_course_indexable_only_when_restricted_runs_indexed(self, should_index_restricted):
+        """
+        A unicorn course is indexable iff ``SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS`` is
+        enabled, in which case its advertised run comes from the restricted override.
+        """
+        course = self._create_unicorn_course()
+
+        with override_settings(SHOULD_INDEX_COURSES_WITH_RESTRICTED_RUNS=should_index_restricted):
+            result = mappings_module._compute_indexing_mappings()
+
+        self.assertEqual(course.content_key in result.all_indexable_content_keys, should_index_restricted)

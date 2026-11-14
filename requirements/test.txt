@@ -106,7 +106,7 @@ code-annotations==3.0.0
     #   edx-toggles
 colorama==0.4.6
     # via tox
-coverage[toml]==7.17.2
+coverage[toml]==7.17.3
     # via
     #   -r requirements/test.in
     #   pytest-cov
@@ -230,7 +230,7 @@ edx-celeryutils==2.1.0
     # via -r requirements/base.txt
 edx-django-release-util==1.5.0
     # via -r requirements/base.txt
-edx-django-utils==8.1.0
+edx-django-utils==8.2.0
     # via
     #   -r requirements/base.txt
     #   django-config-models
@@ -242,7 +242,7 @@ edx-drf-extensions==10.11.0
     # via
     #   -r requirements/base.txt
     #   edx-rbac
-edx-lint==6.2.0
+edx-lint==6.3.0
     # via -r requirements/test.in
 edx-opaque-keys==4.0.1
     # via
@@ -252,7 +252,7 @@ edx-rbac==3.1.0
     # via -r requirements/base.txt
 edx-rest-api-client==7.1.2
     # via -r requirements/base.txt
-edx-toggles==6.0.0
+edx-toggles==6.1.0
     # via
     #   -r requirements/base.txt
     #   edx-auth-backends
@@ -417,7 +417,7 @@ pylint-plugin-utils==0.9.0
     #   pylint-django
 pymemcache==4.0.0
     # via -r requirements/base.txt
-pymongo==4.19.0
+pymongo==4.20.0
     # via
     #   -r requirements/base.txt
     #   edx-opaque-keys
@@ -533,7 +533,7 @@ sqlparse==0.6.1
     # via
     #   -r requirements/base.txt
     #   django
-stevedore==5.9.1
+stevedore==5.10.0
     # via
     #   -r requirements/base.txt
     #   code-annotations

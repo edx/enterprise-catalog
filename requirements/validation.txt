@@ -58,7 +58,7 @@ billiard==4.3.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
-cachetools==8.0.0
+cachetools==8.0.1
     # via
     #   -r requirements/test.txt
     #   tox
@@ -318,7 +318,7 @@ edx-drf-extensions==10.11.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-rbac
-edx-lint==6.3.0
+edx-lint==6.3.1
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -346,7 +346,7 @@ faker==40.54.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==4.2.10
+filelock==4.2.12
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -442,16 +442,17 @@ mypy-extensions==1.2.0
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   isort
-mysqlclient==2.3.1
+mysqlclient==2.3.0
     # via
+    #   -c requirements/common_constraints.txt
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-narwhals==2.28.0
+narwhals==2.29.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   scikit-learn
-numpy==2.5.4
+numpy==2.5.5
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -479,7 +480,7 @@ packaging==26.3
     #   pytest
     #   tox
     #   virtualenv
-platformdirs==4.14.5
+platformdirs==4.14.7
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -539,7 +540,7 @@ pyjwt[crypto]==2.15.1
     #   edx-drf-extensions
     #   edx-rest-api-client
     #   social-auth-core
-pylint==4.1.3
+pylint==4.1.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -577,7 +578,7 @@ pynacl==1.6.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-django-utils
-pyproject-api==1.12.5
+pyproject-api==1.12.6
     # via
     #   -r requirements/test.txt
     #   tox
@@ -596,12 +597,12 @@ python-dateutil==2.9.0.post0
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
-python-discovery==1.9.5
+python-discovery==1.9.6
     # via
     #   -r requirements/test.txt
     #   tox
     #   virtualenv
-python-slugify==9.1.3
+python-slugify==9.2.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -750,7 +751,7 @@ tomlkit==0.15.2
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.67.13
+tox==4.67.15
     # via -r requirements/test.txt
 tqdm==4.70.1
     # via
@@ -799,7 +800,7 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.15.6
+virtualenv==21.15.8
     # via
     #   -r requirements/test.txt
     #   tox

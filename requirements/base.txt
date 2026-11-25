@@ -46,7 +46,7 @@ cffi==2.1.1
     # via
     #   cryptography
     #   pynacl
-charset-normalizer==3.5.2
+charset-normalizer==3.5.3
     # via requests
 click==8.5.1
     # via
@@ -281,7 +281,7 @@ pyyaml==6.0.4
     #   code-annotations
     #   drf-spectacular
     #   edx-django-release-util
-redis==8.1.0
+redis==8.2.0
     # via -r requirements/base.in
 referencing==0.37.0
     # via
@@ -371,9 +371,9 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-wcwidth==0.9.4
+wcwidth==0.9.5
     # via prompt-toolkit
-xlsxwriter==3.3.3
+xlsxwriter==3.3.4
     # via -r requirements/base.in
 zipp==4.1.2
     # via -r requirements/base.in

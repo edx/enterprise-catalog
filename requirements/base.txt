@@ -46,7 +46,7 @@ cffi==2.1.1
     # via
     #   cryptography
     #   pynacl
-charset-normalizer==3.5.2
+charset-normalizer==3.5.3
     # via requests
 click==8.5.1
     # via
@@ -145,7 +145,7 @@ django-waffle==5.0.0
     #   edx-django-utils
     #   edx-drf-extensions
     #   edx-toggles
-djangoql==0.19.1
+djangoql==0.19.2
     # via -r requirements/base.in
 djangorestframework==3.18.3
     # via
@@ -194,7 +194,7 @@ h11==0.16.0
     # via httpcore
 httpcore==1.0.9
     # via httpx
-httpx==0.28.1
+httpx==0.29.0
     # via openai
 idna==3.20
     # via
@@ -262,7 +262,7 @@ pyjwt[crypto]==2.15.1
     #   social-auth-core
 pymemcache==4.0.0
     # via -r requirements/base.in
-pymongo==4.20.1
+pymongo==4.20.2
     # via edx-opaque-keys
 pynacl==1.6.2
     # via edx-django-utils
@@ -281,7 +281,7 @@ pyyaml==6.0.4
     #   code-annotations
     #   drf-spectacular
     #   edx-django-release-util
-redis==8.1.0
+redis==8.2.0
     # via -r requirements/base.in
 referencing==0.37.0
     # via
@@ -371,9 +371,9 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-wcwidth==0.9.4
+wcwidth==0.9.5
     # via prompt-toolkit
-xlsxwriter==3.3.3
+xlsxwriter==3.3.4
     # via -r requirements/base.in
 zipp==4.1.2
     # via -r requirements/base.in

@@ -58,7 +58,7 @@ billiard==4.3.2
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   celery
-cachetools==8.0.2
+cachetools==8.0.3
     # via
     #   -r requirements/test.txt
     #   tox
@@ -82,7 +82,7 @@ cffi==2.1.1
     #   -r requirements/test.txt
     #   cryptography
     #   pynacl
-charset-normalizer==3.5.2
+charset-normalizer==3.5.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -134,7 +134,7 @@ colorama==0.4.6
     # via
     #   -r requirements/test.txt
     #   tox
-coverage[toml]==7.17.4
+coverage[toml]==7.17.5
     # via
     #   -r requirements/test.txt
     #   pytest-cov
@@ -262,7 +262,7 @@ django-waffle==5.0.0
     #   edx-django-utils
     #   edx-drf-extensions
     #   edx-toggles
-djangoql==0.19.1
+djangoql==0.19.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -346,7 +346,7 @@ faker==40.63.0
     # via
     #   -r requirements/test.txt
     #   factory-boy
-filelock==4.2.12
+filelock==4.3.2
     # via
     #   -r requirements/test.txt
     #   python-discovery
@@ -362,7 +362,7 @@ httpcore==1.0.9
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   httpx
-httpx==0.28.1
+httpx==0.29.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -473,14 +473,14 @@ openedx-atlas==0.7.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-packaging==26.3
+packaging==26.4
     # via
     #   -r requirements/test.txt
     #   pyproject-api
     #   pytest
     #   tox
     #   virtualenv
-platformdirs==4.14.8
+platformdirs==4.14.9
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -568,7 +568,7 @@ pymemcache==4.0.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
-pymongo==4.20.1
+pymongo==4.20.2
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -597,7 +597,7 @@ python-dateutil==2.9.0.post0
     #   -r requirements/test.txt
     #   analytics-python
     #   celery
-python-discovery==1.9.6
+python-discovery==1.9.8
     # via
     #   -r requirements/test.txt
     #   tox
@@ -624,7 +624,7 @@ pyyaml==6.0.4
     #   drf-spectacular
     #   edx-django-release-util
     #   responses
-redis==8.1.0
+redis==8.2.0
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
@@ -745,13 +745,13 @@ tomli-w==1.2.0
     # via
     #   -r requirements/test.txt
     #   tox
-tomlkit==0.15.2
+tomlkit==0.15.3
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   edx-lint
     #   pylint
-tox==4.67.15
+tox==4.67.17
     # via -r requirements/test.txt
 tqdm==4.70.1
     # via
@@ -800,16 +800,16 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-virtualenv==21.15.11
+virtualenv==21.15.14
     # via
     #   -r requirements/test.txt
     #   tox
-wcwidth==0.9.4
+wcwidth==0.9.5
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt
     #   prompt-toolkit
-xlsxwriter==3.3.3
+xlsxwriter==3.3.4
     # via
     #   -r requirements/quality.txt
     #   -r requirements/test.txt

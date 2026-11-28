@@ -63,7 +63,7 @@ cffi==2.1.1
     #   -r requirements/base.txt
     #   cryptography
     #   pynacl
-charset-normalizer==3.5.2
+charset-normalizer==3.5.3
     # via
     #   -r requirements/base.txt
     #   requests
@@ -189,7 +189,7 @@ django-waffle==5.0.0
     #   edx-django-utils
     #   edx-drf-extensions
     #   edx-toggles
-djangoql==0.19.1
+djangoql==0.19.2
     # via -r requirements/base.txt
 djangorestframework==3.18.3
     # via
@@ -250,7 +250,7 @@ httpcore==1.0.9
     # via
     #   -r requirements/base.txt
     #   httpx
-httpx==0.28.1
+httpx==0.29.0
     # via
     #   -r requirements/base.txt
     #   openai
@@ -330,7 +330,7 @@ openai==1.13.3
     #   -r requirements/base.txt
 openedx-atlas==0.7.2
     # via -r requirements/base.txt
-platformdirs==4.14.8
+platformdirs==4.14.9
     # via pylint
 ply==3.11
     # via
@@ -384,7 +384,7 @@ pylint-plugin-utils==0.9.0
     #   pylint-django
 pymemcache==4.0.0
     # via -r requirements/base.txt
-pymongo==4.20.1
+pymongo==4.20.2
     # via
     #   -r requirements/base.txt
     #   edx-opaque-keys
@@ -413,7 +413,7 @@ pyyaml==6.0.4
     #   code-annotations
     #   drf-spectacular
     #   edx-django-release-util
-redis==8.1.0
+redis==8.2.0
     # via -r requirements/base.txt
 referencing==0.37.0
     # via
@@ -502,7 +502,7 @@ threadpoolctl==3.8.0
     # via
     #   -r requirements/base.txt
     #   scikit-learn
-tomlkit==0.15.2
+tomlkit==0.15.3
     # via
     #   edx-lint
     #   pylint
@@ -544,11 +544,11 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
-wcwidth==0.9.4
+wcwidth==0.9.5
     # via
     #   -r requirements/base.txt
     #   prompt-toolkit
-xlsxwriter==3.3.3
+xlsxwriter==3.3.4
     # via -r requirements/base.txt
 zipp==4.1.2
     # via -r requirements/base.txt
